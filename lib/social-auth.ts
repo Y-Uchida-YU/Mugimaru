@@ -83,7 +83,11 @@ function getRequiredEnv(name: string) {
   return value;
 }
 
-function getRedirectUri() {
+function getAppReturnUri() {
+  return Linking.createURL(REDIRECT_PATH, { scheme: 'mugimaru' });
+}
+
+function getProviderRedirectUri() {
   const configured = OAUTH_REDIRECT_URI?.trim();
   if (configured) {
     if (!/^https:\/\/[^/\s?#]+(?:[^\s]*)?$/.test(configured)) {
@@ -93,7 +97,7 @@ function getRedirectUri() {
     }
     return configured;
   }
-  return Linking.createURL(REDIRECT_PATH, { scheme: 'mugimaru' });
+  return getAppReturnUri();
 }
 
 function normalizeString(value: unknown) {
@@ -292,12 +296,12 @@ async function runOAuthCodeFlow(input: {
   authorizeUrl: string;
   authorizeParams: Record<string, string>;
   expectedState: string;
+  returnUri: string;
 }) {
-  const redirectUri = getRedirectUri();
   const query = toQueryString(input.authorizeParams);
   const authUrl = `${input.authorizeUrl}?${query}`;
 
-  const result = await WebBrowser.openAuthSessionAsync(authUrl, redirectUri);
+  const result = await WebBrowser.openAuthSessionAsync(authUrl, input.returnUri);
   if (result.type !== 'success') {
     throw new Error('Authentication was cancelled.');
   }
@@ -326,7 +330,8 @@ function parseJwtPayload(token?: string): JwtPayload | null {
 export async function authenticateWithLine(): Promise<SocialAuthProfile> {
   const clientId = getRequiredEnv('EXPO_PUBLIC_LINE_CHANNEL_ID');
   const channelSecret = process.env.EXPO_PUBLIC_LINE_CHANNEL_SECRET;
-  const redirectUri = getRedirectUri();
+  const redirectUri = getProviderRedirectUri();
+  const appReturnUri = getAppReturnUri();
   const state = randomString(32);
   const codeVerifier = randomString(64);
   const codeChallenge = await createCodeChallenge(codeVerifier);
@@ -343,6 +348,7 @@ export async function authenticateWithLine(): Promise<SocialAuthProfile> {
       code_challenge_method: 'S256',
     },
     expectedState: state,
+    returnUri: appReturnUri,
   });
 
   const tokenParams = new URLSearchParams({
@@ -399,7 +405,8 @@ export async function authenticateWithLine(): Promise<SocialAuthProfile> {
 export async function authenticateWithX(): Promise<SocialAuthProfile> {
   const clientId = getRequiredEnv('EXPO_PUBLIC_X_CLIENT_ID');
   const clientSecret = process.env.EXPO_PUBLIC_X_CLIENT_SECRET;
-  const redirectUri = getRedirectUri();
+  const redirectUri = getProviderRedirectUri();
+  const appReturnUri = getAppReturnUri();
   const state = randomString(32);
   const codeVerifier = randomString(64);
   const codeChallenge = await createCodeChallenge(codeVerifier);
@@ -416,6 +423,7 @@ export async function authenticateWithX(): Promise<SocialAuthProfile> {
       code_challenge_method: 'S256',
     },
     expectedState: state,
+    returnUri: appReturnUri,
   });
 
   const tokenParams = new URLSearchParams({
