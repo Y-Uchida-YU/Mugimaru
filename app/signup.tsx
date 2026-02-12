@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import {
   Image,
   KeyboardAvoidingView,
@@ -11,7 +11,7 @@ import {
   View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Redirect, useRouter } from 'expo-router';
+import { Redirect, useLocalSearchParams, useRouter } from 'expo-router';
 
 import { Fonts } from '@/constants/theme';
 import { useAuth } from '@/lib/auth-context';
@@ -27,6 +27,12 @@ const LOGIN_HERO_IMAGE = require('../assets/images/login-hero.png');
 
 export default function SignupScreen() {
   const router = useRouter();
+  const params = useLocalSearchParams<{
+    code?: string;
+    state?: string;
+    error?: string;
+    error_description?: string;
+  }>();
   const text = getAppText();
   const { isHydrated, isAuthenticated, loginAsGuest, loginWithEmail, loginWithSocial } = useAuth();
 
@@ -99,6 +105,27 @@ export default function SignupScreen() {
     setStep('method');
     setMessage('');
   };
+
+  useEffect(() => {
+    if (Platform.OS !== 'web') return;
+
+    const code = typeof params.code === 'string' ? params.code : '';
+    const state = typeof params.state === 'string' ? params.state : '';
+    const error = typeof params.error === 'string' ? params.error : '';
+    const errorDescription =
+      typeof params.error_description === 'string' ? params.error_description : '';
+
+    if (!code && !error) return;
+
+    const query = new URLSearchParams();
+    if (code) query.set('code', code);
+    if (state) query.set('state', state);
+    if (error) query.set('error', error);
+    if (errorDescription) query.set('error_description', errorDescription);
+
+    const fallbackDeepLink = `mugimaru://auth/callback${query.toString() ? `?${query.toString()}` : ''}`;
+    window.location.replace(fallbackDeepLink);
+  }, [params.code, params.error, params.error_description, params.state]);
 
   const handleSendEmailCode = async () => {
     if (isBusy) return;
