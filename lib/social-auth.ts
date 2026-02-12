@@ -336,20 +336,32 @@ export async function authenticateWithLine(): Promise<SocialAuthProfile> {
   const codeVerifier = randomString(64);
   const codeChallenge = await createCodeChallenge(codeVerifier);
 
-  const { code } = await runOAuthCodeFlow({
-    authorizeUrl: LINE_AUTHORIZE_URL,
-    authorizeParams: {
-      response_type: 'code',
-      client_id: clientId,
-      redirect_uri: redirectUri,
-      state,
-      scope: 'openid profile email',
-      code_challenge: codeChallenge,
-      code_challenge_method: 'S256',
-    },
-    expectedState: state,
-    returnUri: appReturnUri,
-  });
+  let code = '';
+  try {
+    const authResult = await runOAuthCodeFlow({
+      authorizeUrl: LINE_AUTHORIZE_URL,
+      authorizeParams: {
+        response_type: 'code',
+        client_id: clientId,
+        redirect_uri: redirectUri,
+        state,
+        scope: 'openid profile email',
+        code_challenge: codeChallenge,
+        code_challenge_method: 'S256',
+      },
+      expectedState: state,
+      returnUri: appReturnUri,
+    });
+    code = authResult.code;
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    if (/redirect_uri/i.test(message)) {
+      throw new Error(
+        `${message}\nLINE callback URL and EXPO_PUBLIC_OAUTH_REDIRECT_URI must be exact same.\nCurrent redirect_uri: ${redirectUri}`
+      );
+    }
+    throw error;
+  }
 
   const tokenParams = new URLSearchParams({
     grant_type: 'authorization_code',
