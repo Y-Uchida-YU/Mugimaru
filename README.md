@@ -16,6 +16,41 @@ This is an [Expo](https://expo.dev) project created with [`create-expo-app`](htt
    npx expo start
    ```
 
+## Social login setup (LINE / X)
+
+Set env values in `.env`:
+
+```bash
+EXPO_PUBLIC_LINE_CHANNEL_ID=...
+EXPO_PUBLIC_X_CLIENT_ID=...
+EXPO_PUBLIC_OAUTH_REDIRECT_URI=https://your-app.vercel.app/auth/callback
+```
+
+For local PoC only, you can also set:
+
+```bash
+EXPO_PUBLIC_LINE_CHANNEL_SECRET=...
+EXPO_PUBLIC_X_CLIENT_SECRET=...
+```
+
+## Events API setup (Eventbrite)
+
+To fetch dog-related events in the `Events` tab, set:
+
+```bash
+EXPO_PUBLIC_EVENTBRITE_TOKEN=...
+```
+
+Without this token, the app falls back to sample events for UI testing.
+
+Register this callback URI in each provider console:
+
+```text
+https://your-app.vercel.app/auth/callback
+```
+
+If `EXPO_PUBLIC_OAUTH_REDIRECT_URI` is not set, the app falls back to `mugimaru://auth/callback`.
+
 In the output, you'll find options to open the app in a
 
 - [development build](https://docs.expo.dev/develop/development-builds/introduction/)
