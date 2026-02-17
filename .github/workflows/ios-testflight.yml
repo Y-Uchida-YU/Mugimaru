@@ -44,6 +44,16 @@ jobs:
           fi
           printf "%s" "$ASC_API_KEY_P8" > AuthKey.p8
 
+      - name: Validate CI secrets for submit
+        env:
+          EXPO_ASC_KEY_ID: ${{ secrets.ASC_API_KEY_ID }}
+          EXPO_ASC_ISSUER_ID: ${{ secrets.ASC_API_ISSUER_ID }}
+        run: |
+          [ -n "$EXPO_ASC_KEY_ID" ] || (echo "ASC_API_KEY_ID is missing" && exit 1)
+          [ -n "$EXPO_ASC_ISSUER_ID" ] || (echo "ASC_API_ISSUER_ID is missing" && exit 1)
+          [ -s "AuthKey.p8" ] || (echo "AuthKey.p8 is empty" && exit 1)
+          echo "Secrets look present."
+
       - name: Build iOS and auto-submit to TestFlight
         env:
           EXPO_ASC_API_KEY_PATH: AuthKey.p8
@@ -58,4 +68,4 @@ jobs:
             --profile production \
             --non-interactive \
             --auto-submit-with-profile production \
-            --no-wait
+            --wait
