@@ -1,0 +1,59 @@
+name: iOS TestFlight Auto Upload
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+concurrency:
+  group: ios-testflight-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-and-submit-ios:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Setup EAS
+        uses: expo/expo-github-action@v8
+        with:
+          eas-version: latest
+          token: ${{ secrets.EXPO_TOKEN }}
+
+      - name: Write App Store Connect API key
+        env:
+          ASC_API_KEY_P8: ${{ secrets.ASC_API_KEY_P8 }}
+        run: |
+          if [ -z "$ASC_API_KEY_P8" ]; then
+            echo "ASC_API_KEY_P8 is missing"
+            exit 1
+          fi
+          printf "%s" "$ASC_API_KEY_P8" > AuthKey.p8
+
+      - name: Build iOS and auto-submit to TestFlight
+        env:
+          EXPO_ASC_API_KEY_PATH: AuthKey.p8
+          EXPO_ASC_KEY_ID: ${{ secrets.ASC_API_KEY_ID }}
+          EXPO_ASC_ISSUER_ID: ${{ secrets.ASC_API_ISSUER_ID }}
+          APPLE_TEAM_ID: Z8CBPVNKKW
+        run: |
+          npx eas-cli build \
+            --platform ios \
+            --profile production \
+            --non-interactive \
+            --auto-submit-with-profile production \
+            --no-wait
