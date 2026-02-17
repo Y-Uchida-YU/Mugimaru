@@ -52,7 +52,8 @@ jobs:
           APPLE_TEAM_ID: Z8CBPVNKKW
           EAS_BUILD_NO_EXPO_GO_WARNING: "1"
         run: |
-          eas build \
+          npx eas-cli@latest whoami
+          npx eas-cli@latest build \
             --platform ios \
             --profile production \
             --non-interactive \
