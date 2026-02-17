@@ -2,6 +2,7 @@ import { useEffect } from 'react';
 import { Platform } from 'react-native';
 import { Redirect, useLocalSearchParams } from 'expo-router';
 import { useAuth } from '@/lib/auth-context';
+import { buildAuthCallbackDeepLink } from '@/lib/app-link';
 
 export default function IndexRoute() {
   const params = useLocalSearchParams<{
@@ -29,7 +30,7 @@ export default function IndexRoute() {
     if (error) query.set('error', error);
     if (errorDescription) query.set('error_description', errorDescription);
 
-    const fallbackDeepLink = `mugimaru://auth/callback${query.toString() ? `?${query.toString()}` : ''}`;
+    const fallbackDeepLink = buildAuthCallbackDeepLink(query);
     window.location.replace(fallbackDeepLink);
   }, [params.code, params.error, params.error_description, params.state]);
 

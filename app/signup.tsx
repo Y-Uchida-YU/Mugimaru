@@ -25,6 +25,7 @@ import {
   authenticateWithX,
 } from '@/lib/social-auth';
 import { hasSupabaseEnv } from '@/lib/supabase';
+import { APP_SCHEME, buildAuthCallbackDeepLink } from '@/lib/app-link';
 
 type SignupStep = 'method' | 'emailInput' | 'emailCode';
 type SocialProvider = 'line' | 'google' | 'apple' | 'x';
@@ -119,7 +120,7 @@ function formatSocialAuthError(provider: SocialProvider, error: unknown, localeG
   }
 
   if (lowered.includes('redirect_uri')) {
-    const redirect = process.env.EXPO_PUBLIC_OAUTH_REDIRECT_URI ?? 'mugimaru://auth/callback';
+    const redirect = process.env.EXPO_PUBLIC_OAUTH_REDIRECT_URI ?? `${APP_SCHEME}://auth/callback`;
     return localeGroup === 'japan'
       ? `LINE認証のコールバックURLが一致していません。\nLINE DevelopersのCallback URLと .env の EXPO_PUBLIC_OAUTH_REDIRECT_URI を完全一致させてください。\n現在の設定: ${redirect}`
       : `LINE callback URL mismatch. Ensure LINE Developers callback URL exactly matches EXPO_PUBLIC_OAUTH_REDIRECT_URI in .env.\nCurrent setting: ${redirect}`;
@@ -353,7 +354,7 @@ export default function SignupScreen() {
     if (error) query.set('error', error);
     if (errorDescription) query.set('error_description', errorDescription);
 
-    const fallbackDeepLink = `mugimaru://auth/callback${query.toString() ? `?${query.toString()}` : ''}`;
+    const fallbackDeepLink = buildAuthCallbackDeepLink(query);
     window.location.replace(fallbackDeepLink);
   }, [params.code, params.error, params.error_description, params.state]);
 

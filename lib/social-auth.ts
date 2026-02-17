@@ -1,7 +1,9 @@
 import * as Linking from 'expo-linking';
 import * as WebBrowser from 'expo-web-browser';
 
-export type SocialProvider = 'line' | 'x';
+import { APP_SCHEME } from '@/lib/app-link';
+
+export type SocialProvider = 'line' | 'google' | 'apple' | 'x';
 
 export type SocialAuthProfile = {
   externalId: string;
@@ -44,6 +46,32 @@ type XMeResponse = {
   };
 };
 
+type GoogleTokenResponse = {
+  access_token: string;
+  expires_in: number;
+  token_type: string;
+  scope?: string;
+  refresh_token?: string;
+  id_token?: string;
+};
+
+type GoogleUserInfoResponse = {
+  sub?: string;
+  name?: string;
+  email?: string;
+  picture?: string;
+};
+
+type AppleTokenResponse = {
+  access_token?: string;
+  expires_in?: number;
+  id_token?: string;
+  refresh_token?: string;
+  token_type?: string;
+  error?: string;
+  error_description?: string;
+};
+
 type JwtPayload = {
   sub?: string;
   name?: string;
@@ -57,6 +85,13 @@ const LINE_PROFILE_URL = 'https://api.line.me/v2/profile';
 const X_AUTHORIZE_URL = 'https://twitter.com/i/oauth2/authorize';
 const X_TOKEN_URL = 'https://api.twitter.com/2/oauth2/token';
 const X_ME_URL = 'https://api.twitter.com/2/users/me?user.fields=name,username,profile_image_url';
+
+const GOOGLE_AUTHORIZE_URL = 'https://accounts.google.com/o/oauth2/v2/auth';
+const GOOGLE_TOKEN_URL = 'https://oauth2.googleapis.com/token';
+const GOOGLE_USERINFO_URL = 'https://openidconnect.googleapis.com/v1/userinfo';
+
+const APPLE_AUTHORIZE_URL = 'https://appleid.apple.com/auth/authorize';
+const APPLE_TOKEN_URL = 'https://appleid.apple.com/auth/token';
 
 const REDIRECT_PATH = 'auth/callback';
 const PKCE_CHARSET = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-._~';
@@ -84,7 +119,7 @@ function getRequiredEnv(name: string) {
 }
 
 function getAppReturnUri() {
-  return Linking.createURL(REDIRECT_PATH, { scheme: 'mugimaru' });
+  return Linking.createURL(REDIRECT_PATH, { scheme: APP_SCHEME });
 }
 
 function getProviderRedirectUri() {
@@ -411,6 +446,175 @@ export async function authenticateWithLine(): Promise<SocialAuthProfile> {
     name: profile.displayName ?? idPayload?.name ?? 'LINE User',
     email: idPayload?.email ?? null,
     avatarUrl: profile.pictureUrl ?? null,
+  };
+}
+
+export async function authenticateWithGoogle(): Promise<SocialAuthProfile> {
+  const clientId = getRequiredEnv('EXPO_PUBLIC_GOOGLE_CLIENT_ID');
+  const clientSecret = process.env.EXPO_PUBLIC_GOOGLE_CLIENT_SECRET;
+  const redirectUri = getProviderRedirectUri();
+  const appReturnUri = getAppReturnUri();
+  const state = randomString(32);
+  const codeVerifier = randomString(64);
+  const codeChallenge = await createCodeChallenge(codeVerifier);
+
+  let code = '';
+  try {
+    const authResult = await runOAuthCodeFlow({
+      authorizeUrl: GOOGLE_AUTHORIZE_URL,
+      authorizeParams: {
+        response_type: 'code',
+        client_id: clientId,
+        redirect_uri: redirectUri,
+        scope: 'openid profile email',
+        state,
+        code_challenge: codeChallenge,
+        code_challenge_method: 'S256',
+        access_type: 'offline',
+        prompt: 'consent',
+      },
+      expectedState: state,
+      returnUri: appReturnUri,
+    });
+    code = authResult.code;
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    if (/redirect_uri/i.test(message)) {
+      throw new Error(
+        `${message}\nGoogle redirect URI and EXPO_PUBLIC_OAUTH_REDIRECT_URI must match exactly.\nCurrent redirect_uri: ${redirectUri}`
+      );
+    }
+    throw error;
+  }
+
+  const tokenParams = new URLSearchParams({
+    grant_type: 'authorization_code',
+    code,
+    redirect_uri: redirectUri,
+    client_id: clientId,
+    code_verifier: codeVerifier,
+  });
+  if (clientSecret) {
+    tokenParams.append('client_secret', clientSecret);
+  }
+
+  const tokenResponse = await fetch(GOOGLE_TOKEN_URL, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/x-www-form-urlencoded',
+    },
+    body: tokenParams.toString(),
+  });
+
+  if (!tokenResponse.ok) {
+    const text = await tokenResponse.text();
+    throw new Error(`Google token exchange failed (${tokenResponse.status}): ${text}`);
+  }
+
+  const token = (await tokenResponse.json()) as GoogleTokenResponse;
+  const userInfoResponse = await fetch(GOOGLE_USERINFO_URL, {
+    headers: {
+      Authorization: `Bearer ${token.access_token}`,
+    },
+  });
+
+  if (!userInfoResponse.ok) {
+    const text = await userInfoResponse.text();
+    throw new Error(`Google profile fetch failed (${userInfoResponse.status}): ${text}`);
+  }
+
+  const userInfo = (await userInfoResponse.json()) as GoogleUserInfoResponse;
+  const idPayload = parseJwtPayload(token.id_token);
+  const externalId = userInfo.sub ?? idPayload?.sub;
+  if (!externalId) {
+    throw new Error('Google profile did not include user id.');
+  }
+
+  return {
+    externalId,
+    name: userInfo.name ?? idPayload?.name ?? 'Google User',
+    email: userInfo.email ?? idPayload?.email ?? null,
+    avatarUrl: userInfo.picture ?? null,
+  };
+}
+
+export async function authenticateWithApple(): Promise<SocialAuthProfile> {
+  const clientId = getRequiredEnv('EXPO_PUBLIC_APPLE_CLIENT_ID');
+  const clientSecret = getRequiredEnv('EXPO_PUBLIC_APPLE_CLIENT_SECRET');
+  const redirectUri = getProviderRedirectUri();
+  const appReturnUri = getAppReturnUri();
+  const state = randomString(32);
+  const codeVerifier = randomString(64);
+  const codeChallenge = await createCodeChallenge(codeVerifier);
+
+  let code = '';
+  try {
+    const authResult = await runOAuthCodeFlow({
+      authorizeUrl: APPLE_AUTHORIZE_URL,
+      authorizeParams: {
+        response_type: 'code',
+        response_mode: 'query',
+        client_id: clientId,
+        redirect_uri: redirectUri,
+        scope: 'name email',
+        state,
+        code_challenge: codeChallenge,
+        code_challenge_method: 'S256',
+      },
+      expectedState: state,
+      returnUri: appReturnUri,
+    });
+    code = authResult.code;
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    if (/redirect_uri/i.test(message)) {
+      throw new Error(
+        `${message}\nApple redirect URI and EXPO_PUBLIC_OAUTH_REDIRECT_URI must match exactly.\nCurrent redirect_uri: ${redirectUri}`
+      );
+    }
+    throw error;
+  }
+
+  const tokenParams = new URLSearchParams({
+    grant_type: 'authorization_code',
+    code,
+    redirect_uri: redirectUri,
+    client_id: clientId,
+    client_secret: clientSecret,
+    code_verifier: codeVerifier,
+  });
+
+  const tokenResponse = await fetch(APPLE_TOKEN_URL, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/x-www-form-urlencoded',
+    },
+    body: tokenParams.toString(),
+  });
+
+  if (!tokenResponse.ok) {
+    const text = await tokenResponse.text();
+    throw new Error(`Apple token exchange failed (${tokenResponse.status}): ${text}`);
+  }
+
+  const token = (await tokenResponse.json()) as AppleTokenResponse;
+  if (token.error) {
+    throw new Error(
+      token.error_description ? `${token.error}: ${token.error_description}` : token.error
+    );
+  }
+
+  const idPayload = parseJwtPayload(token.id_token);
+  const externalId = idPayload?.sub;
+  if (!externalId) {
+    throw new Error('Apple id_token did not include user id.');
+  }
+
+  return {
+    externalId,
+    name: idPayload?.name ?? 'Apple User',
+    email: idPayload?.email ?? null,
+    avatarUrl: null,
   };
 }
 

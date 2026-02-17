@@ -24,6 +24,7 @@ Set env values in `.env`:
 EXPO_PUBLIC_LINE_CHANNEL_ID=...
 EXPO_PUBLIC_X_CLIENT_ID=...
 EXPO_PUBLIC_OAUTH_REDIRECT_URI=https://your-app.vercel.app/auth/callback
+EXPO_PUBLIC_APP_SCHEME=mugimaru
 ```
 
 For local PoC only, you can also set:

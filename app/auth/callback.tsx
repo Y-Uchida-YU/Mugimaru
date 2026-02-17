@@ -2,6 +2,8 @@ import { useEffect, useMemo } from 'react';
 import { ActivityIndicator, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useLocalSearchParams } from 'expo-router';
 
+import { buildAuthCallbackDeepLink } from '@/lib/app-link';
+
 export default function OAuthCallbackScreen() {
   const params = useLocalSearchParams<{
     code?: string;
@@ -17,7 +19,7 @@ export default function OAuthCallbackScreen() {
     if (typeof params.error_description === 'string') {
       query.set('error_description', params.error_description);
     }
-    return `mugimaru://auth/callback${query.toString() ? `?${query.toString()}` : ''}`;
+    return buildAuthCallbackDeepLink(query);
   }, [params.code, params.error, params.error_description, params.state]);
 
   useEffect(() => {
