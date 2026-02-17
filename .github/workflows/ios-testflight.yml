@@ -44,12 +44,16 @@ jobs:
           fi
           printf "%s" "$ASC_API_KEY_P8" > AuthKey.p8
 
+      - name: Link EAS project (non-interactive)
+        run: npx eas-cli init --non-interactive --force
+
       - name: Build iOS and auto-submit to TestFlight
         env:
           EXPO_ASC_API_KEY_PATH: AuthKey.p8
           EXPO_ASC_KEY_ID: ${{ secrets.ASC_API_KEY_ID }}
           EXPO_ASC_ISSUER_ID: ${{ secrets.ASC_API_ISSUER_ID }}
           APPLE_TEAM_ID: Z8CBPVNKKW
+          EAS_BUILD_NO_EXPO_GO_WARNING: "1"
         run: |
           npx eas-cli build \
             --platform ios \
