@@ -2,11 +2,11 @@
   "rewrites": [
     {
       "source": "/auth/callback",
-      "destination": "/signup"
+      "destination": "/"
     },
     {
       "source": "/auth/callback/:path*",
-      "destination": "/signup"
+      "destination": "/"
     }
   ]
 }
