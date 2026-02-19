@@ -66,6 +66,7 @@ jobs:
           npx eas-cli@latest whoami
 
           attempts=3
+          build_ok=0
           for attempt in $(seq 1 "$attempts"); do
             echo "Starting EAS build attempt ${attempt}/${attempts}..."
 
@@ -79,10 +80,11 @@ jobs:
             status=$?
             set -e
 
-            echo "$output"
+            printf "%s\n" "$output"
 
             if [ "$status" -eq 0 ]; then
               echo "EAS build+submit succeeded."
+              build_ok=1
               break
             fi
 
@@ -90,8 +92,18 @@ jobs:
               sleep_sec=$((attempt * 30))
               echo "Detected transient service/network error. Retrying in ${sleep_sec}s..."
               sleep "$sleep_sec"
-            else
-              echo "EAS build failed with non-retryable error (or retries exhausted)."
-              exit "$status"
+              continue
             fi
+
+            break
           done
+
+          if [ "$build_ok" -ne 1 ]; then
+            summary=$(printf "%s\n" "$output" | grep -E "(Error:|Failed to|✖|Submission failed|Build failed|unauthorized|forbidden|not found)" | tail -n 1 || true)
+            if [ -z "$summary" ]; then
+              summary=$(printf "%s\n" "$output" | tail -n 1)
+            fi
+            summary=$(printf "%s" "$summary" | tr '\n' ' ' | cut -c1-350)
+            echo "::error title=EAS build failed::${summary}"
+            exit "${status:-1}"
+          fi
