@@ -73,7 +73,7 @@ jobs:
       - name: Verify EAS authentication
         run: npx eas-cli@latest whoami
 
-      - name: Build iOS and auto-submit to TestFlight (captured)
+      - name: Build iOS then submit to TestFlight (captured, split phases)
         id: eas_run
         env:
           EXPO_ASC_API_KEY_PATH: AuthKey.p8
@@ -86,31 +86,32 @@ jobs:
           mkdir -p logs
 
           attempts=3
-          status=1
-          output=""
+          build_status=1
+          build_output=""
+          phase="build"
+
           for attempt in $(seq 1 "$attempts"); do
             echo "Starting EAS build attempt ${attempt}/${attempts}..." | tee -a logs/eas-attempts.log
 
             set +e
-            output=$(npx eas-cli@latest build \
+            build_output=$(npx eas-cli@latest build \
               --platform ios \
               --profile production \
               --non-interactive \
-              --auto-submit-with-profile production \
               --wait 2>&1)
-            status=$?
+            build_status=$?
             set -e
 
-            printf "%s\n" "$output" | tee "logs/eas-build-submit-attempt-${attempt}.log"
+            printf "%s\n" "$build_output" | tee "logs/eas-build-attempt-${attempt}.log"
 
-            if [ "$status" -eq 0 ]; then
-              echo "EAS build+submit succeeded on attempt ${attempt}." | tee -a logs/eas-attempts.log
+            if [ "$build_status" -eq 0 ]; then
+              echo "EAS build succeeded on attempt ${attempt}." | tee -a logs/eas-attempts.log
               break
             fi
 
-            if [ "$attempt" -lt "$attempts" ] && echo "$output" | grep -Eiq "services aren't available right now|service unavailable|gateway timeout|timed out|ECONNRESET|EAI_AGAIN|5[0-9]{2}"; then
+            if [ "$attempt" -lt "$attempts" ] && echo "$build_output" | grep -Eiq "services aren't available right now|service unavailable|gateway timeout|timed out|ECONNRESET|EAI_AGAIN|5[0-9]{2}"; then
               sleep_sec=$((attempt * 30))
-              echo "Detected transient service/network error. Retrying in ${sleep_sec}s..." | tee -a logs/eas-attempts.log
+              echo "Detected transient service/network error during build. Retrying in ${sleep_sec}s..." | tee -a logs/eas-attempts.log
               sleep "$sleep_sec"
               continue
             fi
@@ -118,31 +119,57 @@ jobs:
             break
           done
 
-          printf "%s\n" "$output" > logs/eas-build-submit-final.log
+          printf "%s\n" "$build_output" > logs/eas-build-final.log
 
-          grep -Ein "Error:|Failed to|✖|Submission failed|Build failed|unauthorized|forbidden|not found|timed out|rejected" logs/eas-build-submit-final.log > logs/eas-errors.log || true
+          if [ "$build_status" -eq 0 ]; then
+            phase="submit"
+            set +e
+            submit_output=$(npx eas-cli@latest submit \
+              --platform ios \
+              --profile production \
+              --latest \
+              --non-interactive 2>&1)
+            submit_status=$?
+            set -e
+
+            printf "%s\n" "$submit_output" | tee logs/eas-submit-final.log
+            status=$submit_status
+            final_log=logs/eas-submit-final.log
+          else
+            status=$build_status
+            final_log=logs/eas-build-final.log
+          fi
+
+          grep -Ein "Error:|Failed to|✖|Submission failed|Build failed|unauthorized|forbidden|not found|timed out|rejected" "$final_log" > logs/eas-errors.log || true
 
           summary=$(tail -n 1 logs/eas-errors.log 2>/dev/null || true)
           if [ -z "$summary" ]; then
-            summary=$(tail -n 1 logs/eas-build-submit-final.log || true)
+            summary=$(tail -n 1 "$final_log" || true)
           fi
           summary=$(printf "%s" "$summary" | tr '\n' ' ' | cut -c1-350)
 
           echo "exit_code=$status" >> "$GITHUB_OUTPUT"
+          echo "phase=$phase" >> "$GITHUB_OUTPUT"
           echo "summary=$summary" >> "$GITHUB_OUTPUT"
 
       - name: Failure diagnostics summary
         if: steps.eas_run.outputs.exit_code != '0'
         run: |
           set -euo pipefail
-          echo "## iOS TestFlight build failed" >> "$GITHUB_STEP_SUMMARY"
+          log_file="logs/eas-build-final.log"
+          if [ "${{ steps.eas_run.outputs.phase }}" = "submit" ] && [ -f "logs/eas-submit-final.log" ]; then
+            log_file="logs/eas-submit-final.log"
+          fi
+
+          echo "## iOS TestFlight pipeline failed" >> "$GITHUB_STEP_SUMMARY"
           echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Failed phase: ${{ steps.eas_run.outputs.phase }}" >> "$GITHUB_STEP_SUMMARY"
           echo "- Summary: ${{ steps.eas_run.outputs.summary }}" >> "$GITHUB_STEP_SUMMARY"
           echo "- Log artifact: ios-testflight-logs" >> "$GITHUB_STEP_SUMMARY"
           echo "" >> "$GITHUB_STEP_SUMMARY"
-          echo "### Last 80 log lines" >> "$GITHUB_STEP_SUMMARY"
+          echo "### Last 80 log lines (${log_file})" >> "$GITHUB_STEP_SUMMARY"
           echo '```' >> "$GITHUB_STEP_SUMMARY"
-          tail -n 80 logs/eas-build-submit-final.log >> "$GITHUB_STEP_SUMMARY" || true
+          tail -n 80 "$log_file" >> "$GITHUB_STEP_SUMMARY" || true
           echo '```' >> "$GITHUB_STEP_SUMMARY"
 
       - name: Upload CI logs
@@ -157,5 +184,5 @@ jobs:
       - name: Fail job if build/submit failed
         if: steps.eas_run.outputs.exit_code != '0'
         run: |
-          echo "::error title=EAS build failed::${{ steps.eas_run.outputs.summary }}"
+          echo "::error title=EAS ${{ steps.eas_run.outputs.phase }} failed::${{ steps.eas_run.outputs.summary }}"
           exit 1
