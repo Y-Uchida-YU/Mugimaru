@@ -137,8 +137,7 @@ jobs:
           set -euo pipefail
           echo "## iOS TestFlight build failed" >> "$GITHUB_STEP_SUMMARY"
           echo "" >> "$GITHUB_STEP_SUMMARY"
-          echo "- Summary: \
-${{ steps.eas_run.outputs.summary }}" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Summary: ${{ steps.eas_run.outputs.summary }}" >> "$GITHUB_STEP_SUMMARY"
           echo "- Log artifact: ios-testflight-logs" >> "$GITHUB_STEP_SUMMARY"
           echo "" >> "$GITHUB_STEP_SUMMARY"
           echo "### Last 80 log lines" >> "$GITHUB_STEP_SUMMARY"
