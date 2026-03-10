@@ -13,7 +13,11 @@ concurrency:
 jobs:
   build-and-submit-ios:
     runs-on: ubuntu-latest
-    timeout-minutes: 90
+    timeout-minutes: 120
+    permissions:
+      contents: read
+    env:
+      EAS_BUILD_NO_EXPO_GO_WARNING: "1"
 
     steps:
       - name: Checkout
@@ -34,155 +38,63 @@ jobs:
           eas-version: latest
           token: ${{ secrets.EXPO_TOKEN }}
 
-      - name: Preflight diagnostics
+      - name: Validate required secrets
+        env:
+          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+          ASC_API_KEY_ID: ${{ secrets.ASC_API_KEY_ID }}
+          ASC_API_ISSUER_ID: ${{ secrets.ASC_API_ISSUER_ID }}
+          ASC_API_KEY_P8: ${{ secrets.ASC_API_KEY_P8 }}
         run: |
           set -euo pipefail
-          mkdir -p logs
-          {
-            echo "=== CI Environment ==="
-            echo "Date (UTC): $(date -u)"
-            echo "Runner: ${RUNNER_OS:-unknown}"
-            echo "Node: $(node -v)"
-            echo "npm: $(npm -v)"
-            echo "npx: $(npx --version)"
-            echo
-            echo "=== EAS CLI ==="
-            npx eas-cli@latest --version
-          } | tee logs/preflight.log
+          for key in EXPO_TOKEN ASC_API_KEY_ID ASC_API_ISSUER_ID ASC_API_KEY_P8; do
+            if [ -z "${!key:-}" ]; then
+              echo "::error::Missing required secret: ${key}"
+              exit 1
+            fi
+          done
+          echo "All required secrets are present."
 
       - name: Write App Store Connect API key
         env:
           ASC_API_KEY_P8: ${{ secrets.ASC_API_KEY_P8 }}
         run: |
-          if [ -z "$ASC_API_KEY_P8" ]; then
-            echo "ASC_API_KEY_P8 is missing"
+          set -euo pipefail
+          if printf "%s" "$ASC_API_KEY_P8" | grep -q "BEGIN PRIVATE KEY"; then
+            printf "%s" "$ASC_API_KEY_P8" > AuthKey.p8
+          elif printf "%s" "$ASC_API_KEY_P8" | grep -q "\\\\n"; then
+            printf "%b" "$ASC_API_KEY_P8" > AuthKey.p8
+          else
+            printf "%s" "$ASC_API_KEY_P8" | base64 --decode > AuthKey.p8
+          fi
+
+          if ! grep -q "BEGIN PRIVATE KEY" AuthKey.p8; then
+            echo "::error::ASC_API_KEY_P8 could not be parsed as a valid .p8 key."
             exit 1
           fi
-          printf "%s" "$ASC_API_KEY_P8" > AuthKey.p8
 
-      - name: Validate CI secrets for submit
-        env:
-          EXPO_ASC_KEY_ID: ${{ secrets.ASC_API_KEY_ID }}
-          EXPO_ASC_ISSUER_ID: ${{ secrets.ASC_API_ISSUER_ID }}
+      - name: Build iOS (production)
         run: |
-          [ -n "$EXPO_ASC_KEY_ID" ] || (echo "ASC_API_KEY_ID is missing" && exit 1)
-          [ -n "$EXPO_ASC_ISSUER_ID" ] || (echo "ASC_API_ISSUER_ID is missing" && exit 1)
-          [ -s "AuthKey.p8" ] || (echo "AuthKey.p8 is empty" && exit 1)
-          echo "Secrets look present."
+          set -euo pipefail
+          npx eas-cli@latest whoami
+          npx eas-cli@latest build \
+            --platform ios \
+            --profile production \
+            --non-interactive \
+            --wait
 
-      - name: Verify EAS authentication
-        run: npx eas-cli@latest whoami
-
-      - name: Build iOS then submit to TestFlight (captured, split phases)
-        id: eas_run
+      - name: Submit latest iOS build to TestFlight
         env:
           EXPO_ASC_API_KEY_PATH: AuthKey.p8
           EXPO_ASC_KEY_ID: ${{ secrets.ASC_API_KEY_ID }}
           EXPO_ASC_ISSUER_ID: ${{ secrets.ASC_API_ISSUER_ID }}
-          APPLE_TEAM_ID: Z8CBPVNKKW
-          EAS_BUILD_NO_EXPO_GO_WARNING: "1"
         run: |
           set -euo pipefail
-          mkdir -p logs
+          npx eas-cli@latest submit \
+            --platform ios \
+            --profile production \
+            --latest \
+            --non-interactive
 
-          attempts=3
-          build_status=1
-          build_output=""
-          phase="build"
-
-          for attempt in $(seq 1 "$attempts"); do
-            echo "Starting EAS build attempt ${attempt}/${attempts}..." | tee -a logs/eas-attempts.log
-
-            set +e
-            build_output=$(npx eas-cli@latest build \
-              --platform ios \
-              --profile production \
-              --non-interactive \
-              --wait 2>&1)
-            build_status=$?
-            set -e
-
-            printf "%s\n" "$build_output" | tee "logs/eas-build-attempt-${attempt}.log"
-
-            if [ "$build_status" -eq 0 ]; then
-              echo "EAS build succeeded on attempt ${attempt}." | tee -a logs/eas-attempts.log
-              break
-            fi
-
-            if [ "$attempt" -lt "$attempts" ] && echo "$build_output" | grep -Eiq "services aren't available right now|service unavailable|gateway timeout|timed out|ECONNRESET|EAI_AGAIN|5[0-9]{2}"; then
-              sleep_sec=$((attempt * 30))
-              echo "Detected transient service/network error during build. Retrying in ${sleep_sec}s..." | tee -a logs/eas-attempts.log
-              sleep "$sleep_sec"
-              continue
-            fi
-
-            break
-          done
-
-          printf "%s\n" "$build_output" > logs/eas-build-final.log
-
-          if [ "$build_status" -eq 0 ]; then
-            phase="submit"
-            set +e
-            submit_output=$(npx eas-cli@latest submit \
-              --platform ios \
-              --profile production \
-              --latest \
-              --non-interactive 2>&1)
-            submit_status=$?
-            set -e
-
-            printf "%s\n" "$submit_output" | tee logs/eas-submit-final.log
-            status=$submit_status
-            final_log=logs/eas-submit-final.log
-          else
-            status=$build_status
-            final_log=logs/eas-build-final.log
-          fi
-
-          grep -Ein "Error:|Failed to|✖|Submission failed|Build failed|unauthorized|forbidden|not found|timed out|rejected" "$final_log" > logs/eas-errors.log || true
-
-          summary=$(tail -n 1 logs/eas-errors.log 2>/dev/null || true)
-          if [ -z "$summary" ]; then
-            summary=$(tail -n 1 "$final_log" || true)
-          fi
-          summary=$(printf "%s" "$summary" | tr '\n' ' ' | cut -c1-350)
-
-          echo "exit_code=$status" >> "$GITHUB_OUTPUT"
-          echo "phase=$phase" >> "$GITHUB_OUTPUT"
-          echo "summary=$summary" >> "$GITHUB_OUTPUT"
-
-      - name: Failure diagnostics summary
-        if: steps.eas_run.outputs.exit_code != '0'
-        run: |
-          set -euo pipefail
-          log_file="logs/eas-build-final.log"
-          if [ "${{ steps.eas_run.outputs.phase }}" = "submit" ] && [ -f "logs/eas-submit-final.log" ]; then
-            log_file="logs/eas-submit-final.log"
-          fi
-
-          echo "## iOS TestFlight pipeline failed" >> "$GITHUB_STEP_SUMMARY"
-          echo "" >> "$GITHUB_STEP_SUMMARY"
-          echo "- Failed phase: ${{ steps.eas_run.outputs.phase }}" >> "$GITHUB_STEP_SUMMARY"
-          echo "- Summary: ${{ steps.eas_run.outputs.summary }}" >> "$GITHUB_STEP_SUMMARY"
-          echo "- Log artifact: ios-testflight-logs" >> "$GITHUB_STEP_SUMMARY"
-          echo "" >> "$GITHUB_STEP_SUMMARY"
-          echo "### Last 80 log lines (${log_file})" >> "$GITHUB_STEP_SUMMARY"
-          echo '```' >> "$GITHUB_STEP_SUMMARY"
-          tail -n 80 "$log_file" >> "$GITHUB_STEP_SUMMARY" || true
-          echo '```' >> "$GITHUB_STEP_SUMMARY"
-
-      - name: Upload CI logs
+      - name: Cleanup App Store Connect key
         if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: ios-testflight-logs
-          path: logs/
-          if-no-files-found: warn
-          retention-days: 7
-
-      - name: Fail job if build/submit failed
-        if: steps.eas_run.outputs.exit_code != '0'
-        run: |
-          echo "::error title=EAS ${{ steps.eas_run.outputs.phase }} failed::${{ steps.eas_run.outputs.summary }}"
-          exit 1
+        run: rm -f AuthKey.p8
