@@ -75,12 +75,26 @@ jobs:
       - name: Build iOS (production)
         run: |
           set -euo pipefail
-          npx eas-cli@latest whoami
-          npx eas-cli@latest build \
+          eas whoami
+          eas build \
             --platform ios \
             --profile production \
             --non-interactive \
             --wait
+
+      - name: Inject App Store app id into submit profile
+        env:
+          ASC_APP_ID: ${{ secrets.ASC_APP_ID }}
+        run: |
+          set -euo pipefail
+          if [ -z "${ASC_APP_ID:-}" ]; then
+            echo "::error::Missing required secret: ASC_APP_ID"
+            echo "::error::Set ASC_APP_ID to the Apple numeric App ID (not bundle id)."
+            exit 1
+          fi
+          tmp_file="$(mktemp)"
+          jq --arg appId "$ASC_APP_ID" '.submit.production.ios.ascAppId = $appId' eas.json > "$tmp_file"
+          mv "$tmp_file" eas.json
 
       - name: Submit latest iOS build to TestFlight
         env:
@@ -89,7 +103,7 @@ jobs:
           EXPO_ASC_ISSUER_ID: ${{ secrets.ASC_API_ISSUER_ID }}
         run: |
           set -euo pipefail
-          npx eas-cli@latest submit \
+          eas submit \
             --platform ios \
             --profile production \
             --latest \
