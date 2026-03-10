@@ -1,86 +1,85 @@
-# Welcome to your Expo app 👋
+# Mugimaru (Expo + Supabase)
 
-This is an [Expo](https://expo.dev) project created with [`create-expo-app`](https://www.npmjs.com/package/create-expo-app).
+Mugimaru is an Expo app with:
 
-## Get started
+- Social signup/login (LINE / Google / Apple / X / Email / Guest)
+- Board tab with post + reply + profile features
+- Map tab with spots + reviews
+- Supabase-backed data persistence
 
-1. Install dependencies
+## Setup
 
-   ```bash
-   npm install
-   ```
-
-2. Start the app
-
-   ```bash
-   npx expo start
-   ```
-
-## Social login setup (LINE / X)
-
-Set env values in `.env`:
+1. Install dependencies:
 
 ```bash
+npm install
+```
+
+2. Configure `.env`:
+
+```bash
+EXPO_PUBLIC_SUPABASE_URL=...
+EXPO_PUBLIC_SUPABASE_ANON_KEY=...
 EXPO_PUBLIC_LINE_CHANNEL_ID=...
+EXPO_PUBLIC_GOOGLE_CLIENT_ID=...
+EXPO_PUBLIC_APPLE_CLIENT_ID=...
 EXPO_PUBLIC_X_CLIENT_ID=...
-EXPO_PUBLIC_OAUTH_REDIRECT_URI=https://your-app.vercel.app/auth/callback
+EXPO_PUBLIC_OAUTH_REDIRECT_URI=...
 EXPO_PUBLIC_APP_SCHEME=mugimaru
 ```
 
-For local PoC only, you can also set:
+3. Start app:
 
 ```bash
-EXPO_PUBLIC_LINE_CHANNEL_SECRET=...
-EXPO_PUBLIC_X_CLIENT_SECRET=...
+npx expo start
 ```
 
-## Events API setup (Eventbrite)
+## Board SNS Upgrade
 
-To fetch dog-related events in the `Events` tab, set:
+The board now includes:
 
-```bash
-EXPO_PUBLIC_EVENTBRITE_TOKEN=...
-```
+- Post creation with photo upload
+- Thread comments + reply
+- Profile modal + follow
+- Post likes
+- Post stamps/reactions
+- Community chat modal with sticker sending
 
-Without this token, the app falls back to sample events for UI testing.
+UI is refreshed to a Lemon-style layout focused on mobile readability.
 
-Register this callback URI in each provider console:
+## Supabase Schema / Migration
 
-```text
-https://your-app.vercel.app/auth/callback
-```
+### Fresh setup
 
-If `EXPO_PUBLIC_OAUTH_REDIRECT_URI` is not set, the app falls back to `mugimaru://auth/callback`.
+Apply:
 
-In the output, you'll find options to open the app in a
+- `supabase/schema.sql`
+- `supabase/migrations/20260310_board_social_upgrade.sql`
 
-- [development build](https://docs.expo.dev/develop/development-builds/introduction/)
-- [Android emulator](https://docs.expo.dev/workflow/android-studio-emulator/)
-- [iOS simulator](https://docs.expo.dev/workflow/ios-simulator/)
-- [Expo Go](https://expo.dev/go), a limited sandbox for trying out app development with Expo
+### Existing setup (non-destructive)
 
-You can start developing by editing the files inside the **app** directory. This project uses [file-based routing](https://docs.expo.dev/router/introduction).
+Apply:
 
-## Get a fresh project
+- `supabase/migrations/20260310_board_social_upgrade.sql`
 
-When you're ready, run:
+This migration adds:
 
-```bash
-npm run reset-project
-```
+- `public.board_post_likes`
+- `public.board_post_stamps`
+- `public.board_chat_messages`
 
-This command will move the starter code to the **app-example** directory and create a blank **app** directory where you can start developing.
+plus indexes, RLS policies, and grants.
 
-## Learn more
+## TestFlight / EAS
 
-To learn more about developing your project with Expo, look at the following resources:
+- Workflow: `.github/workflows/ios-testflight.yml`
+- Trigger: push to `main`
+- Build profile: `production` (in `eas.json`)
 
-- [Expo documentation](https://docs.expo.dev/): Learn fundamentals, or go into advanced topics with our [guides](https://docs.expo.dev/guides).
-- [Learn Expo tutorial](https://docs.expo.dev/tutorial/introduction/): Follow a step-by-step tutorial where you'll create a project that runs on Android, iOS, and the web.
+Required GitHub secrets:
 
-## Join the community
-
-Join our community of developers creating universal apps.
-
-- [Expo on GitHub](https://github.com/expo/expo): View our open source platform and contribute.
-- [Discord community](https://chat.expo.dev): Chat with Expo users and ask questions.
+- `EXPO_TOKEN`
+- `ASC_API_KEY_ID`
+- `ASC_API_ISSUER_ID`
+- `ASC_API_KEY_P8`
+- `ASC_APP_ID`

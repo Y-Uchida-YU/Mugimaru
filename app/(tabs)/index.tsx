@@ -14,14 +14,25 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import {
+  addBoardPostLike,
+  addBoardPostStamp,
+  createBoardChatMessage,
   createBoardComment,
   createBoardPost,
+  listBoardChatMessages,
   listBoardComments,
+  listBoardPostLikes,
+  listBoardPostStamps,
   listBoardPosts,
   listBoardPostsByAuthor,
+  removeBoardPostLike,
+  removeBoardPostStamp,
   updateBoardPostRepliesCount,
+  type BoardChatMessageRow,
   type BoardCommentRow,
+  type BoardPostLikeRow,
   type BoardPostRow,
+  type BoardPostStampRow,
 } from '@/lib/board-data';
 import { useAuth } from '@/lib/auth-context';
 import { formatMessage, getAppText } from '@/lib/i18n';
@@ -85,6 +96,29 @@ type SeedPost = {
   updatedAt: string;
 };
 
+const STAMP_OPTIONS = [
+  { key: 'paw', icon: '🐾', label: 'Paw' },
+  { key: 'heart', icon: '💛', label: 'Heart' },
+  { key: 'wow', icon: '✨', label: 'Wow' },
+  { key: 'fire', icon: '🔥', label: 'Fire' },
+] as const;
+
+const CHAT_STICKERS = ['🐶', '🦴', '🍋', '💛', '✨'];
+
+type StampKey = (typeof STAMP_OPTIONS)[number]['key'];
+type StampBucket = Record<StampKey, number>;
+
+type BoardChatMessage = {
+  id: string;
+  authorExternalId: string;
+  author: string;
+  authorAvatarUrl: string;
+  body: string;
+  sticker: string;
+  imageUrl: string;
+  createdAt: string;
+};
+
 function formatTimeLabel(iso: string | undefined) {
   if (!iso) return '--';
 
@@ -129,6 +163,19 @@ function parseTags(input: string) {
     .slice(0, 12);
 
   return Array.from(new Set(raw));
+}
+
+function createEmptyStampBucket(): StampBucket {
+  return {
+    paw: 0,
+    heart: 0,
+    wow: 0,
+    fire: 0,
+  };
+}
+
+function isStampKey(value: string): value is StampKey {
+  return STAMP_OPTIONS.some((option) => option.key === value);
 }
 
 function buildSeedPosts(seedPosts: SeedPost[]): BoardPost[] {
@@ -176,6 +223,90 @@ function mapRowToComment(row: BoardCommentRow): BoardComment {
   };
 }
 
+function mapRowToChatMessage(row: BoardChatMessageRow): BoardChatMessage {
+  return {
+    id: row.id,
+    authorExternalId: row.author_external_id,
+    author: row.author_name,
+    authorAvatarUrl: row.author_avatar_url ?? '',
+    body: row.body,
+    sticker: row.sticker ?? '',
+    imageUrl: row.image_url ?? '',
+    createdAt: row.created_at,
+  };
+}
+
+function buildLocalChatSeed(): BoardChatMessage[] {
+  return [
+    {
+      id: makeLocalId('chat'),
+      authorExternalId: 'seed:moderator',
+      author: 'Mugimaru Team',
+      authorAvatarUrl: '',
+      body: 'Welcome to Lemon Lounge. Share moments and tips.',
+      sticker: '🍋',
+      imageUrl: '',
+      createdAt: new Date(Date.now() - 1000 * 60 * 12).toISOString(),
+    },
+    {
+      id: makeLocalId('chat'),
+      authorExternalId: 'seed:walker',
+      author: 'Morning Walker',
+      authorAvatarUrl: '',
+      body: 'Any good sunset routes today?',
+      sticker: '',
+      imageUrl: '',
+      createdAt: new Date(Date.now() - 1000 * 60 * 6).toISOString(),
+    },
+  ];
+}
+
+function computeEngagement(
+  posts: BoardPost[],
+  likesRows: BoardPostLikeRow[],
+  stampRows: BoardPostStampRow[],
+  currentUserExternalId: string | undefined
+) {
+  const likesCountByPost: Record<string, number> = {};
+  const likedByPost: Record<string, boolean> = {};
+  const stampCountsByPost: Record<string, StampBucket> = {};
+  const myStampsByPost: Record<string, StampKey[]> = {};
+
+  for (const post of posts) {
+    likesCountByPost[post.id] = 0;
+    stampCountsByPost[post.id] = createEmptyStampBucket();
+    myStampsByPost[post.id] = [];
+  }
+
+  for (const row of likesRows) {
+    likesCountByPost[row.post_id] = (likesCountByPost[row.post_id] ?? 0) + 1;
+    if (currentUserExternalId && row.user_external_id === currentUserExternalId) {
+      likedByPost[row.post_id] = true;
+    }
+  }
+
+  for (const row of stampRows) {
+    if (!isStampKey(row.stamp)) continue;
+    const bucket = stampCountsByPost[row.post_id] ?? createEmptyStampBucket();
+    bucket[row.stamp] += 1;
+    stampCountsByPost[row.post_id] = bucket;
+
+    if (currentUserExternalId && row.user_external_id === currentUserExternalId) {
+      const mine = myStampsByPost[row.post_id] ?? [];
+      if (!mine.includes(row.stamp)) {
+        myStampsByPost[row.post_id] = [...mine, row.stamp];
+      }
+    }
+  }
+
+  return {
+    likesCountByPost,
+    likedByPost,
+    stampCountsByPost,
+    myStampsByPost,
+  };
+}
+
 function Avatar({ uri, label, size = 32 }: { uri: string; label: string; size?: number }) {
   if (uri && isImageValue(uri)) {
     return (
@@ -212,6 +343,10 @@ export default function BoardScreen() {
   const [query, setQuery] = useState('');
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState('');
+  const [likesCountByPost, setLikesCountByPost] = useState<Record<string, number>>({});
+  const [likedByPost, setLikedByPost] = useState<Record<string, boolean>>({});
+  const [stampCountsByPost, setStampCountsByPost] = useState<Record<string, StampBucket>>({});
+  const [myStampsByPost, setMyStampsByPost] = useState<Record<string, StampKey[]>>({});
 
   const [isComposerOpen, setComposerOpen] = useState(false);
   const [title, setTitle] = useState('');
@@ -231,6 +366,13 @@ export default function BoardScreen() {
   const [isProfileModalOpen, setProfileModalOpen] = useState(false);
   const [profileModal, setProfileModal] = useState<UserProfileModal | null>(null);
   const [isFollowBusy, setFollowBusy] = useState(false);
+  const [isChatModalOpen, setChatModalOpen] = useState(false);
+  const [chatMessages, setChatMessages] = useState<BoardChatMessage[]>([]);
+  const [localChatMessages, setLocalChatMessages] = useState<BoardChatMessage[]>(buildLocalChatSeed);
+  const [chatBody, setChatBody] = useState('');
+  const [chatSticker, setChatSticker] = useState<string | null>(null);
+  const [chatError, setChatError] = useState('');
+  const [isChatLoading, setChatLoading] = useState(false);
 
   useEffect(() => {
     let active = true;
@@ -238,7 +380,23 @@ export default function BoardScreen() {
     const load = async () => {
       if (!hasSupabaseEnv) {
         if (!active) return;
-        setPosts(buildSeedPosts(text.board.seedPosts));
+        const localPosts = buildSeedPosts(text.board.seedPosts);
+        const localLikes: Record<string, number> = {};
+        const localStampCounts: Record<string, StampBucket> = {};
+        for (const [index, post] of localPosts.entries()) {
+          localLikes[post.id] = Math.max(0, Math.floor(post.replies / 2));
+          const bucket = createEmptyStampBucket();
+          bucket.paw = (index + 1) % 3;
+          bucket.heart = (index + 2) % 4;
+          bucket.wow = index % 2;
+          localStampCounts[post.id] = bucket;
+        }
+
+        setPosts(localPosts);
+        setLikesCountByPost(localLikes);
+        setLikedByPost({});
+        setStampCountsByPost(localStampCounts);
+        setMyStampsByPost({});
         setMessage('Supabase is not configured. Running in local mode.');
         return;
       }
@@ -248,16 +406,37 @@ export default function BoardScreen() {
         const rows = await listBoardPosts();
         if (!active) return;
 
-        if (rows.length > 0) {
-          setPosts(rows.map(mapRowToPost));
+        const loadedPosts = rows.map(mapRowToPost);
+        setPosts(loadedPosts);
+
+        if (loadedPosts.length > 0) {
+          const [likesRows, stampRows] = await Promise.all([
+            listBoardPostLikes(loadedPosts.map((post) => post.id)),
+            listBoardPostStamps(loadedPosts.map((post) => post.id)),
+          ]);
+
+          if (!active) return;
+
+          const engagement = computeEngagement(loadedPosts, likesRows, stampRows, profile?.externalId);
+          setLikesCountByPost(engagement.likesCountByPost);
+          setLikedByPost(engagement.likedByPost);
+          setStampCountsByPost(engagement.stampCountsByPost);
+          setMyStampsByPost(engagement.myStampsByPost);
         } else {
-          setPosts(buildSeedPosts(text.board.seedPosts));
+          setLikesCountByPost({});
+          setLikedByPost({});
+          setStampCountsByPost({});
+          setMyStampsByPost({});
         }
 
         setMessage('Board synced with Supabase.');
       } catch (error) {
         if (!active) return;
-        setPosts(buildSeedPosts(text.board.seedPosts));
+        setPosts([]);
+        setLikesCountByPost({});
+        setLikedByPost({});
+        setStampCountsByPost({});
+        setMyStampsByPost({});
         setMessage(error instanceof Error ? error.message : 'Failed to load board posts.');
       } finally {
         if (active) setLoading(false);
@@ -268,7 +447,7 @@ export default function BoardScreen() {
     return () => {
       active = false;
     };
-  }, [text]);
+  }, [profile?.externalId, text]);
 
   const visiblePosts = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -318,6 +497,13 @@ export default function BoardScreen() {
     setProfileModalOpen(false);
     setProfileModal(null);
     setFollowBusy(false);
+  };
+
+  const closeChatModal = () => {
+    setChatModalOpen(false);
+    setChatBody('');
+    setChatSticker(null);
+    setChatError('');
   };
 
   const handlePickPostImage = async () => {
@@ -499,6 +685,9 @@ export default function BoardScreen() {
       };
 
       setPosts((prev) => [localPost, ...prev]);
+      setLikesCountByPost((prev) => ({ ...prev, [localPost.id]: 0 }));
+      setStampCountsByPost((prev) => ({ ...prev, [localPost.id]: createEmptyStampBucket() }));
+      setMyStampsByPost((prev) => ({ ...prev, [localPost.id]: [] }));
       setTitle('');
       setBody('');
       setImageUrl('');
@@ -521,7 +710,11 @@ export default function BoardScreen() {
         tags,
       });
 
-      setPosts((prev) => [mapRowToPost(created), ...prev]);
+      const mapped = mapRowToPost(created);
+      setPosts((prev) => [mapped, ...prev]);
+      setLikesCountByPost((prev) => ({ ...prev, [mapped.id]: 0 }));
+      setStampCountsByPost((prev) => ({ ...prev, [mapped.id]: createEmptyStampBucket() }));
+      setMyStampsByPost((prev) => ({ ...prev, [mapped.id]: [] }));
       setTitle('');
       setBody('');
       setImageUrl('');
@@ -631,6 +824,182 @@ export default function BoardScreen() {
     }
   };
 
+  const handleToggleLike = async (postId: string) => {
+    if (!profile || isGuest) {
+      setMessage('Please sign in to like posts.');
+      return;
+    }
+
+    const currentlyLiked = Boolean(likedByPost[postId]);
+    const nextLiked = !currentlyLiked;
+
+    setLikedByPost((prev) => ({
+      ...prev,
+      [postId]: nextLiked,
+    }));
+    setLikesCountByPost((prev) => ({
+      ...prev,
+      [postId]: Math.max(0, (prev[postId] ?? 0) + (nextLiked ? 1 : -1)),
+    }));
+
+    if (!hasSupabaseEnv) {
+      setMessage('Like updated in local mode.');
+      return;
+    }
+
+    try {
+      if (nextLiked) {
+        await addBoardPostLike(postId, profile.externalId);
+      } else {
+        await removeBoardPostLike(postId, profile.externalId);
+      }
+    } catch (error) {
+      setLikedByPost((prev) => ({
+        ...prev,
+        [postId]: currentlyLiked,
+      }));
+      setLikesCountByPost((prev) => ({
+        ...prev,
+        [postId]: Math.max(0, (prev[postId] ?? 0) + (currentlyLiked ? 1 : -1)),
+      }));
+      setMessage(error instanceof Error ? error.message : 'Failed to update like.');
+    }
+  };
+
+  const handleToggleStamp = async (postId: string, stamp: StampKey) => {
+    if (!profile || isGuest) {
+      setMessage('Please sign in to stamp posts.');
+      return;
+    }
+
+    const currentMine = myStampsByPost[postId] ?? [];
+    const alreadyStamped = currentMine.includes(stamp);
+
+    setMyStampsByPost((prev) => {
+      const mine = prev[postId] ?? [];
+      const nextMine = alreadyStamped ? mine.filter((item) => item !== stamp) : [...mine, stamp];
+      return {
+        ...prev,
+        [postId]: nextMine,
+      };
+    });
+
+    setStampCountsByPost((prev) => {
+      const base = prev[postId] ?? createEmptyStampBucket();
+      return {
+        ...prev,
+        [postId]: {
+          ...base,
+          [stamp]: Math.max(0, base[stamp] + (alreadyStamped ? -1 : 1)),
+        },
+      };
+    });
+
+    if (!hasSupabaseEnv) {
+      setMessage('Stamp updated in local mode.');
+      return;
+    }
+
+    try {
+      if (alreadyStamped) {
+        await removeBoardPostStamp(postId, profile.externalId, stamp);
+      } else {
+        await addBoardPostStamp(postId, profile.externalId, stamp);
+      }
+    } catch (error) {
+      setMyStampsByPost((prev) => {
+        const mine = prev[postId] ?? [];
+        const revertedMine = alreadyStamped ? [...mine, stamp] : mine.filter((item) => item !== stamp);
+        return {
+          ...prev,
+          [postId]: Array.from(new Set(revertedMine)),
+        };
+      });
+      setStampCountsByPost((prev) => {
+        const base = prev[postId] ?? createEmptyStampBucket();
+        return {
+          ...prev,
+          [postId]: {
+            ...base,
+            [stamp]: Math.max(0, base[stamp] + (alreadyStamped ? 1 : -1)),
+          },
+        };
+      });
+      setMessage(error instanceof Error ? error.message : 'Failed to update stamp.');
+    }
+  };
+
+  const openChatModal = async () => {
+    setChatModalOpen(true);
+    setChatError('');
+
+    if (!hasSupabaseEnv) {
+      setChatMessages(localChatMessages);
+      return;
+    }
+
+    try {
+      setChatLoading(true);
+      const rows = await listBoardChatMessages(200);
+      setChatMessages(rows.map(mapRowToChatMessage));
+    } catch (error) {
+      setChatMessages([]);
+      setChatError(error instanceof Error ? error.message : 'Failed to load chat.');
+    } finally {
+      setChatLoading(false);
+    }
+  };
+
+  const handleSendChatMessage = async () => {
+    if (!profile || isGuest) {
+      setChatError('Please sign in to use chat.');
+      return;
+    }
+
+    const trimmedBody = chatBody.trim();
+    if (!trimmedBody && !chatSticker) {
+      setChatError('Message or sticker is required.');
+      return;
+    }
+
+    const payload: BoardChatMessage = {
+      id: makeLocalId('chat'),
+      authorExternalId: profile.externalId,
+      author: profile.name || text.board.anonymous,
+      authorAvatarUrl: profile.avatarUrl || '',
+      body: trimmedBody,
+      sticker: chatSticker ?? '',
+      imageUrl: '',
+      createdAt: new Date().toISOString(),
+    };
+
+    if (!hasSupabaseEnv) {
+      setLocalChatMessages((prev) => [...prev, payload]);
+      setChatMessages((prev) => [...prev, payload]);
+      setChatBody('');
+      setChatSticker(null);
+      setChatError('');
+      return;
+    }
+
+    try {
+      const created = await createBoardChatMessage({
+        author_external_id: payload.authorExternalId,
+        author_name: payload.author,
+        author_avatar_url: payload.authorAvatarUrl || null,
+        body: payload.body,
+        sticker: payload.sticker || null,
+        image_url: null,
+      });
+      setChatMessages((prev) => [...prev, mapRowToChatMessage(created)]);
+      setChatBody('');
+      setChatSticker(null);
+      setChatError('');
+    } catch (error) {
+      setChatError(error instanceof Error ? error.message : 'Failed to send chat message.');
+    }
+  };
+
   const replyingTo = replyToCommentId
     ? comments.find((comment) => comment.id === replyToCommentId)?.author ?? ''
     : '';
@@ -646,9 +1015,37 @@ export default function BoardScreen() {
       <View style={styles.root}>
         <ScrollView contentContainerStyle={styles.content}>
           <View style={styles.heroCard}>
+            <View style={styles.heroGlowPrimary} />
+            <View style={styles.heroGlowSecondary} />
             <Text style={styles.heroLabel}>{text.board.heroLabel}</Text>
             <Text style={styles.heroTitle}>{text.board.heroTitle}</Text>
             <Text style={styles.heroCaption}>{text.board.heroCaption}</Text>
+            <View style={styles.heroStatsRow}>
+              <View style={styles.heroStatPill}>
+                <Text style={styles.heroStatLabel}>posts</Text>
+                <Text style={styles.heroStatValue}>{posts.length}</Text>
+              </View>
+              <View style={styles.heroStatPill}>
+                <Text style={styles.heroStatLabel}>visible</Text>
+                <Text style={styles.heroStatValue}>{visiblePosts.length}</Text>
+              </View>
+              <View style={styles.heroStatPill}>
+                <Text style={styles.heroStatLabel}>chat</Text>
+                <Text style={styles.heroStatValue}>
+                  {hasSupabaseEnv ? chatMessages.length : localChatMessages.length}
+                </Text>
+              </View>
+            </View>
+            <View style={styles.heroActionRow}>
+              <Pressable
+                style={[styles.heroActionButton, isGuest ? styles.heroActionButtonDisabled : null]}
+                onPress={() => (isGuest ? setMessage('Guest users cannot create posts.') : setComposerOpen(true))}>
+                <Text style={styles.heroActionText}>Create Post</Text>
+              </Pressable>
+              <Pressable style={styles.heroGhostButton} onPress={() => void openChatModal()}>
+                <Text style={styles.heroGhostButtonText}>Open Chat</Text>
+              </Pressable>
+            </View>
             {isGuest ? <Text style={styles.heroGuest}>Guest mode: posting is disabled.</Text> : null}
             <Text style={styles.heroSub}>{loading ? 'Loading...' : message}</Text>
           </View>
@@ -690,10 +1087,12 @@ export default function BoardScreen() {
                       onPress={() => void openUserProfile(post.authorExternalId, post.author, post.authorAvatarUrl)}>
                       <Text style={styles.authorName}>{post.author}</Text>
                     </Pressable>
-                    <Text style={styles.categoryText}>{post.category}</Text>
+                    <Text style={styles.updatedText}>{post.updatedAt}</Text>
                   </View>
                 </View>
-                <Text style={styles.updatedText}>{post.updatedAt}</Text>
+                <View style={styles.categoryBadge}>
+                  <Text style={styles.categoryBadgeText}>{post.category}</Text>
+                </View>
               </View>
 
               <Text style={styles.postTitle}>{post.title}</Text>
@@ -713,13 +1112,38 @@ export default function BoardScreen() {
                 <Image source={{ uri: post.imageUrl }} style={styles.postImage} resizeMode="cover" />
               ) : null}
 
-              <View style={styles.postBottomRow}>
-                <Text style={styles.replyText}>
-                  {formatMessage(text.board.repliesCount, { count: post.replies })}
-                </Text>
-                <Pressable onPress={() => void openComments(post)}>
-                  <Text style={styles.commentAction}>Comments</Text>
+              <View style={styles.actionRow}>
+                <Pressable
+                  style={[styles.actionPill, likedByPost[post.id] ? styles.actionPillActive : null]}
+                  onPress={() => void handleToggleLike(post.id)}>
+                  <Text style={[styles.actionPillText, likedByPost[post.id] ? styles.actionPillTextActive : null]}>
+                    💛 Like {likesCountByPost[post.id] ?? 0}
+                  </Text>
                 </Pressable>
+                <Pressable style={styles.actionPill} onPress={() => void openComments(post)}>
+                  <Text style={styles.actionPillText}>
+                    💬 {formatMessage(text.board.repliesCount, { count: post.replies })}
+                  </Text>
+                </Pressable>
+              </View>
+
+              <View style={styles.stampRow}>
+                {STAMP_OPTIONS.map((stampOption) => {
+                  const bucket = stampCountsByPost[post.id] ?? createEmptyStampBucket();
+                  const mine = myStampsByPost[post.id] ?? [];
+                  const active = mine.includes(stampOption.key);
+                  return (
+                    <Pressable
+                      key={`${post.id}:stamp:${stampOption.key}`}
+                      style={[styles.stampButton, active ? styles.stampButtonActive : null]}
+                      onPress={() => void handleToggleStamp(post.id, stampOption.key)}>
+                      <Text style={styles.stampEmoji}>{stampOption.icon}</Text>
+                      <Text style={[styles.stampCount, active ? styles.stampCountActive : null]}>
+                        {bucket[stampOption.key]}
+                      </Text>
+                    </Pressable>
+                  );
+                })}
               </View>
             </View>
           ))}
@@ -916,6 +1340,78 @@ export default function BoardScreen() {
         </Modal>
 
         <Modal
+          visible={isChatModalOpen}
+          transparent
+          animationType="slide"
+          onRequestClose={closeChatModal}>
+          <KeyboardAvoidingView
+            style={styles.modalOverlay}
+            behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+            <View style={styles.chatModalCard}>
+              <View style={styles.commentModalHeader}>
+                <Text style={styles.modalTitle}>Community Chat</Text>
+                <Pressable onPress={closeChatModal}>
+                  <Text style={styles.closeText}>Close</Text>
+                </Pressable>
+              </View>
+
+              <ScrollView style={styles.chatList} contentContainerStyle={styles.chatListContent}>
+                {isChatLoading ? <Text style={styles.commentHint}>Loading chat...</Text> : null}
+                {!isChatLoading && chatMessages.length === 0 ? (
+                  <Text style={styles.commentHint}>No messages yet.</Text>
+                ) : null}
+
+                {chatMessages.map((chatMessage) => {
+                  const mine = profile?.externalId === chatMessage.authorExternalId;
+                  return (
+                    <View
+                      key={chatMessage.id}
+                      style={[styles.chatRow, mine ? styles.chatRowMine : styles.chatRowOther]}>
+                      {!mine ? <Avatar uri={chatMessage.authorAvatarUrl} label={chatMessage.author} size={22} /> : null}
+                      <View style={[styles.chatBubble, mine ? styles.chatBubbleMine : styles.chatBubbleOther]}>
+                        <Text style={styles.chatAuthor}>{chatMessage.author}</Text>
+                        {chatMessage.body ? <Text style={styles.chatBody}>{chatMessage.body}</Text> : null}
+                        {chatMessage.sticker ? <Text style={styles.chatSticker}>{chatMessage.sticker}</Text> : null}
+                        <Text style={styles.chatMeta}>{formatTimeLabel(chatMessage.createdAt)}</Text>
+                      </View>
+                    </View>
+                  );
+                })}
+              </ScrollView>
+
+              <View style={styles.chatStickerRow}>
+                {CHAT_STICKERS.map((sticker) => {
+                  const active = sticker === chatSticker;
+                  return (
+                    <Pressable
+                      key={`chat:${sticker}`}
+                      style={[styles.chatStickerButton, active ? styles.chatStickerButtonActive : null]}
+                      onPress={() => setChatSticker(active ? null : sticker)}>
+                      <Text style={styles.chatStickerButtonText}>{sticker}</Text>
+                    </Pressable>
+                  );
+                })}
+              </View>
+
+              <View style={styles.chatComposerRow}>
+                <TextInput
+                  style={styles.chatInput}
+                  value={chatBody}
+                  onChangeText={setChatBody}
+                  placeholder="Write a message"
+                  placeholderTextColor="#927142"
+                />
+                <Pressable style={styles.chatSendButton} onPress={() => void handleSendChatMessage()}>
+                  <Text style={styles.chatSendText}>Send</Text>
+                </Pressable>
+              </View>
+
+              {chatError ? <Text style={styles.errorText}>{chatError}</Text> : null}
+            </View>
+          </KeyboardAvoidingView>
+        </Modal>
+
+        <Modal
           visible={isProfileModalOpen}
           transparent
           animationType="slide"
@@ -1002,54 +1498,137 @@ export default function BoardScreen() {
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
-    backgroundColor: '#f6efe3',
+    backgroundColor: '#fff8e7',
   },
   root: {
     flex: 1,
   },
   content: {
-    paddingHorizontal: 18,
+    paddingHorizontal: 16,
     paddingBottom: 110,
     paddingTop: 12,
   },
   heroCard: {
-    backgroundColor: '#eadfcd',
-    borderRadius: 18,
+    backgroundColor: '#ffe681',
+    borderRadius: 22,
+    borderWidth: 1,
+    borderColor: '#f2cd58',
     padding: 18,
     marginBottom: 14,
+    overflow: 'hidden',
+    position: 'relative',
+    gap: 8,
+  },
+  heroGlowPrimary: {
+    position: 'absolute',
+    width: 140,
+    height: 140,
+    borderRadius: 70,
+    right: -45,
+    top: -36,
+    backgroundColor: 'rgba(255, 255, 255, 0.35)',
+  },
+  heroGlowSecondary: {
+    position: 'absolute',
+    width: 70,
+    height: 70,
+    borderRadius: 35,
+    right: 24,
+    top: 44,
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
   },
   heroLabel: {
-    color: '#8b755c',
+    color: '#6b4f00',
     fontSize: 12,
-    letterSpacing: 1,
+    letterSpacing: 1.1,
     marginBottom: 6,
+    fontWeight: '700',
   },
   heroTitle: {
-    color: '#4a3828',
-    fontSize: 24,
-    fontWeight: '700',
+    color: '#2f2200',
+    fontSize: 30,
+    fontWeight: '800',
     marginBottom: 6,
   },
   heroCaption: {
-    color: '#6f5a43',
+    color: '#4d3a08',
     fontSize: 14,
+    maxWidth: '88%',
+  },
+  heroStatsRow: {
+    flexDirection: 'row',
+    gap: 8,
+    marginTop: 4,
+  },
+  heroStatPill: {
+    flex: 1,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: '#f5d97e',
+    backgroundColor: 'rgba(255, 251, 230, 0.7)',
+    paddingVertical: 8,
+    paddingHorizontal: 10,
+  },
+  heroStatLabel: {
+    color: '#846410',
+    fontSize: 11,
+    fontWeight: '700',
+  },
+  heroStatValue: {
+    color: '#2f2200',
+    fontSize: 16,
+    fontWeight: '800',
+  },
+  heroActionRow: {
+    flexDirection: 'row',
+    gap: 10,
+    marginTop: 4,
+  },
+  heroActionButton: {
+    flex: 1,
+    borderRadius: 12,
+    backgroundColor: '#29251b',
+    paddingVertical: 12,
+    alignItems: 'center',
+  },
+  heroActionButtonDisabled: {
+    backgroundColor: '#6f6a5f',
+  },
+  heroActionText: {
+    color: '#fff9ea',
+    fontSize: 14,
+    fontWeight: '700',
+  },
+  heroGhostButton: {
+    width: 120,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#7c6114',
+    paddingVertical: 12,
+    alignItems: 'center',
+    backgroundColor: 'rgba(255, 255, 255, 0.3)',
+  },
+  heroGhostButtonText: {
+    color: '#513d09',
+    fontSize: 13,
+    fontWeight: '700',
   },
   heroGuest: {
-    color: '#8a6742',
+    color: '#7a5d11',
     fontSize: 12,
     marginTop: 6,
   },
   heroSub: {
-    color: '#8a7358',
+    color: '#654d0b',
     fontSize: 12,
     marginTop: 6,
   },
   searchInput: {
     backgroundColor: '#ffffff',
-    borderColor: '#dbcab2',
+    borderColor: '#ebd58c',
     borderRadius: 14,
     borderWidth: 1,
-    color: '#4a3828',
+    color: '#3c3011',
     fontSize: 15,
     paddingHorizontal: 14,
     paddingVertical: 12,
@@ -1061,17 +1640,17 @@ const styles = StyleSheet.create({
     paddingRight: 18,
   },
   chip: {
-    backgroundColor: '#f0e6d8',
-    borderColor: '#d6c4ab',
+    backgroundColor: '#fff9e7',
+    borderColor: '#eddcaa',
     borderRadius: 999,
     borderWidth: 1,
     paddingHorizontal: 12,
     paddingVertical: 7,
   },
   chipText: {
-    color: '#6d563d',
+    color: '#6d5620',
     fontSize: 13,
-    fontWeight: '600',
+    fontWeight: '700',
   },
   sectionHeader: {
     alignItems: 'center',
@@ -1080,21 +1659,21 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   sectionTitle: {
-    color: '#5a4632',
-    fontSize: 18,
-    fontWeight: '700',
+    color: '#35290d',
+    fontSize: 20,
+    fontWeight: '800',
   },
   sectionMeta: {
-    color: '#8d765a',
+    color: '#8d7540',
     fontSize: 13,
   },
   postCard: {
-    backgroundColor: '#ffffff',
-    borderRadius: 14,
+    backgroundColor: '#fffef8',
+    borderRadius: 18,
     borderWidth: 1,
-    borderColor: '#d8c8af',
+    borderColor: '#f0ddb0',
     padding: 14,
-    marginBottom: 10,
+    marginBottom: 12,
     gap: 8,
   },
   postTopRow: {
@@ -1111,27 +1690,38 @@ const styles = StyleSheet.create({
     borderRadius: 18,
   },
   authorName: {
-    color: '#5d4934',
+    color: '#31250d',
     fontWeight: '700',
     fontSize: 13,
   },
-  categoryText: {
-    color: '#8f7a60',
-    fontSize: 12,
-  },
   updatedText: {
-    color: '#9a8468',
-    fontSize: 12,
-    paddingTop: 2,
+    color: '#8c7441',
+    fontSize: 11,
+    marginTop: 1,
   },
-  postTitle: {
-    color: '#4a3828',
-    fontSize: 16,
+  categoryBadge: {
+    borderRadius: 999,
+    backgroundColor: '#fff0b8',
+    borderWidth: 1,
+    borderColor: '#f3d16d',
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    marginLeft: 8,
+  },
+  categoryBadgeText: {
+    color: '#664f11',
+    fontSize: 11,
     fontWeight: '700',
   },
+  postTitle: {
+    color: '#2f2200',
+    fontSize: 18,
+    fontWeight: '800',
+  },
   postBody: {
-    color: '#755e45',
+    color: '#5f4a1b',
     fontSize: 14,
+    lineHeight: 20,
   },
   tagWrap: {
     flexDirection: 'row',
@@ -1141,36 +1731,78 @@ const styles = StyleSheet.create({
   tagChip: {
     borderRadius: 999,
     borderWidth: 1,
-    borderColor: '#dccab2',
-    backgroundColor: '#f7efe3',
+    borderColor: '#f0dfb5',
+    backgroundColor: '#fff9e6',
     paddingHorizontal: 8,
     paddingVertical: 3,
   },
   tagText: {
-    color: '#6d563d',
+    color: '#7b6230',
     fontSize: 12,
     fontWeight: '600',
   },
   postImage: {
     width: '100%',
-    height: 180,
-    borderRadius: 10,
-    backgroundColor: '#dcefe3',
+    height: 220,
+    borderRadius: 12,
+    backgroundColor: '#ebe3ca',
   },
-  postBottomRow: {
-    alignItems: 'center',
+  actionRow: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
+    gap: 8,
+    marginTop: 2,
   },
-  replyText: {
-    color: '#745d43',
-    fontSize: 13,
-    fontWeight: '600',
+  actionPill: {
+    flex: 1,
+    borderWidth: 1,
+    borderColor: '#f0ddb1',
+    borderRadius: 999,
+    paddingVertical: 8,
+    alignItems: 'center',
+    backgroundColor: '#fffdf3',
   },
-  commentAction: {
-    color: '#9b7a50',
+  actionPillActive: {
+    borderColor: '#f2cb57',
+    backgroundColor: '#fff2be',
+  },
+  actionPillText: {
+    color: '#5a4518',
     fontSize: 13,
     fontWeight: '700',
+  },
+  actionPillTextActive: {
+    color: '#4a3608',
+  },
+  stampRow: {
+    flexDirection: 'row',
+    gap: 7,
+  },
+  stampButton: {
+    flex: 1,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#f1e4bf',
+    backgroundColor: '#fffdf5',
+    paddingVertical: 7,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+  },
+  stampButtonActive: {
+    borderColor: '#ecbd3b',
+    backgroundColor: '#fff0b0',
+  },
+  stampEmoji: {
+    fontSize: 16,
+  },
+  stampCount: {
+    color: '#7b6534',
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  stampCountActive: {
+    color: '#5f480f',
   },
   avatarImage: {
     backgroundColor: '#e7d8c2',
@@ -1211,47 +1843,55 @@ const styles = StyleSheet.create({
   },
   modalOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(20, 38, 29, 0.45)',
+    backgroundColor: 'rgba(30, 25, 12, 0.4)',
     justifyContent: 'center',
-    padding: 18,
+    padding: 14,
   },
   modalCard: {
-    backgroundColor: '#fff9f1',
-    borderRadius: 16,
-    borderColor: '#dacab2',
+    backgroundColor: '#fffef7',
+    borderRadius: 18,
+    borderColor: '#f1dfb1',
     borderWidth: 1,
     padding: 14,
-    maxHeight: '86%',
+    maxHeight: '90%',
   },
   commentModalCard: {
-    backgroundColor: '#fff9f1',
-    borderRadius: 16,
-    borderColor: '#dacab2',
+    backgroundColor: '#fffef7',
+    borderRadius: 18,
+    borderColor: '#f1dfb1',
+    borderWidth: 1,
+    padding: 14,
+    maxHeight: '92%',
+  },
+  chatModalCard: {
+    backgroundColor: '#fffef7',
+    borderRadius: 18,
+    borderColor: '#f1dfb1',
     borderWidth: 1,
     padding: 14,
     maxHeight: '92%',
   },
   profileModalCard: {
-    backgroundColor: '#fff9f1',
-    borderRadius: 16,
-    borderColor: '#dacab2',
+    backgroundColor: '#fffef7',
+    borderRadius: 18,
+    borderColor: '#f1dfb1',
     borderWidth: 1,
     padding: 14,
     maxHeight: '92%',
   },
   modalTitle: {
-    color: '#4a3828',
+    color: '#302400',
     fontSize: 20,
-    fontWeight: '700',
+    fontWeight: '800',
     marginBottom: 2,
   },
   closeText: {
-    color: '#9b7a50',
-    fontSize: 14,
+    color: '#7e651f',
+    fontSize: 13,
     fontWeight: '700',
   },
   metaText: {
-    color: '#806a50',
+    color: '#866c2c',
     fontSize: 12,
     marginBottom: 10,
   },
@@ -1262,29 +1902,29 @@ const styles = StyleSheet.create({
   modalChip: {
     borderRadius: 999,
     borderWidth: 1,
-    borderColor: '#d9c8b0',
-    backgroundColor: '#f4ebde',
+    borderColor: '#f0deb0',
+    backgroundColor: '#fff8e7',
     paddingHorizontal: 12,
     paddingVertical: 7,
   },
   modalChipActive: {
-    borderColor: '#b89b76',
-    backgroundColor: '#ecdfce',
+    borderColor: '#e7be49',
+    backgroundColor: '#ffe99d',
   },
   modalChipText: {
-    color: '#70593f',
+    color: '#745d21',
     fontSize: 12,
-    fontWeight: '600',
+    fontWeight: '700',
   },
   modalChipTextActive: {
-    color: '#674f35',
+    color: '#4d3809',
   },
   modalInput: {
-    backgroundColor: '#ffffff',
-    borderColor: '#dac9b2',
+    backgroundColor: '#fffef8',
+    borderColor: '#efddaf',
     borderWidth: 1,
     borderRadius: 10,
-    color: '#4f3c2a',
+    color: '#40310f',
     fontSize: 14,
     marginBottom: 8,
     paddingHorizontal: 11,
@@ -1301,13 +1941,13 @@ const styles = StyleSheet.create({
   mediaButton: {
     flex: 1,
     borderRadius: 10,
-    backgroundColor: '#9b7a50',
+    backgroundColor: '#29251b',
     alignItems: 'center',
     justifyContent: 'center',
     paddingVertical: 10,
   },
   mediaButtonText: {
-    color: '#ffffff',
+    color: '#fff8e7',
     fontWeight: '700',
     fontSize: 13,
   },
@@ -1315,14 +1955,14 @@ const styles = StyleSheet.create({
     width: 92,
     borderRadius: 10,
     borderWidth: 1,
-    borderColor: '#d7c7ad',
-    backgroundColor: '#f8f1e6',
+    borderColor: '#ead9ac',
+    backgroundColor: '#fff9e9',
     alignItems: 'center',
     justifyContent: 'center',
     paddingVertical: 10,
   },
   mediaGhostButtonText: {
-    color: '#6c5439',
+    color: '#72581f',
     fontWeight: '700',
     fontSize: 13,
   },
@@ -1334,7 +1974,7 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   errorText: {
-    color: '#a53030',
+    color: '#b3362f',
     fontSize: 12,
     marginBottom: 8,
   },
@@ -1352,17 +1992,17 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   cancelButton: {
-    backgroundColor: '#ede2d2',
+    backgroundColor: '#efe8d2',
   },
   submitButton: {
-    backgroundColor: '#9b7a50',
+    backgroundColor: '#2b251b',
   },
   cancelText: {
-    color: '#6c5439',
+    color: '#665225',
     fontWeight: '700',
   },
   submitText: {
-    color: '#ffffff',
+    color: '#fff7df',
     fontWeight: '700',
   },
   commentModalHeader: {
@@ -1490,6 +2130,109 @@ const styles = StyleSheet.create({
   },
   commentSubmitText: {
     color: '#ffffff',
+    fontWeight: '700',
+  },
+  chatList: {
+    maxHeight: 290,
+    marginBottom: 8,
+  },
+  chatListContent: {
+    gap: 8,
+    paddingBottom: 8,
+  },
+  chatRow: {
+    flexDirection: 'row',
+    gap: 6,
+    alignItems: 'flex-end',
+  },
+  chatRowMine: {
+    justifyContent: 'flex-end',
+  },
+  chatRowOther: {
+    justifyContent: 'flex-start',
+  },
+  chatBubble: {
+    maxWidth: '82%',
+    borderRadius: 12,
+    borderWidth: 1,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+    gap: 3,
+  },
+  chatBubbleMine: {
+    borderColor: '#f1c857',
+    backgroundColor: '#fff0b8',
+  },
+  chatBubbleOther: {
+    borderColor: '#f0dfb1',
+    backgroundColor: '#fffef7',
+  },
+  chatAuthor: {
+    color: '#6a5220',
+    fontSize: 11,
+    fontWeight: '700',
+  },
+  chatBody: {
+    color: '#3e300e',
+    fontSize: 13,
+    lineHeight: 18,
+  },
+  chatSticker: {
+    fontSize: 24,
+    marginTop: 2,
+  },
+  chatMeta: {
+    color: '#9c8450',
+    fontSize: 11,
+    alignSelf: 'flex-end',
+  },
+  chatStickerRow: {
+    flexDirection: 'row',
+    gap: 8,
+    marginBottom: 8,
+  },
+  chatStickerButton: {
+    flex: 1,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: '#f0dfb3',
+    backgroundColor: '#fffdf6',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 7,
+  },
+  chatStickerButtonActive: {
+    borderColor: '#e7be4b',
+    backgroundColor: '#ffeaa0',
+  },
+  chatStickerButtonText: {
+    fontSize: 20,
+  },
+  chatComposerRow: {
+    flexDirection: 'row',
+    gap: 8,
+    alignItems: 'center',
+  },
+  chatInput: {
+    flex: 1,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: '#f0dfb2',
+    backgroundColor: '#fffef8',
+    paddingHorizontal: 11,
+    paddingVertical: 9,
+    color: '#413210',
+  },
+  chatSendButton: {
+    width: 86,
+    borderRadius: 10,
+    backgroundColor: '#2b251b',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 11,
+  },
+  chatSendText: {
+    color: '#fff5dc',
     fontWeight: '700',
   },
   profileTopRow: {
