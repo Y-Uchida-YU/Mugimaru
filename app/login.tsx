@@ -16,18 +16,22 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Fonts } from '@/constants/theme';
 import { useAuth } from '@/lib/auth-context';
 import { getAppText } from '@/lib/i18n';
+import { authenticateWithApple } from '@/lib/social-auth';
 
 const LOGIN_HERO_IMAGE = require('../assets/images/login-hero.png');
 
 export default function LoginScreen() {
   const router = useRouter();
   const text = getAppText();
-  const { isHydrated, isAuthenticated, loginWithPassword } = useAuth();
+  const { isHydrated, isAuthenticated, loginWithPassword, loginWithSocial } = useAuth();
 
   const [credential, setCredential] = useState('');
   const [password, setPassword] = useState('');
   const [isBusy, setBusy] = useState(false);
   const [message, setMessage] = useState('');
+  const hasAppleOAuth = Boolean(
+    process.env.EXPO_PUBLIC_APPLE_CLIENT_ID && process.env.EXPO_PUBLIC_APPLE_CLIENT_SECRET
+  );
 
   const copy =
     text.localeGroup === 'japan'
@@ -40,9 +44,12 @@ export default function LoginScreen() {
           passwordLabel: '\u30d1\u30b9\u30ef\u30fc\u30c9',
           passwordPlaceholder: '\u30d1\u30b9\u30ef\u30fc\u30c9',
           loginAction: '\u30ed\u30b0\u30a4\u30f3',
+          appleLoginAction: 'Apple\u3067\u30ed\u30b0\u30a4\u30f3',
           backSignup: '\u767b\u9332\u65b9\u6cd5\u9078\u629e\u306b\u623b\u308b',
           missingId: 'ID\u307e\u305f\u306f\u30e1\u30fc\u30eb\u30a2\u30c9\u30ec\u30b9\u3092\u5165\u529b\u3057\u3066\u304f\u3060\u3055\u3044\u3002',
           missingPassword: '\u30d1\u30b9\u30ef\u30fc\u30c9\u3092\u5165\u529b\u3057\u3066\u304f\u3060\u3055\u3044\u3002',
+          appleMissing:
+            'EXPO_PUBLIC_APPLE_CLIENT_ID \u307e\u305f\u306f EXPO_PUBLIC_APPLE_CLIENT_SECRET \u304c\u672a\u8a2d\u5b9a\u3067\u3059\u3002',
         }
       : {
           title: 'Log In',
@@ -52,9 +59,11 @@ export default function LoginScreen() {
           passwordLabel: 'Password',
           passwordPlaceholder: 'Password',
           loginAction: 'Log In',
+          appleLoginAction: 'Log In with Apple',
           backSignup: 'Back to sign up options',
           missingId: 'Please enter your ID or email.',
           missingPassword: 'Please enter your password.',
+          appleMissing: 'EXPO_PUBLIC_APPLE_CLIENT_ID or EXPO_PUBLIC_APPLE_CLIENT_SECRET is missing.',
         };
 
   const handleLogin = async () => {
@@ -78,6 +87,26 @@ export default function LoginScreen() {
       router.replace('/(tabs)');
     } catch (error) {
       setMessage(error instanceof Error ? error.message : 'Login failed.');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const handleAppleLogin = async () => {
+    if (isBusy) return;
+    if (!hasAppleOAuth) {
+      setMessage(copy.appleMissing);
+      return;
+    }
+
+    setBusy(true);
+    setMessage('');
+    try {
+      const socialProfile = await authenticateWithApple();
+      await loginWithSocial('apple', socialProfile);
+      router.replace('/(tabs)');
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : 'Apple login failed.');
     } finally {
       setBusy(false);
     }
@@ -131,6 +160,13 @@ export default function LoginScreen() {
               onPress={() => void handleLogin()}
               disabled={isBusy}>
               <Text style={styles.loginButtonText}>{copy.loginAction}</Text>
+            </Pressable>
+
+            <Pressable
+              style={[styles.appleButton, isBusy ? styles.loginButtonDisabled : null]}
+              onPress={() => void handleAppleLogin()}
+              disabled={isBusy}>
+              <Text style={styles.appleButtonText}>{copy.appleLoginAction}</Text>
             </Pressable>
 
             <Pressable onPress={() => router.replace('/signup')} disabled={isBusy}>
@@ -220,6 +256,17 @@ const styles = StyleSheet.create({
     opacity: 0.6,
   },
   loginButtonText: {
+    color: '#ffffff',
+    fontWeight: '700',
+    fontSize: 14,
+  },
+  appleButton: {
+    borderRadius: 10,
+    backgroundColor: '#111111',
+    alignItems: 'center',
+    paddingVertical: 11,
+  },
+  appleButtonText: {
     color: '#ffffff',
     fontWeight: '700',
     fontSize: 14,

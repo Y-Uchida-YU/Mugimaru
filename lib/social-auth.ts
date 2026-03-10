@@ -14,6 +14,10 @@ export type SocialAuthProfile = {
 
 type OAuthSessionResult = {
   code: string;
+  profileHint?: {
+    name?: string;
+    email?: string;
+  };
 };
 
 type LineTokenResponse = {
@@ -78,6 +82,14 @@ type JwtPayload = {
   email?: string;
 };
 
+type AppleUserPayload = {
+  name?: {
+    firstName?: string;
+    lastName?: string;
+  };
+  email?: string;
+};
+
 const LINE_AUTHORIZE_URL = 'https://access.line.me/oauth2/v2.1/authorize';
 const LINE_TOKEN_URL = 'https://api.line.me/oauth2/v2.1/token';
 const LINE_PROFILE_URL = 'https://api.line.me/v2/profile';
@@ -137,6 +149,29 @@ function getProviderRedirectUri() {
 
 function normalizeString(value: unknown) {
   return typeof value === 'string' ? value : '';
+}
+
+function parseAppleUserProfileHint(value: unknown): OAuthSessionResult['profileHint'] {
+  const raw = normalizeString(value).trim();
+  if (!raw) {
+    return undefined;
+  }
+  try {
+    const parsed = JSON.parse(raw) as AppleUserPayload;
+    const firstName = normalizeString(parsed?.name?.firstName).trim();
+    const lastName = normalizeString(parsed?.name?.lastName).trim();
+    const name = [firstName, lastName].filter(Boolean).join(' ').trim();
+    const email = normalizeString(parsed?.email).trim().toLowerCase();
+    if (!name && !email) {
+      return undefined;
+    }
+    return {
+      name: name || undefined,
+      email: email || undefined,
+    };
+  } catch {
+    return undefined;
+  }
 }
 
 function toQueryString(values: Record<string, string>) {
@@ -324,7 +359,10 @@ function parseOAuthUrl(url: string, expectedState: string): OAuthSessionResult {
     throw new Error('Authorization code was not returned by provider.');
   }
 
-  return { code };
+  return {
+    code,
+    profileHint: parseAppleUserProfileHint(queryParams.user),
+  };
 }
 
 async function runOAuthCodeFlow(input: {
@@ -547,9 +585,10 @@ export async function authenticateWithApple(): Promise<SocialAuthProfile> {
   const codeVerifier = randomString(64);
   const codeChallenge = await createCodeChallenge(codeVerifier);
 
+  let authResult: OAuthSessionResult | null = null;
   let code = '';
   try {
-    const authResult = await runOAuthCodeFlow({
+    authResult = await runOAuthCodeFlow({
       authorizeUrl: APPLE_AUTHORIZE_URL,
       authorizeParams: {
         response_type: 'code',
@@ -609,11 +648,13 @@ export async function authenticateWithApple(): Promise<SocialAuthProfile> {
   if (!externalId) {
     throw new Error('Apple id_token did not include user id.');
   }
+  const hintedName = authResult?.profileHint?.name?.trim() || '';
+  const hintedEmail = authResult?.profileHint?.email?.trim().toLowerCase() || '';
 
   return {
     externalId,
-    name: idPayload?.name ?? 'Apple User',
-    email: idPayload?.email ?? null,
+    name: hintedName || idPayload?.name || 'Apple User',
+    email: hintedEmail || idPayload?.email || null,
     avatarUrl: null,
   };
 }
