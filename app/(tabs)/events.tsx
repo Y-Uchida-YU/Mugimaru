@@ -12,6 +12,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { searchDogEvents, type DogEvent } from '@/lib/events-data';
+import { useAppTheme } from '@/lib/app-theme-context';
 import { getEventsText } from '@/lib/events-l10n';
 
 type CalendarCell = {
@@ -71,6 +72,8 @@ function formatDateTime(dateTime: string, localeTag: string) {
 
 export default function EventsScreen() {
   const text = getEventsText();
+  const { activeTheme } = useAppTheme();
+  const themeColors = activeTheme.colors;
   const todayIso = useMemo(() => toIsoDate(new Date()), []);
   const [selectedDateIso, setSelectedDateIso] = useState(todayIso);
   const [monthCursor, setMonthCursor] = useState(() => firstDayOfMonth(todayIso));
@@ -158,28 +161,46 @@ export default function EventsScreen() {
   };
 
   return (
-    <SafeAreaView style={styles.safeArea}>
+    <SafeAreaView style={[styles.safeArea, { backgroundColor: themeColors.background }]}>
       <ScrollView contentContainerStyle={styles.content}>
-        <View style={styles.heroCard}>
-          <Text style={styles.title}>{text.title}</Text>
-          <Text style={styles.caption}>{text.caption}</Text>
+        <View
+          style={[
+            styles.heroCard,
+            {
+              backgroundColor: themeColors.elevated,
+              borderColor: themeColors.border,
+            },
+          ]}>
+          <Text style={[styles.title, { color: themeColors.text }]}>{text.title}</Text>
+          <Text style={[styles.caption, { color: themeColors.mutedText }]}>{text.caption}</Text>
         </View>
 
-        <View style={styles.filterCard}>
-          <Text style={styles.label}>{text.selectedDate}</Text>
+        <View
+          style={[
+            styles.filterCard,
+            {
+              backgroundColor: themeColors.surface,
+              borderColor: themeColors.border,
+            },
+          ]}>
+          <Text style={[styles.label, { color: themeColors.mutedText }]}>{text.selectedDate}</Text>
           <View style={styles.monthRow}>
-            <Pressable style={styles.monthButton} onPress={() => handleMoveMonth(-1)}>
-              <Text style={styles.monthButtonText}>{'<'}</Text>
+            <Pressable
+              style={[styles.monthButton, { borderColor: themeColors.border, backgroundColor: themeColors.chip }]}
+              onPress={() => handleMoveMonth(-1)}>
+              <Text style={[styles.monthButtonText, { color: themeColors.text }]}>{'<'}</Text>
             </Pressable>
-            <Text style={styles.monthText}>{monthLabel}</Text>
-            <Pressable style={styles.monthButton} onPress={() => handleMoveMonth(1)}>
-              <Text style={styles.monthButtonText}>{'>'}</Text>
+            <Text style={[styles.monthText, { color: themeColors.text }]}>{monthLabel}</Text>
+            <Pressable
+              style={[styles.monthButton, { borderColor: themeColors.border, backgroundColor: themeColors.chip }]}
+              onPress={() => handleMoveMonth(1)}>
+              <Text style={[styles.monthButtonText, { color: themeColors.text }]}>{'>'}</Text>
             </Pressable>
           </View>
 
           <View style={styles.weekRow}>
             {text.weekdays.map((label) => (
-              <Text key={label} style={styles.weekLabel}>
+              <Text key={label} style={[styles.weekLabel, { color: themeColors.mutedText }]}>
                 {label}
               </Text>
             ))}
@@ -194,7 +215,15 @@ export default function EventsScreen() {
                   style={[
                     styles.dayCell,
                     !cell.inCurrentMonth ? styles.dayCellMuted : null,
-                    selected ? styles.dayCellSelected : null,
+                    selected
+                      ? [
+                          styles.dayCellSelected,
+                          {
+                            backgroundColor: themeColors.accent,
+                            borderColor: themeColors.accent,
+                          },
+                        ]
+                      : null,
                     cell.isToday && !selected ? styles.dayCellToday : null,
                   ]}
                   onPress={() => handleSelectDate(cell.dateIso)}>
@@ -202,7 +231,9 @@ export default function EventsScreen() {
                     style={[
                       styles.dayText,
                       !cell.inCurrentMonth ? styles.dayTextMuted : null,
-                      selected ? styles.dayTextSelected : null,
+                      selected ? [styles.dayTextSelected, { color: themeColors.accentContrast }] : null,
+                      !selected && cell.inCurrentMonth ? { color: themeColors.text } : null,
+                      !selected && !cell.inCurrentMonth ? { color: themeColors.mutedText } : null,
                     ]}>
                     {cell.day}
                   </Text>
@@ -212,42 +243,65 @@ export default function EventsScreen() {
           </View>
 
           <View style={styles.filterActions}>
-            <Pressable style={styles.ghostButton} onPress={handleToday}>
-              <Text style={styles.ghostButtonText}>{text.todayAction}</Text>
+            <Pressable
+              style={[styles.ghostButton, { borderColor: themeColors.border, backgroundColor: themeColors.chip }]}
+              onPress={handleToday}>
+              <Text style={[styles.ghostButtonText, { color: themeColors.chipText }]}>{text.todayAction}</Text>
             </Pressable>
           </View>
 
-          <Text style={styles.label}>{text.areaLabel}</Text>
+          <Text style={[styles.label, { color: themeColors.mutedText }]}>{text.areaLabel}</Text>
           <TextInput
-            style={styles.input}
+            style={[
+              styles.input,
+              {
+                borderColor: themeColors.border,
+                backgroundColor: themeColors.background,
+                color: themeColors.text,
+              },
+            ]}
             value={area}
             onChangeText={setArea}
             placeholder={text.areaPlaceholder}
+            placeholderTextColor={themeColors.mutedText}
             autoCapitalize="words"
           />
           <View style={styles.filterActions}>
-            <Pressable style={styles.primaryButton} onPress={handleAreaSearch}>
-              <Text style={styles.primaryButtonText}>{text.searchAction}</Text>
+            <Pressable style={[styles.primaryButton, { backgroundColor: themeColors.accent }]} onPress={handleAreaSearch}>
+              <Text style={[styles.primaryButtonText, { color: themeColors.accentContrast }]}>
+                {text.searchAction}
+              </Text>
             </Pressable>
-            <Pressable style={styles.ghostButton} onPress={handleClearArea}>
-              <Text style={styles.ghostButtonText}>{text.clearAreaAction}</Text>
+            <Pressable
+              style={[styles.ghostButton, { borderColor: themeColors.border, backgroundColor: themeColors.chip }]}
+              onPress={handleClearArea}>
+              <Text style={[styles.ghostButtonText, { color: themeColors.chipText }]}>{text.clearAreaAction}</Text>
             </Pressable>
           </View>
 
-          <Text style={styles.quickAreasLabel}>{text.quickAreasLabel}</Text>
+          <Text style={[styles.quickAreasLabel, { color: themeColors.mutedText }]}>{text.quickAreasLabel}</Text>
           <View style={styles.quickAreaRow}>
             {QUICK_AREAS.map((quickArea) => (
               <Pressable
                 key={quickArea}
                 style={[
                   styles.quickAreaChip,
-                  area.trim().toLowerCase() === quickArea.toLowerCase() ? styles.quickAreaChipActive : null,
+                  {
+                    borderColor: themeColors.border,
+                    backgroundColor: themeColors.chip,
+                  },
+                  area.trim().toLowerCase() === quickArea.toLowerCase()
+                    ? [styles.quickAreaChipActive, { backgroundColor: themeColors.accent, borderColor: themeColors.accent }]
+                    : null,
                 ]}
                 onPress={() => handleQuickArea(quickArea)}>
                 <Text
                   style={[
                     styles.quickAreaChipText,
-                    area.trim().toLowerCase() === quickArea.toLowerCase() ? styles.quickAreaChipTextActive : null,
+                    { color: themeColors.chipText },
+                    area.trim().toLowerCase() === quickArea.toLowerCase()
+                      ? [styles.quickAreaChipTextActive, { color: themeColors.accentContrast }]
+                      : null,
                   ]}>
                   {quickArea}
                 </Text>
@@ -256,29 +310,48 @@ export default function EventsScreen() {
           </View>
         </View>
 
-        <View style={styles.listCard}>
-          <Text style={styles.sourceLine}>
+        <View
+          style={[
+            styles.listCard,
+            {
+              backgroundColor: themeColors.surface,
+              borderColor: themeColors.border,
+            },
+          ]}>
+          <Text style={[styles.sourceLine, { color: themeColors.mutedText }]}>
             {text.sourceLabel}: {source === 'eventbrite' ? text.sourceEventbrite : text.sourceSample}
           </Text>
 
           {isLoading ? (
             <View style={styles.loadingWrap}>
-              <ActivityIndicator size="small" color="#9b7a50" />
-              <Text style={styles.loadingText}>{text.loading}</Text>
+              <ActivityIndicator size="small" color={themeColors.accent} />
+              <Text style={[styles.loadingText, { color: themeColors.mutedText }]}>{text.loading}</Text>
             </View>
           ) : events.length === 0 ? (
-            <Text style={styles.emptyText}>{text.noResults}</Text>
+            <Text style={[styles.emptyText, { color: themeColors.mutedText }]}>{text.noResults}</Text>
           ) : (
             events.map((event) => (
-              <View key={event.id} style={styles.eventCard}>
-                <Text style={styles.eventTime}>{formatDateTime(event.startAt, text.localeTag)}</Text>
-                <Text style={styles.eventTitle}>{event.title}</Text>
-                {event.venueName ? <Text style={styles.eventMeta}>{event.venueName}</Text> : null}
-                {event.area ? <Text style={styles.eventMeta}>{event.area}</Text> : null}
-                {event.description ? <Text style={styles.eventDesc}>{event.description}</Text> : null}
+              <View
+                key={event.id}
+                style={[
+                  styles.eventCard,
+                  {
+                    borderColor: themeColors.border,
+                    backgroundColor: themeColors.background,
+                  },
+                ]}>
+                <Text style={[styles.eventTime, { color: themeColors.accent }]}>
+                  {formatDateTime(event.startAt, text.localeTag)}
+                </Text>
+                <Text style={[styles.eventTitle, { color: themeColors.text }]}>{event.title}</Text>
+                {event.venueName ? <Text style={[styles.eventMeta, { color: themeColors.mutedText }]}>{event.venueName}</Text> : null}
+                {event.area ? <Text style={[styles.eventMeta, { color: themeColors.mutedText }]}>{event.area}</Text> : null}
+                {event.description ? <Text style={[styles.eventDesc, { color: themeColors.text }]}>{event.description}</Text> : null}
                 {event.url ? (
-                  <Pressable style={styles.linkButton} onPress={() => void handleOpenLink(event.url)}>
-                    <Text style={styles.linkButtonText}>{text.openLink}</Text>
+                  <Pressable
+                    style={[styles.linkButton, { backgroundColor: themeColors.chip }]}
+                    onPress={() => void handleOpenLink(event.url)}>
+                    <Text style={[styles.linkButtonText, { color: themeColors.chipText }]}>{text.openLink}</Text>
                   </Pressable>
                 ) : null}
               </View>
@@ -286,7 +359,7 @@ export default function EventsScreen() {
           )}
         </View>
 
-        {message ? <Text style={styles.message}>{message}</Text> : null}
+        {message ? <Text style={[styles.message, { color: themeColors.mutedText }]}>{message}</Text> : null}
       </ScrollView>
     </SafeAreaView>
   );

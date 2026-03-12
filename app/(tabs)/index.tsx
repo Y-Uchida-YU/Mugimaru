@@ -35,6 +35,7 @@ import {
   type BoardPostStampRow,
 } from '@/lib/board-data';
 import { useAuth } from '@/lib/auth-context';
+import { useAppTheme } from '@/lib/app-theme-context';
 import { formatMessage, getAppText } from '@/lib/i18n';
 import { pickImageFromLibrary } from '@/lib/mobile-image-picker';
 import { hasSupabaseEnv } from '@/lib/supabase';
@@ -335,6 +336,8 @@ function Avatar({ uri, label, size = 32 }: { uri: string; label: string; size?: 
 
 export default function BoardScreen() {
   const text = getAppText();
+  const { activeTheme } = useAppTheme();
+  const themeColors = activeTheme.colors;
   const { profile } = useAuth();
   const isGuest = profile?.provider === 'guest';
   const categories = text.board.categories;
@@ -1011,70 +1014,98 @@ export default function BoardScreen() {
     profile?.externalId !== profileModal?.externalId;
 
   return (
-    <SafeAreaView style={styles.safeArea}>
+    <SafeAreaView style={[styles.safeArea, { backgroundColor: themeColors.background }]}>
       <View style={styles.root}>
         <ScrollView contentContainerStyle={styles.content}>
-          <View style={styles.heroCard}>
+          <View
+            style={[
+              styles.heroCard,
+              {
+                backgroundColor: themeColors.elevated,
+                borderColor: themeColors.border,
+              },
+            ]}>
             <View style={styles.heroGlowPrimary} />
             <View style={styles.heroGlowSecondary} />
-            <Text style={styles.heroLabel}>{text.board.heroLabel}</Text>
-            <Text style={styles.heroTitle}>{text.board.heroTitle}</Text>
-            <Text style={styles.heroCaption}>{text.board.heroCaption}</Text>
+            <Text style={[styles.heroLabel, { color: themeColors.mutedText }]}>{text.board.heroLabel}</Text>
+            <Text style={[styles.heroTitle, { color: themeColors.text }]}>{text.board.heroTitle}</Text>
+            <Text style={[styles.heroCaption, { color: themeColors.mutedText }]}>{text.board.heroCaption}</Text>
             <View style={styles.heroStatsRow}>
-              <View style={styles.heroStatPill}>
-                <Text style={styles.heroStatLabel}>posts</Text>
-                <Text style={styles.heroStatValue}>{posts.length}</Text>
+              <View style={[styles.heroStatPill, { borderColor: themeColors.border, backgroundColor: themeColors.surface }]}>
+                <Text style={[styles.heroStatLabel, { color: themeColors.mutedText }]}>posts</Text>
+                <Text style={[styles.heroStatValue, { color: themeColors.text }]}>{posts.length}</Text>
               </View>
-              <View style={styles.heroStatPill}>
-                <Text style={styles.heroStatLabel}>visible</Text>
-                <Text style={styles.heroStatValue}>{visiblePosts.length}</Text>
+              <View style={[styles.heroStatPill, { borderColor: themeColors.border, backgroundColor: themeColors.surface }]}>
+                <Text style={[styles.heroStatLabel, { color: themeColors.mutedText }]}>visible</Text>
+                <Text style={[styles.heroStatValue, { color: themeColors.text }]}>{visiblePosts.length}</Text>
               </View>
-              <View style={styles.heroStatPill}>
-                <Text style={styles.heroStatLabel}>chat</Text>
-                <Text style={styles.heroStatValue}>
+              <View style={[styles.heroStatPill, { borderColor: themeColors.border, backgroundColor: themeColors.surface }]}>
+                <Text style={[styles.heroStatLabel, { color: themeColors.mutedText }]}>chat</Text>
+                <Text style={[styles.heroStatValue, { color: themeColors.text }]}>
                   {hasSupabaseEnv ? chatMessages.length : localChatMessages.length}
                 </Text>
               </View>
             </View>
             <View style={styles.heroActionRow}>
               <Pressable
-                style={[styles.heroActionButton, isGuest ? styles.heroActionButtonDisabled : null]}
+                style={[
+                  styles.heroActionButton,
+                  { backgroundColor: themeColors.accent },
+                  isGuest ? styles.heroActionButtonDisabled : null,
+                ]}
                 onPress={() => (isGuest ? setMessage('Guest users cannot create posts.') : setComposerOpen(true))}>
-                <Text style={styles.heroActionText}>Create Post</Text>
+                <Text style={[styles.heroActionText, { color: themeColors.accentContrast }]}>Create Post</Text>
               </Pressable>
-              <Pressable style={styles.heroGhostButton} onPress={() => void openChatModal()}>
-                <Text style={styles.heroGhostButtonText}>Open Chat</Text>
+              <Pressable
+                style={[styles.heroGhostButton, { borderColor: themeColors.border, backgroundColor: themeColors.chip }]}
+                onPress={() => void openChatModal()}>
+                <Text style={[styles.heroGhostButtonText, { color: themeColors.chipText }]}>Open Chat</Text>
               </Pressable>
             </View>
-            {isGuest ? <Text style={styles.heroGuest}>Guest mode: posting is disabled.</Text> : null}
-            <Text style={styles.heroSub}>{loading ? 'Loading...' : message}</Text>
+            {isGuest ? <Text style={[styles.heroGuest, { color: themeColors.mutedText }]}>Guest mode: posting is disabled.</Text> : null}
+            <Text style={[styles.heroSub, { color: themeColors.mutedText }]}>{loading ? 'Loading...' : message}</Text>
           </View>
 
           <TextInput
-            style={styles.searchInput}
+            style={[
+              styles.searchInput,
+              {
+                backgroundColor: themeColors.surface,
+                borderColor: themeColors.border,
+                color: themeColors.text,
+              },
+            ]}
             placeholder={text.board.searchPlaceholder}
-            placeholderTextColor="#a49178"
+            placeholderTextColor={themeColors.mutedText}
             value={query}
             onChangeText={setQuery}
           />
 
           <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chips}>
             {categories.map((category) => (
-              <View key={category} style={styles.chip}>
-                <Text style={styles.chipText}>#{category}</Text>
+              <View key={category} style={[styles.chip, { backgroundColor: themeColors.chip, borderColor: themeColors.border }]}>
+                <Text style={[styles.chipText, { color: themeColors.chipText }]}>#{category}</Text>
               </View>
             ))}
           </ScrollView>
 
           <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>{text.board.latestThreads}</Text>
-            <Text style={styles.sectionMeta}>
+            <Text style={[styles.sectionTitle, { color: themeColors.text }]}>{text.board.latestThreads}</Text>
+            <Text style={[styles.sectionMeta, { color: themeColors.mutedText }]}>
               {formatMessage(text.board.itemsCount, { count: visiblePosts.length })}
             </Text>
           </View>
 
           {visiblePosts.map((post) => (
-            <View key={post.id} style={styles.postCard}>
+            <View
+              key={post.id}
+              style={[
+                styles.postCard,
+                {
+                  backgroundColor: themeColors.surface,
+                  borderColor: themeColors.border,
+                },
+              ]}>
               <View style={styles.postTopRow}>
                 <View style={styles.postAuthorRow}>
                   <Pressable
@@ -1085,24 +1116,26 @@ export default function BoardScreen() {
                   <View>
                     <Pressable
                       onPress={() => void openUserProfile(post.authorExternalId, post.author, post.authorAvatarUrl)}>
-                      <Text style={styles.authorName}>{post.author}</Text>
+                      <Text style={[styles.authorName, { color: themeColors.text }]}>{post.author}</Text>
                     </Pressable>
-                    <Text style={styles.updatedText}>{post.updatedAt}</Text>
+                    <Text style={[styles.updatedText, { color: themeColors.mutedText }]}>{post.updatedAt}</Text>
                   </View>
                 </View>
-                <View style={styles.categoryBadge}>
-                  <Text style={styles.categoryBadgeText}>{post.category}</Text>
+                <View style={[styles.categoryBadge, { borderColor: themeColors.border, backgroundColor: themeColors.chip }]}>
+                  <Text style={[styles.categoryBadgeText, { color: themeColors.chipText }]}>{post.category}</Text>
                 </View>
               </View>
 
-              <Text style={styles.postTitle}>{post.title}</Text>
-              <Text style={styles.postBody}>{post.body}</Text>
+              <Text style={[styles.postTitle, { color: themeColors.text }]}>{post.title}</Text>
+              <Text style={[styles.postBody, { color: themeColors.mutedText }]}>{post.body}</Text>
 
               {post.tags.length > 0 ? (
                 <View style={styles.tagWrap}>
                   {post.tags.map((tag) => (
-                    <View key={`${post.id}:${tag}`} style={styles.tagChip}>
-                      <Text style={styles.tagText}>#{tag}</Text>
+                    <View
+                      key={`${post.id}:${tag}`}
+                      style={[styles.tagChip, { borderColor: themeColors.border, backgroundColor: themeColors.background }]}>
+                      <Text style={[styles.tagText, { color: themeColors.mutedText }]}>#{tag}</Text>
                     </View>
                   ))}
                 </View>
@@ -1114,14 +1147,30 @@ export default function BoardScreen() {
 
               <View style={styles.actionRow}>
                 <Pressable
-                  style={[styles.actionPill, likedByPost[post.id] ? styles.actionPillActive : null]}
+                  style={[
+                    styles.actionPill,
+                    {
+                      borderColor: themeColors.border,
+                      backgroundColor: themeColors.background,
+                    },
+                    likedByPost[post.id]
+                      ? [styles.actionPillActive, { borderColor: themeColors.accent, backgroundColor: themeColors.accent }]
+                      : null,
+                  ]}
                   onPress={() => void handleToggleLike(post.id)}>
-                  <Text style={[styles.actionPillText, likedByPost[post.id] ? styles.actionPillTextActive : null]}>
+                  <Text
+                    style={[
+                      styles.actionPillText,
+                      { color: likedByPost[post.id] ? themeColors.accentContrast : themeColors.text },
+                      likedByPost[post.id] ? styles.actionPillTextActive : null,
+                    ]}>
                     💛 Like {likesCountByPost[post.id] ?? 0}
                   </Text>
                 </Pressable>
-                <Pressable style={styles.actionPill} onPress={() => void openComments(post)}>
-                  <Text style={styles.actionPillText}>
+                <Pressable
+                  style={[styles.actionPill, { borderColor: themeColors.border, backgroundColor: themeColors.background }]}
+                  onPress={() => void openComments(post)}>
+                  <Text style={[styles.actionPillText, { color: themeColors.text }]}>
                     💬 {formatMessage(text.board.repliesCount, { count: post.replies })}
                   </Text>
                 </Pressable>
@@ -1135,10 +1184,21 @@ export default function BoardScreen() {
                   return (
                     <Pressable
                       key={`${post.id}:stamp:${stampOption.key}`}
-                      style={[styles.stampButton, active ? styles.stampButtonActive : null]}
+                      style={[
+                        styles.stampButton,
+                        { borderColor: themeColors.border, backgroundColor: themeColors.background },
+                        active
+                          ? [styles.stampButtonActive, { borderColor: themeColors.accent, backgroundColor: themeColors.chip }]
+                          : null,
+                      ]}
                       onPress={() => void handleToggleStamp(post.id, stampOption.key)}>
                       <Text style={styles.stampEmoji}>{stampOption.icon}</Text>
-                      <Text style={[styles.stampCount, active ? styles.stampCountActive : null]}>
+                      <Text
+                        style={[
+                          styles.stampCount,
+                          { color: active ? themeColors.text : themeColors.mutedText },
+                          active ? styles.stampCountActive : null,
+                        ]}>
                         {bucket[stampOption.key]}
                       </Text>
                     </Pressable>
@@ -1150,18 +1210,18 @@ export default function BoardScreen() {
         </ScrollView>
 
         <Pressable
-          style={[styles.fab, isGuest ? styles.fabDisabled : null]}
+          style={[styles.fab, { backgroundColor: themeColors.accent }, isGuest ? styles.fabDisabled : null]}
           onPress={() => (isGuest ? setMessage('Guest users cannot create posts.') : setComposerOpen(true))}>
-          <Text style={styles.fabText}>+</Text>
+          <Text style={[styles.fabText, { color: themeColors.accentContrast }]}>+</Text>
         </Pressable>
 
         <Modal visible={isComposerOpen} transparent animationType="fade" onRequestClose={closeComposer}>
           <KeyboardAvoidingView
             style={styles.modalOverlay}
             behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-            <View style={styles.modalCard}>
-              <Text style={styles.modalTitle}>{text.board.composerTitle}</Text>
-              <Text style={styles.metaText}>Author: {profile?.name || text.board.anonymous}</Text>
+            <View style={[styles.modalCard, { backgroundColor: themeColors.surface, borderColor: themeColors.border }]}>
+              <Text style={[styles.modalTitle, { color: themeColors.text }]}>{text.board.composerTitle}</Text>
+              <Text style={[styles.metaText, { color: themeColors.mutedText }]}>Author: {profile?.name || text.board.anonymous}</Text>
 
               <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.modalChips}>
                 {categories.map((category) => {
@@ -1169,9 +1229,18 @@ export default function BoardScreen() {
                   return (
                     <Pressable
                       key={category}
-                      style={[styles.modalChip, isActive ? styles.modalChipActive : null]}
+                      style={[
+                        styles.modalChip,
+                        { borderColor: themeColors.border, backgroundColor: themeColors.chip },
+                        isActive ? [styles.modalChipActive, { borderColor: themeColors.accent, backgroundColor: themeColors.accent }] : null,
+                      ]}
                       onPress={() => setSelectedCategory(category)}>
-                      <Text style={[styles.modalChipText, isActive ? styles.modalChipTextActive : null]}>
+                      <Text
+                        style={[
+                          styles.modalChipText,
+                          { color: isActive ? themeColors.accentContrast : themeColors.chipText },
+                          isActive ? styles.modalChipTextActive : null,
+                        ]}>
                         {category}
                       </Text>
                     </Pressable>
@@ -1180,36 +1249,60 @@ export default function BoardScreen() {
               </ScrollView>
 
               <TextInput
-                style={styles.modalInput}
+                style={[
+                  styles.modalInput,
+                  {
+                    backgroundColor: themeColors.background,
+                    borderColor: themeColors.border,
+                    color: themeColors.text,
+                  },
+                ]}
                 value={title}
                 onChangeText={setTitle}
                 placeholder={text.board.titlePlaceholder}
-                placeholderTextColor="#9f8a70"
+                placeholderTextColor={themeColors.mutedText}
               />
               <TextInput
-                style={[styles.modalInput, styles.modalTextArea]}
+                style={[
+                  styles.modalInput,
+                  styles.modalTextArea,
+                  {
+                    backgroundColor: themeColors.background,
+                    borderColor: themeColors.border,
+                    color: themeColors.text,
+                  },
+                ]}
                 value={body}
                 onChangeText={setBody}
                 placeholder={text.board.bodyPlaceholder}
-                placeholderTextColor="#9f8a70"
+                placeholderTextColor={themeColors.mutedText}
                 multiline
                 textAlignVertical="top"
               />
               <TextInput
-                style={styles.modalInput}
+                style={[
+                  styles.modalInput,
+                  {
+                    backgroundColor: themeColors.background,
+                    borderColor: themeColors.border,
+                    color: themeColors.text,
+                  },
+                ]}
                 value={tagsInput}
                 onChangeText={setTagsInput}
                 placeholder="Tags (e.g. dogrun puppy meetup)"
-                placeholderTextColor="#9f8a70"
+                placeholderTextColor={themeColors.mutedText}
                 autoCapitalize="none"
               />
 
               <View style={styles.mediaActionRow}>
-                <Pressable style={styles.mediaButton} onPress={() => void handlePickPostImage()}>
-                  <Text style={styles.mediaButtonText}>Select Photo</Text>
+                <Pressable style={[styles.mediaButton, { backgroundColor: themeColors.accent }]} onPress={() => void handlePickPostImage()}>
+                  <Text style={[styles.mediaButtonText, { color: themeColors.accentContrast }]}>Select Photo</Text>
                 </Pressable>
-                <Pressable style={styles.mediaGhostButton} onPress={() => setImageUrl('')}>
-                  <Text style={styles.mediaGhostButtonText}>Remove</Text>
+                <Pressable
+                  style={[styles.mediaGhostButton, { borderColor: themeColors.border, backgroundColor: themeColors.chip }]}
+                  onPress={() => setImageUrl('')}>
+                  <Text style={[styles.mediaGhostButtonText, { color: themeColors.chipText }]}>Remove</Text>
                 </Pressable>
               </View>
 
@@ -1220,11 +1313,15 @@ export default function BoardScreen() {
               {formError ? <Text style={styles.errorText}>{formError}</Text> : null}
 
               <View style={styles.modalActions}>
-                <Pressable style={[styles.modalButton, styles.cancelButton]} onPress={closeComposer}>
-                  <Text style={styles.cancelText}>{text.board.cancel}</Text>
+                <Pressable
+                  style={[styles.modalButton, styles.cancelButton, { backgroundColor: themeColors.chip }]}
+                  onPress={closeComposer}>
+                  <Text style={[styles.cancelText, { color: themeColors.chipText }]}>{text.board.cancel}</Text>
                 </Pressable>
-                <Pressable style={[styles.modalButton, styles.submitButton]} onPress={() => void handleCreatePost()}>
-                  <Text style={styles.submitText}>{text.board.post}</Text>
+                <Pressable
+                  style={[styles.modalButton, styles.submitButton, { backgroundColor: themeColors.accent }]}
+                  onPress={() => void handleCreatePost()}>
+                  <Text style={[styles.submitText, { color: themeColors.accentContrast }]}>{text.board.post}</Text>
                 </Pressable>
               </View>
             </View>
@@ -1239,29 +1336,44 @@ export default function BoardScreen() {
           <KeyboardAvoidingView
             style={styles.modalOverlay}
             behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-            <View style={styles.commentModalCard}>
+            <View style={[styles.commentModalCard, { backgroundColor: themeColors.surface, borderColor: themeColors.border }]}>
               <View style={styles.commentModalHeader}>
-                <Text style={styles.modalTitle}>Comments</Text>
+                <Text style={[styles.modalTitle, { color: themeColors.text }]}>Comments</Text>
                 <Pressable onPress={closeCommentModal}>
-                  <Text style={styles.closeText}>Close</Text>
+                  <Text style={[styles.closeText, { color: themeColors.mutedText }]}>Close</Text>
                 </Pressable>
               </View>
 
               {selectedPost ? (
-                <View style={styles.commentPostSummary}>
-                  <Text style={styles.commentPostTitle}>{selectedPost.title}</Text>
-                  <Text style={styles.commentPostMeta}>{selectedPost.author}</Text>
+                <View
+                  style={[
+                    styles.commentPostSummary,
+                    {
+                      borderColor: themeColors.border,
+                      backgroundColor: themeColors.background,
+                    },
+                  ]}>
+                  <Text style={[styles.commentPostTitle, { color: themeColors.text }]}>{selectedPost.title}</Text>
+                  <Text style={[styles.commentPostMeta, { color: themeColors.mutedText }]}>{selectedPost.author}</Text>
                 </View>
               ) : null}
 
               <ScrollView style={styles.commentList} contentContainerStyle={styles.commentListContent}>
-                {isCommentsLoading ? <Text style={styles.commentHint}>Loading comments...</Text> : null}
+                {isCommentsLoading ? <Text style={[styles.commentHint, { color: themeColors.mutedText }]}>Loading comments...</Text> : null}
                 {!isCommentsLoading && rootComments.length === 0 ? (
-                  <Text style={styles.commentHint}>No comments yet.</Text>
+                  <Text style={[styles.commentHint, { color: themeColors.mutedText }]}>No comments yet.</Text>
                 ) : null}
 
                 {rootComments.map((comment) => (
-                  <View key={comment.id} style={styles.commentItem}>
+                  <View
+                    key={comment.id}
+                    style={[
+                      styles.commentItem,
+                      {
+                        borderColor: themeColors.border,
+                        backgroundColor: themeColors.background,
+                      },
+                    ]}>
                     <View style={styles.commentHeader}>
                       <View style={styles.commentAuthorRow}>
                         <Pressable
@@ -1274,17 +1386,17 @@ export default function BoardScreen() {
                           onPress={() =>
                             void openUserProfile(comment.authorExternalId, comment.author, comment.authorAvatarUrl)
                           }>
-                          <Text style={styles.commentAuthorText}>{comment.author}</Text>
+                          <Text style={[styles.commentAuthorText, { color: themeColors.text }]}>{comment.author}</Text>
                         </Pressable>
                       </View>
                       <Pressable onPress={() => setReplyToCommentId(comment.id)}>
-                        <Text style={styles.replyAction}>Reply</Text>
+                        <Text style={[styles.replyAction, { color: themeColors.accent }]}>Reply</Text>
                       </Pressable>
                     </View>
-                    <Text style={styles.commentBodyText}>{comment.body}</Text>
+                    <Text style={[styles.commentBodyText, { color: themeColors.mutedText }]}>{comment.body}</Text>
 
                     {(repliesByParent[comment.id] ?? []).map((reply) => (
-                      <View key={reply.id} style={styles.replyItem}>
+                      <View key={reply.id} style={[styles.replyItem, { borderLeftColor: themeColors.border }]}>
                         <View style={styles.commentHeader}>
                           <View style={styles.commentAuthorRow}>
                             <Pressable
@@ -1297,11 +1409,11 @@ export default function BoardScreen() {
                               onPress={() =>
                                 void openUserProfile(reply.authorExternalId, reply.author, reply.authorAvatarUrl)
                               }>
-                              <Text style={styles.replyAuthorText}>{reply.author}</Text>
+                              <Text style={[styles.replyAuthorText, { color: themeColors.text }]}>{reply.author}</Text>
                             </Pressable>
                           </View>
                         </View>
-                        <Text style={styles.replyBodyText}>{reply.body}</Text>
+                        <Text style={[styles.replyBodyText, { color: themeColors.mutedText }]}>{reply.body}</Text>
                       </View>
                     ))}
                   </View>
@@ -1309,27 +1421,37 @@ export default function BoardScreen() {
               </ScrollView>
 
               {isGuest ? (
-                <Text style={styles.commentHint}>Guest users cannot post comments.</Text>
+                <Text style={[styles.commentHint, { color: themeColors.mutedText }]}>Guest users cannot post comments.</Text>
               ) : (
                 <View style={styles.commentComposer}>
                   {replyToCommentId ? (
-                    <View style={styles.replyingBar}>
-                      <Text style={styles.replyingText}>Replying to {replyingTo}</Text>
+                    <View style={[styles.replyingBar, { backgroundColor: themeColors.chip, borderColor: themeColors.border }]}>
+                      <Text style={[styles.replyingText, { color: themeColors.chipText }]}>Replying to {replyingTo}</Text>
                       <Pressable onPress={() => setReplyToCommentId(null)}>
-                        <Text style={styles.replyingCancel}>Cancel</Text>
+                        <Text style={[styles.replyingCancel, { color: themeColors.accent }]}>Cancel</Text>
                       </Pressable>
                     </View>
                   ) : null}
 
                   <TextInput
-                    style={styles.commentInput}
+                    style={[
+                      styles.commentInput,
+                      {
+                        borderColor: themeColors.border,
+                        backgroundColor: themeColors.background,
+                        color: themeColors.text,
+                      },
+                    ]}
                     value={commentBody}
                     onChangeText={setCommentBody}
                     placeholder="Write a comment"
+                    placeholderTextColor={themeColors.mutedText}
                     multiline
                   />
-                  <Pressable style={styles.commentSubmitButton} onPress={() => void handleSubmitComment()}>
-                    <Text style={styles.commentSubmitText}>Post</Text>
+                  <Pressable
+                    style={[styles.commentSubmitButton, { backgroundColor: themeColors.accent }]}
+                    onPress={() => void handleSubmitComment()}>
+                    <Text style={[styles.commentSubmitText, { color: themeColors.accentContrast }]}>Post</Text>
                   </Pressable>
                 </View>
               )}
@@ -1347,18 +1469,18 @@ export default function BoardScreen() {
           <KeyboardAvoidingView
             style={styles.modalOverlay}
             behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-            <View style={styles.chatModalCard}>
+            <View style={[styles.chatModalCard, { backgroundColor: themeColors.surface, borderColor: themeColors.border }]}>
               <View style={styles.commentModalHeader}>
-                <Text style={styles.modalTitle}>Community Chat</Text>
+                <Text style={[styles.modalTitle, { color: themeColors.text }]}>Community Chat</Text>
                 <Pressable onPress={closeChatModal}>
-                  <Text style={styles.closeText}>Close</Text>
+                  <Text style={[styles.closeText, { color: themeColors.mutedText }]}>Close</Text>
                 </Pressable>
               </View>
 
               <ScrollView style={styles.chatList} contentContainerStyle={styles.chatListContent}>
-                {isChatLoading ? <Text style={styles.commentHint}>Loading chat...</Text> : null}
+                {isChatLoading ? <Text style={[styles.commentHint, { color: themeColors.mutedText }]}>Loading chat...</Text> : null}
                 {!isChatLoading && chatMessages.length === 0 ? (
-                  <Text style={styles.commentHint}>No messages yet.</Text>
+                  <Text style={[styles.commentHint, { color: themeColors.mutedText }]}>No messages yet.</Text>
                 ) : null}
 
                 {chatMessages.map((chatMessage) => {
@@ -1368,11 +1490,17 @@ export default function BoardScreen() {
                       key={chatMessage.id}
                       style={[styles.chatRow, mine ? styles.chatRowMine : styles.chatRowOther]}>
                       {!mine ? <Avatar uri={chatMessage.authorAvatarUrl} label={chatMessage.author} size={22} /> : null}
-                      <View style={[styles.chatBubble, mine ? styles.chatBubbleMine : styles.chatBubbleOther]}>
-                        <Text style={styles.chatAuthor}>{chatMessage.author}</Text>
-                        {chatMessage.body ? <Text style={styles.chatBody}>{chatMessage.body}</Text> : null}
+                      <View
+                        style={[
+                          styles.chatBubble,
+                          mine
+                            ? [styles.chatBubbleMine, { borderColor: themeColors.accent, backgroundColor: themeColors.chip }]
+                            : [styles.chatBubbleOther, { borderColor: themeColors.border, backgroundColor: themeColors.background }],
+                        ]}>
+                        <Text style={[styles.chatAuthor, { color: themeColors.text }]}>{chatMessage.author}</Text>
+                        {chatMessage.body ? <Text style={[styles.chatBody, { color: themeColors.text }]}>{chatMessage.body}</Text> : null}
                         {chatMessage.sticker ? <Text style={styles.chatSticker}>{chatMessage.sticker}</Text> : null}
-                        <Text style={styles.chatMeta}>{formatTimeLabel(chatMessage.createdAt)}</Text>
+                        <Text style={[styles.chatMeta, { color: themeColors.mutedText }]}>{formatTimeLabel(chatMessage.createdAt)}</Text>
                       </View>
                     </View>
                   );
@@ -1385,7 +1513,11 @@ export default function BoardScreen() {
                   return (
                     <Pressable
                       key={`chat:${sticker}`}
-                      style={[styles.chatStickerButton, active ? styles.chatStickerButtonActive : null]}
+                      style={[
+                        styles.chatStickerButton,
+                        { borderColor: themeColors.border, backgroundColor: themeColors.background },
+                        active ? [styles.chatStickerButtonActive, { borderColor: themeColors.accent, backgroundColor: themeColors.chip }] : null,
+                      ]}
                       onPress={() => setChatSticker(active ? null : sticker)}>
                       <Text style={styles.chatStickerButtonText}>{sticker}</Text>
                     </Pressable>
@@ -1395,14 +1527,23 @@ export default function BoardScreen() {
 
               <View style={styles.chatComposerRow}>
                 <TextInput
-                  style={styles.chatInput}
+                  style={[
+                    styles.chatInput,
+                    {
+                      borderColor: themeColors.border,
+                      backgroundColor: themeColors.background,
+                      color: themeColors.text,
+                    },
+                  ]}
                   value={chatBody}
                   onChangeText={setChatBody}
                   placeholder="Write a message"
-                  placeholderTextColor="#927142"
+                  placeholderTextColor={themeColors.mutedText}
                 />
-                <Pressable style={styles.chatSendButton} onPress={() => void handleSendChatMessage()}>
-                  <Text style={styles.chatSendText}>Send</Text>
+                <Pressable
+                  style={[styles.chatSendButton, { backgroundColor: themeColors.accent }]}
+                  onPress={() => void handleSendChatMessage()}>
+                  <Text style={[styles.chatSendText, { color: themeColors.accentContrast }]}>Send</Text>
                 </Pressable>
               </View>
 
@@ -1419,11 +1560,11 @@ export default function BoardScreen() {
           <KeyboardAvoidingView
             style={styles.modalOverlay}
             behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-            <View style={styles.profileModalCard}>
+            <View style={[styles.profileModalCard, { backgroundColor: themeColors.surface, borderColor: themeColors.border }]}>
               <View style={styles.commentModalHeader}>
-                <Text style={styles.modalTitle}>Profile</Text>
+                <Text style={[styles.modalTitle, { color: themeColors.text }]}>Profile</Text>
                 <Pressable onPress={closeProfileModal}>
-                  <Text style={styles.closeText}>Close</Text>
+                  <Text style={[styles.closeText, { color: themeColors.mutedText }]}>Close</Text>
                 </Pressable>
               </View>
 
@@ -1432,10 +1573,10 @@ export default function BoardScreen() {
                   <View style={styles.profileTopRow}>
                     <Avatar uri={profileModal.avatarUrl} label={profileModal.name} size={64} />
                     <View style={styles.profileInfoBlock}>
-                      <Text style={styles.profileName}>{profileModal.name}</Text>
-                      {profileModal.bio ? <Text style={styles.profileBio}>{profileModal.bio}</Text> : null}
+                      <Text style={[styles.profileName, { color: themeColors.text }]}>{profileModal.name}</Text>
+                      {profileModal.bio ? <Text style={[styles.profileBio, { color: themeColors.mutedText }]}>{profileModal.bio}</Text> : null}
                       {profileModal.dogName || profileModal.dogBreed ? (
-                        <Text style={styles.profileDogInfo}>
+                        <Text style={[styles.profileDogInfo, { color: themeColors.mutedText }]}>
                           Dog: {profileModal.dogName || '-'} / {profileModal.dogBreed || '-'}
                         </Text>
                       ) : null}
@@ -1443,44 +1584,50 @@ export default function BoardScreen() {
                   </View>
 
                   <View style={styles.followCountRow}>
-                    <View style={styles.followCountItem}>
-                      <Text style={styles.followCountValue}>{profileModal.followers}</Text>
-                      <Text style={styles.followCountLabel}>Followers</Text>
+                    <View style={[styles.followCountItem, { borderColor: themeColors.border, backgroundColor: themeColors.background }]}>
+                      <Text style={[styles.followCountValue, { color: themeColors.text }]}>{profileModal.followers}</Text>
+                      <Text style={[styles.followCountLabel, { color: themeColors.mutedText }]}>Followers</Text>
                     </View>
-                    <View style={styles.followCountItem}>
-                      <Text style={styles.followCountValue}>{profileModal.following}</Text>
-                      <Text style={styles.followCountLabel}>Following</Text>
+                    <View style={[styles.followCountItem, { borderColor: themeColors.border, backgroundColor: themeColors.background }]}>
+                      <Text style={[styles.followCountValue, { color: themeColors.text }]}>{profileModal.following}</Text>
+                      <Text style={[styles.followCountLabel, { color: themeColors.mutedText }]}>Following</Text>
                     </View>
                   </View>
 
                   {canFollowSelectedProfile ? (
                     <Pressable
-                      style={[styles.followButton, isFollowBusy ? styles.followButtonDisabled : null]}
+                      style={[
+                        styles.followButton,
+                        { backgroundColor: themeColors.accent },
+                        isFollowBusy ? styles.followButtonDisabled : null,
+                      ]}
                       onPress={() => void handleToggleFollow()}
                       disabled={isFollowBusy || profileModal.loading}>
-                      <Text style={styles.followButtonText}>
+                      <Text style={[styles.followButtonText, { color: themeColors.accentContrast }]}>
                         {profileModal.isFollowing ? 'Following' : 'Follow'}
                       </Text>
                     </Pressable>
                   ) : null}
 
-                  {profileModal.message ? <Text style={styles.commentHint}>{profileModal.message}</Text> : null}
+                  {profileModal.message ? <Text style={[styles.commentHint, { color: themeColors.mutedText }]}>{profileModal.message}</Text> : null}
 
-                  <Text style={styles.profilePostsTitle}>Posts</Text>
+                  <Text style={[styles.profilePostsTitle, { color: themeColors.text }]}>Posts</Text>
                   <ScrollView style={styles.profilePostList} contentContainerStyle={styles.profilePostListContent}>
-                    {profileModal.loading ? <Text style={styles.commentHint}>Loading profile...</Text> : null}
+                    {profileModal.loading ? <Text style={[styles.commentHint, { color: themeColors.mutedText }]}>Loading profile...</Text> : null}
                     {!profileModal.loading && profileModal.posts.length === 0 ? (
-                      <Text style={styles.commentHint}>No posts yet.</Text>
+                      <Text style={[styles.commentHint, { color: themeColors.mutedText }]}>No posts yet.</Text>
                     ) : null}
 
                     {profileModal.posts.map((post) => (
-                      <View key={`${profileModal.externalId}:${post.id}`} style={styles.profilePostItem}>
-                        <Text style={styles.profilePostTitle}>{post.title}</Text>
-                        <Text style={styles.profilePostBody} numberOfLines={3}>
+                      <View
+                        key={`${profileModal.externalId}:${post.id}`}
+                        style={[styles.profilePostItem, { borderColor: themeColors.border, backgroundColor: themeColors.background }]}>
+                        <Text style={[styles.profilePostTitle, { color: themeColors.text }]}>{post.title}</Text>
+                        <Text style={[styles.profilePostBody, { color: themeColors.mutedText }]} numberOfLines={3}>
                           {post.body}
                         </Text>
                         {post.tags.length > 0 ? (
-                          <Text style={styles.profilePostTags}>#{post.tags.join(' #')}</Text>
+                          <Text style={[styles.profilePostTags, { color: themeColors.mutedText }]}>#{post.tags.join(' #')}</Text>
                         ) : null}
                       </View>
                     ))}

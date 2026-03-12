@@ -45,12 +45,30 @@ function mapProviderLabel(
   return labels.providerX;
 }
 
+type MenuRowProps = {
+  icon: string;
+  label: string;
+  active?: boolean;
+  onPress?: () => void;
+  valueText?: string;
+};
+
+function MenuRow({ icon, label, active, onPress, valueText }: MenuRowProps) {
+  return (
+    <Pressable style={[styles.menuRow, active ? styles.menuRowActive : null]} onPress={onPress} disabled={!onPress}>
+      <Text style={styles.menuIcon}>{icon}</Text>
+      <Text style={[styles.menuLabel, active ? styles.menuLabelActive : null]}>{label}</Text>
+      {valueText ? <Text style={styles.menuValue}>{valueText}</Text> : null}
+      <Text style={styles.menuChevron}>{'>'}</Text>
+    </Pressable>
+  );
+}
+
 export default function SettingsScreen() {
   const router = useRouter();
   const text = getSettingsText();
   const { profile, updateProfile, logout } = useAuth();
   const { activeTheme, themes, setActiveThemeById } = useAppTheme();
-  const styles = useMemo(() => createStyles(activeTheme), [activeTheme]);
 
   const [activeTab, setActiveTab] = useState<SettingsTab>('personal');
 
@@ -217,58 +235,64 @@ export default function SettingsScreen() {
   return (
     <SafeAreaView style={styles.safeArea}>
       <ScrollView contentContainerStyle={styles.content}>
-        <View style={styles.heroCard}>
-          <Text style={styles.title}>{text.title}</Text>
-          <Text style={styles.caption}>{text.caption}</Text>
+        <View style={styles.topBar}>
+          <Text style={styles.topTitle}>設定</Text>
+          <Pressable>
+            <Text style={styles.helpText}>ヘルプ</Text>
+          </Pressable>
         </View>
 
-        <View style={styles.tabSwitcher}>
-          <Pressable
-            style={[styles.tabButton, activeTab === 'personal' ? styles.tabButtonActive : null]}
-            onPress={() => setActiveTab('personal')}>
-            <Text style={[styles.tabButtonText, activeTab === 'personal' ? styles.tabButtonTextActive : null]}>
-              Personal
-            </Text>
-          </Pressable>
-          <Pressable
-            style={[styles.tabButton, activeTab === 'profile' ? styles.tabButtonActive : null]}
-            onPress={() => setActiveTab('profile')}>
-            <Text style={[styles.tabButtonText, activeTab === 'profile' ? styles.tabButtonTextActive : null]}>
-              Board Profile
-            </Text>
-          </Pressable>
-          <Pressable
-            style={[styles.tabButton, activeTab === 'theme' ? styles.tabButtonActive : null]}
-            onPress={() => setActiveTab('theme')}>
-            <Text style={[styles.tabButtonText, activeTab === 'theme' ? styles.tabButtonTextActive : null]}>
-              Theme / Color
-            </Text>
-          </Pressable>
+        <View style={styles.groupCard}>
+          <MenuRow
+            icon="👤"
+            label="個人設定"
+            active={activeTab === 'personal'}
+            onPress={() => setActiveTab('personal')}
+          />
+          <MenuRow
+            icon="🐶"
+            label="プロフィール"
+            active={activeTab === 'profile'}
+            onPress={() => setActiveTab('profile')}
+          />
+          <MenuRow
+            icon="🎨"
+            label="テーマカラー"
+            active={activeTab === 'theme'}
+            onPress={() => setActiveTab('theme')}
+            valueText={activeTheme.name}
+          />
+        </View>
+
+        <View style={styles.groupCard}>
+          <MenuRow icon="🧩" label="アプリアイコン" />
+          <MenuRow icon="Aa" label="文字設定" />
+          <MenuRow icon="A+" label="フォントスタイル" />
         </View>
 
         {activeTab === 'personal' ? (
-          <View style={styles.card}>
-            <Text style={styles.sectionTitle}>Personal Settings</Text>
+          <View style={styles.panelCard}>
+            <Text style={styles.panelTitle}>個人設定</Text>
 
-            <Text style={styles.label}>{text.providerLabel}</Text>
-            <View style={styles.readonlyBox}>
-              <Text style={styles.readonlyText}>{providerLabel}</Text>
+            <View style={styles.formRow}>
+              <Text style={styles.formLabel}>{text.providerLabel}</Text>
+              <Text style={styles.formValue}>{providerLabel}</Text>
+            </View>
+            <View style={styles.formRow}>
+              <Text style={styles.formLabel}>{text.emailLabel}</Text>
+              <TextInput
+                style={styles.formInput}
+                value={email}
+                onChangeText={setEmail}
+                placeholder="you@example.com"
+                placeholderTextColor="#6d7380"
+                keyboardType="email-address"
+                autoCapitalize="none"
+              />
             </View>
 
-            <Text style={styles.label}>{text.emailLabel}</Text>
-            <TextInput
-              style={styles.input}
-              value={email}
-              onChangeText={setEmail}
-              keyboardType="email-address"
-              autoCapitalize="none"
-            />
-
-            <View style={styles.preferenceRow}>
-              <View style={styles.preferenceTextWrap}>
-                <Text style={styles.preferenceTitle}>Push Notifications</Text>
-                <Text style={styles.preferenceCaption}>Important updates and reminders.</Text>
-              </View>
+            <View style={styles.toggleRow}>
+              <Text style={styles.toggleLabel}>リマインダー通知</Text>
               <Switch
                 value={preferences.pushEnabled}
                 onValueChange={(value) =>
@@ -277,16 +301,13 @@ export default function SettingsScreen() {
                     pushEnabled: value,
                   }))
                 }
-                thumbColor={activeTheme.colors.surface}
-                trackColor={{ false: activeTheme.colors.border, true: activeTheme.colors.accent }}
+                trackColor={{ false: '#3a3d46', true: activeTheme.colors.accent }}
+                thumbColor="#ffffff"
               />
             </View>
 
-            <View style={styles.preferenceRow}>
-              <View style={styles.preferenceTextWrap}>
-                <Text style={styles.preferenceTitle}>Weekly Digest</Text>
-                <Text style={styles.preferenceCaption}>One summary per week by email.</Text>
-              </View>
+            <View style={styles.toggleRow}>
+              <Text style={styles.toggleLabel}>週次ダイジェスト</Text>
               <Switch
                 value={preferences.weeklyDigestEnabled}
                 onValueChange={(value) =>
@@ -295,16 +316,13 @@ export default function SettingsScreen() {
                     weeklyDigestEnabled: value,
                   }))
                 }
-                thumbColor={activeTheme.colors.surface}
-                trackColor={{ false: activeTheme.colors.border, true: activeTheme.colors.accent }}
+                trackColor={{ false: '#3a3d46', true: activeTheme.colors.accent }}
+                thumbColor="#ffffff"
               />
             </View>
 
-            <View style={styles.preferenceRow}>
-              <View style={styles.preferenceTextWrap}>
-                <Text style={styles.preferenceTitle}>Map Hints</Text>
-                <Text style={styles.preferenceCaption}>Show nearby helper hints on map.</Text>
-              </View>
+            <View style={styles.toggleRow}>
+              <Text style={styles.toggleLabel}>マップ補助表示</Text>
               <Switch
                 value={preferences.mapHintEnabled}
                 onValueChange={(value) =>
@@ -313,126 +331,88 @@ export default function SettingsScreen() {
                     mapHintEnabled: value,
                   }))
                 }
-                thumbColor={activeTheme.colors.surface}
-                trackColor={{ false: activeTheme.colors.border, true: activeTheme.colors.accent }}
+                trackColor={{ false: '#3a3d46', true: activeTheme.colors.accent }}
+                thumbColor="#ffffff"
               />
             </View>
 
-            <Text style={styles.label}>Language</Text>
-            <View style={styles.languageRow}>
-              {[
-                { key: 'auto', label: 'Auto' },
-                { key: 'ja', label: 'Japanese' },
-                { key: 'en', label: 'English' },
-              ].map((option) => {
-                const active = preferences.language === option.key;
-                return (
-                  <Pressable
-                    key={`language:${option.key}`}
-                    style={[styles.languageChip, active ? styles.languageChipActive : null]}
-                    onPress={() =>
-                      setPreferences((prev) => ({
-                        ...prev,
-                        language: option.key as PersonalPreferences['language'],
-                      }))
-                    }>
-                    <Text style={[styles.languageChipText, active ? styles.languageChipTextActive : null]}>
-                      {option.label}
-                    </Text>
-                  </Pressable>
-                );
-              })}
-            </View>
-
             <Pressable
-              style={[styles.primaryButton, isSavingPersonal ? styles.primaryButtonDisabled : null]}
+              style={[styles.actionButton, { backgroundColor: activeTheme.colors.accent }]}
               onPress={() => void handleSavePersonal()}
               disabled={isSavingPersonal}>
-              <Text style={styles.primaryButtonText}>{text.saveButton}</Text>
+              <Text style={styles.actionButtonText}>保存</Text>
             </Pressable>
-
-            {personalMessage ? <Text style={styles.message}>{personalMessage}</Text> : null}
+            {personalMessage ? <Text style={styles.messageText}>{personalMessage}</Text> : null}
           </View>
         ) : null}
 
         {activeTab === 'profile' ? (
-          <View style={styles.card}>
-            <Text style={styles.sectionTitle}>Board Profile</Text>
+          <View style={styles.panelCard}>
+            <Text style={styles.panelTitle}>プロフィール</Text>
 
-            <Text style={styles.label}>Profile Image</Text>
             <View style={styles.avatarRow}>
               {previewValue && isImageValue(previewValue) ? (
                 <Image source={{ uri: previewValue }} style={styles.avatarImage} />
               ) : (
-                <View style={styles.avatarFallback}>
+                <View style={[styles.avatarFallback, { backgroundColor: activeTheme.colors.accent }]}>
                   <Text style={styles.avatarFallbackText}>{previewLetter || '?'}</Text>
                 </View>
               )}
               <View style={styles.avatarActions}>
-                <Pressable style={styles.photoButton} onPress={() => void handlePickAvatar()}>
-                  <Text style={styles.photoButtonText}>Select From Photos</Text>
+                <Pressable
+                  style={[styles.secondaryButton, { borderColor: activeTheme.colors.accent }]}
+                  onPress={() => void handlePickAvatar()}>
+                  <Text style={[styles.secondaryButtonText, { color: activeTheme.colors.accent }]}>写真を選択</Text>
                 </Pressable>
-                <Pressable style={styles.photoGhostButton} onPress={() => setAvatarUrl('')}>
-                  <Text style={styles.photoGhostButtonText}>Remove</Text>
+                <Pressable style={styles.secondaryButton} onPress={() => setAvatarUrl('')}>
+                  <Text style={styles.secondaryButtonText}>削除</Text>
                 </Pressable>
               </View>
             </View>
 
-            <Text style={styles.label}>Display Name</Text>
-            <TextInput style={styles.input} value={boardName} onChangeText={setBoardName} />
-
-            <Text style={styles.label}>Bio</Text>
-            <TextInput
-              style={[styles.input, styles.textArea]}
-              value={bio}
-              onChangeText={setBio}
-              placeholder="Introduce yourself"
-              placeholderTextColor={activeTheme.colors.mutedText}
-              multiline
-              textAlignVertical="top"
-            />
-
-            <Text style={styles.label}>Dog Name</Text>
-            <TextInput
-              style={styles.input}
-              value={dogName}
-              onChangeText={setDogName}
-              placeholder="Mugi"
-              placeholderTextColor={activeTheme.colors.mutedText}
-            />
-
-            <Text style={styles.label}>Dog Breed</Text>
-            <TextInput
-              style={styles.input}
-              value={dogBreed}
-              onChangeText={setDogBreed}
-              placeholder="Shiba Inu"
-              placeholderTextColor={activeTheme.colors.mutedText}
-            />
+            <View style={styles.formRow}>
+              <Text style={styles.formLabel}>表示名</Text>
+              <TextInput style={styles.formInput} value={boardName} onChangeText={setBoardName} />
+            </View>
+            <View style={styles.formRow}>
+              <Text style={styles.formLabel}>Bio</Text>
+              <TextInput
+                style={[styles.formInput, styles.textArea]}
+                value={bio}
+                onChangeText={setBio}
+                multiline
+                textAlignVertical="top"
+              />
+            </View>
+            <View style={styles.formRow}>
+              <Text style={styles.formLabel}>Dog Name</Text>
+              <TextInput style={styles.formInput} value={dogName} onChangeText={setDogName} />
+            </View>
+            <View style={styles.formRow}>
+              <Text style={styles.formLabel}>Dog Breed</Text>
+              <TextInput style={styles.formInput} value={dogBreed} onChangeText={setDogBreed} />
+            </View>
 
             <Pressable
-              style={[styles.primaryButton, isSavingProfile ? styles.primaryButtonDisabled : null]}
+              style={[styles.actionButton, { backgroundColor: activeTheme.colors.accent }]}
               onPress={() => void handleSaveBoardProfile()}
               disabled={isSavingProfile}>
-              <Text style={styles.primaryButtonText}>Save Board Profile</Text>
+              <Text style={styles.actionButtonText}>保存</Text>
             </Pressable>
-
-            {profileMessage ? <Text style={styles.message}>{profileMessage}</Text> : null}
+            {profileMessage ? <Text style={styles.messageText}>{profileMessage}</Text> : null}
           </View>
         ) : null}
 
         {activeTab === 'theme' ? (
-          <View style={styles.card}>
-            <Text style={styles.sectionTitle}>Theme / Color</Text>
-            <Text style={styles.themeCaption}>Choose from 20 curated palettes.</Text>
-
+          <View style={styles.panelCard}>
+            <Text style={styles.panelTitle}>テーマカラー</Text>
             <View style={styles.themeGrid}>
               {themes.map((theme) => {
                 const selected = theme.id === activeTheme.id;
                 return (
                   <Pressable
                     key={theme.id}
-                    style={[styles.themeCard, selected ? styles.themeCardSelected : null]}
+                    style={[styles.themeCard, selected ? { borderColor: activeTheme.colors.accent } : null]}
                     onPress={() => handleSelectTheme(theme.id)}>
                     <View style={styles.swatchRow}>
                       <View style={[styles.swatch, { backgroundColor: theme.colors.accent }]} />
@@ -440,13 +420,11 @@ export default function SettingsScreen() {
                       <View style={[styles.swatch, { backgroundColor: theme.colors.elevated }]} />
                     </View>
                     <Text style={styles.themeName}>{theme.name}</Text>
-                    <Text style={styles.themeDescription}>{theme.description}</Text>
                   </Pressable>
                 );
               })}
             </View>
-
-            {themeMessage ? <Text style={styles.message}>{themeMessage}</Text> : null}
+            {themeMessage ? <Text style={styles.messageText}>{themeMessage}</Text> : null}
           </View>
         ) : null}
 
@@ -458,285 +436,233 @@ export default function SettingsScreen() {
   );
 }
 
-function createStyles(theme: ReturnType<typeof useAppTheme>['activeTheme']) {
-  return StyleSheet.create({
-    safeArea: {
-      flex: 1,
-      backgroundColor: theme.colors.background,
-    },
-    content: {
-      paddingHorizontal: 16,
-      paddingTop: 12,
-      paddingBottom: 28,
-      gap: 12,
-    },
-    heroCard: {
-      backgroundColor: theme.colors.elevated,
-      borderRadius: 18,
-      borderWidth: 1,
-      borderColor: theme.colors.border,
-      padding: 16,
-    },
-    title: {
-      color: theme.colors.text,
-      fontSize: 24,
-      fontWeight: '800',
-    },
-    caption: {
-      marginTop: 4,
-      color: theme.colors.mutedText,
-      fontSize: 13,
-    },
-    tabSwitcher: {
-      borderRadius: 14,
-      backgroundColor: theme.colors.surface,
-      borderWidth: 1,
-      borderColor: theme.colors.border,
-      padding: 6,
-      flexDirection: 'row',
-      gap: 6,
-    },
-    tabButton: {
-      flex: 1,
-      borderRadius: 10,
-      paddingVertical: 10,
-      alignItems: 'center',
-    },
-    tabButtonActive: {
-      backgroundColor: theme.colors.accent,
-    },
-    tabButtonText: {
-      color: theme.colors.text,
-      fontWeight: '600',
-      fontSize: 12,
-    },
-    tabButtonTextActive: {
-      color: theme.colors.accentContrast,
-      fontWeight: '700',
-    },
-    card: {
-      backgroundColor: theme.colors.surface,
-      borderColor: theme.colors.border,
-      borderWidth: 1,
-      borderRadius: 16,
-      padding: 14,
-      gap: 8,
-    },
-    sectionTitle: {
-      color: theme.colors.text,
-      fontSize: 19,
-      fontWeight: '800',
-      marginBottom: 2,
-    },
-    label: {
-      color: theme.colors.text,
-      fontSize: 13,
-      fontWeight: '700',
-      marginTop: 2,
-    },
-    readonlyBox: {
-      borderWidth: 1,
-      borderColor: theme.colors.border,
-      borderRadius: 10,
-      backgroundColor: theme.colors.elevated,
-      paddingHorizontal: 11,
-      paddingVertical: 10,
-    },
-    readonlyText: {
-      color: theme.colors.text,
-      fontSize: 14,
-    },
-    input: {
-      borderWidth: 1,
-      borderColor: theme.colors.border,
-      borderRadius: 10,
-      backgroundColor: theme.colors.surface,
-      paddingHorizontal: 11,
-      paddingVertical: 10,
-      color: theme.colors.text,
-      fontSize: 14,
-    },
-    textArea: {
-      minHeight: 86,
-    },
-    preferenceRow: {
-      marginTop: 2,
-      borderRadius: 12,
-      borderWidth: 1,
-      borderColor: theme.colors.border,
-      backgroundColor: theme.colors.elevated,
-      paddingHorizontal: 10,
-      paddingVertical: 10,
-      flexDirection: 'row',
-      alignItems: 'center',
-      gap: 10,
-    },
-    preferenceTextWrap: {
-      flex: 1,
-      gap: 2,
-    },
-    preferenceTitle: {
-      color: theme.colors.text,
-      fontSize: 13,
-      fontWeight: '700',
-    },
-    preferenceCaption: {
-      color: theme.colors.mutedText,
-      fontSize: 12,
-    },
-    languageRow: {
-      flexDirection: 'row',
-      gap: 8,
-    },
-    languageChip: {
-      flex: 1,
-      borderRadius: 999,
-      borderWidth: 1,
-      borderColor: theme.colors.border,
-      paddingVertical: 8,
-      alignItems: 'center',
-      backgroundColor: theme.colors.elevated,
-    },
-    languageChipActive: {
-      borderColor: theme.colors.accent,
-      backgroundColor: theme.colors.accent,
-    },
-    languageChipText: {
-      color: theme.colors.text,
-      fontSize: 12,
-      fontWeight: '700',
-    },
-    languageChipTextActive: {
-      color: theme.colors.accentContrast,
-    },
-    avatarRow: {
-      flexDirection: 'row',
-      gap: 10,
-      alignItems: 'center',
-    },
-    avatarImage: {
-      width: 62,
-      height: 62,
-      borderRadius: 31,
-      backgroundColor: theme.colors.elevated,
-      borderWidth: 1,
-      borderColor: theme.colors.border,
-    },
-    avatarFallback: {
-      width: 62,
-      height: 62,
-      borderRadius: 31,
-      backgroundColor: theme.colors.accent,
-      alignItems: 'center',
-      justifyContent: 'center',
-    },
-    avatarFallbackText: {
-      color: theme.colors.accentContrast,
-      fontSize: 24,
-      fontWeight: '700',
-    },
-    avatarActions: {
-      flex: 1,
-      gap: 8,
-    },
-    photoButton: {
-      borderRadius: 10,
-      backgroundColor: theme.colors.accent,
-      alignItems: 'center',
-      justifyContent: 'center',
-      paddingVertical: 10,
-    },
-    photoButtonText: {
-      color: theme.colors.accentContrast,
-      fontWeight: '700',
-      fontSize: 13,
-    },
-    photoGhostButton: {
-      borderRadius: 10,
-      borderWidth: 1,
-      borderColor: theme.colors.border,
-      backgroundColor: theme.colors.elevated,
-      alignItems: 'center',
-      justifyContent: 'center',
-      paddingVertical: 10,
-    },
-    photoGhostButtonText: {
-      color: theme.colors.text,
-      fontWeight: '700',
-      fontSize: 13,
-    },
-    primaryButton: {
-      marginTop: 8,
-      borderRadius: 10,
-      backgroundColor: theme.colors.accent,
-      alignItems: 'center',
-      paddingVertical: 11,
-    },
-    primaryButtonDisabled: {
-      opacity: 0.6,
-    },
-    primaryButtonText: {
-      color: theme.colors.accentContrast,
-      fontWeight: '700',
-      fontSize: 14,
-    },
-    message: {
-      marginTop: 8,
-      color: theme.colors.mutedText,
-      fontSize: 12,
-    },
-    themeCaption: {
-      color: theme.colors.mutedText,
-      fontSize: 13,
-      marginBottom: 4,
-    },
-    themeGrid: {
-      flexDirection: 'row',
-      flexWrap: 'wrap',
-      gap: 8,
-    },
-    themeCard: {
-      width: '48%',
-      borderRadius: 12,
-      borderWidth: 1,
-      borderColor: theme.colors.border,
-      backgroundColor: theme.colors.elevated,
-      padding: 10,
-      gap: 6,
-    },
-    themeCardSelected: {
-      borderColor: theme.colors.accent,
-      borderWidth: 2,
-    },
-    swatchRow: {
-      flexDirection: 'row',
-      gap: 5,
-    },
-    swatch: {
-      flex: 1,
-      height: 10,
-      borderRadius: 4,
-    },
-    themeName: {
-      color: theme.colors.text,
-      fontSize: 13,
-      fontWeight: '700',
-    },
-    themeDescription: {
-      color: theme.colors.mutedText,
-      fontSize: 11,
-      lineHeight: 15,
-    },
-    logoutButton: {
-      borderRadius: 12,
-      backgroundColor: '#d9534f',
-      paddingVertical: 12,
-      alignItems: 'center',
-    },
-    logoutButtonText: {
-      color: '#ffffff',
-      fontWeight: '700',
-      fontSize: 14,
-    },
-  });
-}
+const styles = StyleSheet.create({
+  safeArea: {
+    flex: 1,
+    backgroundColor: '#080b11',
+  },
+  content: {
+    paddingHorizontal: 16,
+    paddingTop: 6,
+    paddingBottom: 36,
+    gap: 16,
+  },
+  topBar: {
+    height: 52,
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexDirection: 'row',
+    position: 'relative',
+    marginBottom: 2,
+  },
+  topTitle: {
+    color: '#f2f5ff',
+    fontSize: 18,
+    fontWeight: '700',
+    letterSpacing: 0.6,
+  },
+  helpText: {
+    position: 'absolute',
+    right: 0,
+    color: '#f2f5ff',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  groupCard: {
+    borderRadius: 16,
+    backgroundColor: '#141922',
+    borderWidth: 1,
+    borderColor: '#222a36',
+    overflow: 'hidden',
+  },
+  menuRow: {
+    minHeight: 56,
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: '#222a36',
+    gap: 12,
+  },
+  menuRowActive: {
+    backgroundColor: '#1b2230',
+  },
+  menuIcon: {
+    width: 28,
+    color: '#a9b4c7',
+    fontSize: 17,
+    textAlign: 'center',
+  },
+  menuLabel: {
+    flex: 1,
+    color: '#f2f5ff',
+    fontSize: 15,
+    fontWeight: '600',
+  },
+  menuLabelActive: {
+    fontWeight: '800',
+  },
+  menuValue: {
+    color: '#9aa7bc',
+    fontSize: 13,
+    marginRight: 4,
+  },
+  menuChevron: {
+    color: '#5f6b7f',
+    fontSize: 18,
+    fontWeight: '600',
+  },
+  panelCard: {
+    borderRadius: 16,
+    backgroundColor: '#141922',
+    borderWidth: 1,
+    borderColor: '#222a36',
+    padding: 15,
+    gap: 10,
+  },
+  panelTitle: {
+    color: '#f2f5ff',
+    fontSize: 17,
+    fontWeight: '700',
+    marginBottom: 4,
+  },
+  formRow: {
+    gap: 6,
+  },
+  formLabel: {
+    color: '#c7cedc',
+    fontSize: 13,
+    fontWeight: '600',
+  },
+  formValue: {
+    color: '#f2f5ff',
+    fontSize: 15,
+    paddingVertical: 4,
+  },
+  formInput: {
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: '#2f3948',
+    backgroundColor: '#101620',
+    color: '#f2f5ff',
+    paddingHorizontal: 11,
+    paddingVertical: 10,
+    fontSize: 14,
+  },
+  textArea: {
+    minHeight: 90,
+  },
+  toggleRow: {
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#2f3948',
+    backgroundColor: '#101620',
+    minHeight: 54,
+    paddingHorizontal: 12,
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    flexDirection: 'row',
+  },
+  toggleLabel: {
+    color: '#e8ecf6',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  actionButton: {
+    marginTop: 6,
+    borderRadius: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+    minHeight: 44,
+  },
+  actionButtonText: {
+    color: '#ffffff',
+    fontSize: 14,
+    fontWeight: '800',
+  },
+  messageText: {
+    color: '#aeb6c7',
+    fontSize: 12,
+  },
+  avatarRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  avatarImage: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    backgroundColor: '#2d3544',
+  },
+  avatarFallback: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  avatarFallbackText: {
+    color: '#ffffff',
+    fontSize: 24,
+    fontWeight: '800',
+  },
+  avatarActions: {
+    flex: 1,
+    gap: 8,
+  },
+  secondaryButton: {
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: '#2f3948',
+    backgroundColor: '#101620',
+    minHeight: 40,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  secondaryButtonText: {
+    color: '#c7cedc',
+    fontSize: 13,
+    fontWeight: '700',
+  },
+  themeGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  themeCard: {
+    width: '48%',
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#2f3948',
+    backgroundColor: '#101620',
+    padding: 10,
+    gap: 6,
+  },
+  swatchRow: {
+    flexDirection: 'row',
+    gap: 5,
+  },
+  swatch: {
+    flex: 1,
+    height: 10,
+    borderRadius: 4,
+  },
+  themeName: {
+    color: '#f2f5ff',
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  logoutButton: {
+    borderRadius: 12,
+    backgroundColor: '#d9534f',
+    minHeight: 46,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  logoutButtonText: {
+    color: '#ffffff',
+    fontWeight: '700',
+    fontSize: 14,
+  },
+});

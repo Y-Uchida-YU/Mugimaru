@@ -1,10 +1,9 @@
-import { DarkTheme, DefaultTheme, ThemeProvider } from '@react-navigation/native';
+import { DefaultTheme, ThemeProvider } from '@react-navigation/native';
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import 'react-native-reanimated';
 import { useMemo } from 'react';
 
-import { useColorScheme } from '@/hooks/use-color-scheme';
 import { AuthProviderRoot } from '@/lib/auth-context';
 import { AppThemeProvider, useAppTheme } from '@/lib/app-theme-context';
 
@@ -13,7 +12,6 @@ export const unstable_settings = {
 };
 
 function RootNavigation() {
-  const colorScheme = useColorScheme();
   const { activeTheme } = useAppTheme();
 
   const lightTheme = useMemo(
@@ -33,7 +31,7 @@ function RootNavigation() {
   );
 
   return (
-    <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : lightTheme}>
+    <ThemeProvider value={lightTheme}>
       <Stack>
         <Stack.Screen name="index" options={{ headerShown: false }} />
         <Stack.Screen name="signup" options={{ headerShown: false }} />
