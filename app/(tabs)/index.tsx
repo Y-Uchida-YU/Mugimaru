@@ -38,6 +38,7 @@ import { useAuth } from '@/lib/auth-context';
 import { useAppTheme } from '@/lib/app-theme-context';
 import { formatMessage, getAppText } from '@/lib/i18n';
 import { pickImageFromLibrary } from '@/lib/mobile-image-picker';
+import { getAvatarIconGlyph, parseAvatarValue } from '@/lib/profile-avatar';
 import { hasSupabaseEnv } from '@/lib/supabase';
 import {
   followUser,
@@ -309,12 +310,28 @@ function computeEngagement(
 }
 
 function Avatar({ uri, label, size = 32 }: { uri: string; label: string; size?: number }) {
-  if (uri && isImageValue(uri)) {
+  const parsed = parseAvatarValue(uri);
+  if (parsed.type === 'image') {
     return (
       <Image
-        source={{ uri }}
+        source={{ uri: parsed.uri }}
         style={[styles.avatarImage, { width: size, height: size, borderRadius: size / 2 }]}
       />
+    );
+  }
+  if (parsed.type === 'icon') {
+    return (
+      <View
+        style={[
+          styles.avatarFallback,
+          {
+            width: size,
+            height: size,
+            borderRadius: size / 2,
+          },
+        ]}>
+        <Text style={{ fontSize: Math.max(14, Math.floor(size * 0.58)) }}>{getAvatarIconGlyph(parsed.iconId)}</Text>
+      </View>
     );
   }
 

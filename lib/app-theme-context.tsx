@@ -1,7 +1,10 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type PropsWithChildren } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { Platform } from 'react-native';
 
 const THEME_STORAGE_KEY = 'mugimaru.app.theme.id';
+const TEXT_SCALE_STORAGE_KEY = 'mugimaru.app.text-scale';
+const FONT_STYLE_STORAGE_KEY = 'mugimaru.app.font-style';
 
 export type AppTheme = {
   id: string;
@@ -20,6 +23,70 @@ export type AppTheme = {
     chipText: string;
   };
 };
+
+export type TextScale = 'compact' | 'normal' | 'large' | 'xlarge';
+export type FontStyle = 'system' | 'rounded' | 'serif' | 'mono';
+
+export type AppTypography = {
+  textScale: TextScale;
+  scale: number;
+  fontStyle: FontStyle;
+  fontFamily: string | undefined;
+};
+
+const TEXT_SCALE_VALUES: Record<TextScale, number> = {
+  compact: 0.92,
+  normal: 1,
+  large: 1.12,
+  xlarge: 1.24,
+};
+
+export const TEXT_SCALE_OPTIONS: readonly { id: TextScale; label: string; description: string }[] = [
+  { id: 'compact', label: 'Compact', description: 'Smaller text with denser layout.' },
+  { id: 'normal', label: 'Normal', description: 'Balanced default reading size.' },
+  { id: 'large', label: 'Large', description: 'More relaxed reading comfort.' },
+  { id: 'xlarge', label: 'Extra Large', description: 'Maximum readability and spacing.' },
+];
+
+export const FONT_STYLE_OPTIONS: readonly { id: FontStyle; label: string; description: string }[] = [
+  { id: 'system', label: 'System', description: 'Platform default with the best compatibility.' },
+  { id: 'rounded', label: 'Rounded', description: 'Soft and friendly rounded look.' },
+  { id: 'serif', label: 'Serif', description: 'Editorial and classic reading style.' },
+  { id: 'mono', label: 'Mono', description: 'Structured and technical style.' },
+];
+
+function isTextScale(value: string): value is TextScale {
+  return value === 'compact' || value === 'normal' || value === 'large' || value === 'xlarge';
+}
+
+function isFontStyle(value: string): value is FontStyle {
+  return value === 'system' || value === 'rounded' || value === 'serif' || value === 'mono';
+}
+
+function resolveFontFamily(fontStyle: FontStyle): string | undefined {
+  if (fontStyle === 'system') {
+    return undefined;
+  }
+  if (fontStyle === 'rounded') {
+    return Platform.select({
+      ios: 'Avenir Next',
+      android: 'sans-serif-medium',
+      default: undefined,
+    });
+  }
+  if (fontStyle === 'serif') {
+    return Platform.select({
+      ios: 'Times New Roman',
+      android: 'serif',
+      default: undefined,
+    });
+  }
+  return Platform.select({
+    ios: 'Menlo',
+    android: 'monospace',
+    default: undefined,
+  });
+}
 
 const APP_THEMES: AppTheme[] = [
   {
@@ -368,6 +435,11 @@ type AppThemeContextValue = {
   themes: readonly AppTheme[];
   activeTheme: AppTheme;
   setActiveThemeById: (themeId: string) => void;
+  textScale: TextScale;
+  setTextScale: (value: TextScale) => void;
+  fontStyle: FontStyle;
+  setFontStyle: (value: FontStyle) => void;
+  typography: AppTypography;
   isHydrated: boolean;
 };
 
@@ -375,6 +447,8 @@ const AppThemeContext = createContext<AppThemeContextValue | null>(null);
 
 export function AppThemeProvider({ children }: PropsWithChildren) {
   const [themeId, setThemeId] = useState(APP_THEMES[0].id);
+  const [textScale, setTextScaleState] = useState<TextScale>('normal');
+  const [fontStyle, setFontStyleState] = useState<FontStyle>('system');
   const [isHydrated, setHydrated] = useState(false);
 
   useEffect(() => {
@@ -382,10 +456,26 @@ export function AppThemeProvider({ children }: PropsWithChildren) {
 
     const hydrate = async () => {
       try {
-        const stored = await AsyncStorage.getItem(THEME_STORAGE_KEY);
-        if (!active || !stored) return;
-        if (APP_THEMES.some((theme) => theme.id === stored)) {
-          setThemeId(stored);
+        const entries = await AsyncStorage.multiGet([
+          THEME_STORAGE_KEY,
+          TEXT_SCALE_STORAGE_KEY,
+          FONT_STYLE_STORAGE_KEY,
+        ]);
+        if (!active) return;
+
+        const storedTheme = entries.find(([key]) => key === THEME_STORAGE_KEY)?.[1];
+        if (storedTheme && APP_THEMES.some((theme) => theme.id === storedTheme)) {
+          setThemeId(storedTheme);
+        }
+
+        const storedScale = entries.find(([key]) => key === TEXT_SCALE_STORAGE_KEY)?.[1];
+        if (storedScale && isTextScale(storedScale)) {
+          setTextScaleState(storedScale);
+        }
+
+        const storedFontStyle = entries.find(([key]) => key === FONT_STYLE_STORAGE_KEY)?.[1];
+        if (storedFontStyle && isFontStyle(storedFontStyle)) {
+          setFontStyleState(storedFontStyle);
         }
       } catch {
         // no-op
@@ -412,6 +502,30 @@ export function AppThemeProvider({ children }: PropsWithChildren) {
     void persist();
   }, [isHydrated, themeId]);
 
+  useEffect(() => {
+    if (!isHydrated) return;
+    const persist = async () => {
+      try {
+        await AsyncStorage.setItem(TEXT_SCALE_STORAGE_KEY, textScale);
+      } catch {
+        // no-op
+      }
+    };
+    void persist();
+  }, [isHydrated, textScale]);
+
+  useEffect(() => {
+    if (!isHydrated) return;
+    const persist = async () => {
+      try {
+        await AsyncStorage.setItem(FONT_STYLE_STORAGE_KEY, fontStyle);
+      } catch {
+        // no-op
+      }
+    };
+    void persist();
+  }, [fontStyle, isHydrated]);
+
   const setActiveThemeById = useCallback((nextThemeId: string) => {
     if (!APP_THEMES.some((theme) => theme.id === nextThemeId)) {
       return;
@@ -419,9 +533,29 @@ export function AppThemeProvider({ children }: PropsWithChildren) {
     setThemeId(nextThemeId);
   }, []);
 
+  const setTextScale = useCallback((value: TextScale) => {
+    if (!isTextScale(value)) return;
+    setTextScaleState(value);
+  }, []);
+
+  const setFontStyle = useCallback((value: FontStyle) => {
+    if (!isFontStyle(value)) return;
+    setFontStyleState(value);
+  }, []);
+
   const activeTheme = useMemo(
     () => APP_THEMES.find((theme) => theme.id === themeId) ?? APP_THEMES[0],
     [themeId]
+  );
+
+  const typography = useMemo<AppTypography>(
+    () => ({
+      textScale,
+      scale: TEXT_SCALE_VALUES[textScale],
+      fontStyle,
+      fontFamily: resolveFontFamily(fontStyle),
+    }),
+    [fontStyle, textScale]
   );
 
   const value = useMemo(
@@ -429,9 +563,14 @@ export function AppThemeProvider({ children }: PropsWithChildren) {
       themes: APP_THEMES,
       activeTheme,
       setActiveThemeById,
+      textScale,
+      setTextScale,
+      fontStyle,
+      setFontStyle,
+      typography,
       isHydrated,
     }),
-    [activeTheme, isHydrated, setActiveThemeById]
+    [activeTheme, fontStyle, isHydrated, setActiveThemeById, setFontStyle, setTextScale, textScale, typography]
   );
 
   return <AppThemeContext.Provider value={value}>{children}</AppThemeContext.Provider>;

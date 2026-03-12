@@ -123,6 +123,8 @@ const SHA256_K = [
 WebBrowser.maybeCompleteAuthSession();
 
 function getRequiredEnv(name: string) {
+  // Environment variable keys are validated by call site and kept in code constants.
+  // eslint-disable-next-line expo/no-dynamic-env-var
   const value = process.env[name];
   if (!value) {
     throw new Error(`Missing environment variable: ${name}`);

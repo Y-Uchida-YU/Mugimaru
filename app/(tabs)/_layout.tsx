@@ -10,7 +10,7 @@ import { getAppText } from '@/lib/i18n';
 import { getSettingsText } from '@/lib/settings-l10n';
 
 export default function TabLayout() {
-  const { activeTheme } = useAppTheme();
+  const { activeTheme, typography } = useAppTheme();
   const { isHydrated, isAuthenticated } = useAuth();
   const text = getAppText();
   const eventsText = getEventsText();
@@ -32,6 +32,10 @@ export default function TabLayout() {
         tabBarStyle: {
           backgroundColor: activeTheme.colors.surface,
           borderTopColor: activeTheme.colors.border,
+        },
+        tabBarLabelStyle: {
+          fontFamily: typography.fontFamily,
+          fontSize: 12 * typography.scale,
         },
         headerShown: false,
         tabBarButton: HapticTab,
