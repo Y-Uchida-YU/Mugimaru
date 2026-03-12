@@ -47,6 +47,16 @@ The board now includes:
 
 UI is refreshed to a Lemon-style layout focused on mobile readability.
 
+## Settings Upgrade
+
+Settings tab now has 3 sections:
+
+- `Personal`: account email + app preferences (push/digest/map hints/language)
+- `Board Profile`: display name, avatar, bio, dog profile
+- `Theme / Color`: 20 curated palettes users can switch instantly
+
+Theme selection is persisted locally and reflected in tab/navigation colors.
+
 ## Supabase Schema / Migration
 
 ### Fresh setup
