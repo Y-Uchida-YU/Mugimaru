@@ -1,10 +1,12 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { FontAwesome6 } from '@expo/vector-icons';
 import {
   Image,
   KeyboardAvoidingView,
   Modal,
   Platform,
   Pressable,
+  RefreshControl,
   ScrollView,
   StyleSheet,
   View,
@@ -35,7 +37,7 @@ import {
 } from '@/lib/board-data';
 import { useAuth } from '@/lib/auth-context';
 import { useAppTheme } from '@/lib/app-theme-context';
-import { formatMessage, getAppText } from '@/lib/i18n';
+import { getAppText } from '@/lib/i18n';
 import { pickImageFromLibrary } from '@/lib/mobile-image-picker';
 import { getAvatarIconGlyph, parseAvatarValue } from '@/lib/profile-avatar';
 import { hasSupabaseEnv } from '@/lib/supabase';
@@ -100,7 +102,7 @@ type SeedPost = {
 const STAMP_OPTIONS = [
   { key: 'paw', icon: '🐾', label: 'Paw' },
   { key: 'heart', icon: '💛', label: 'Heart' },
-  { key: 'wow', icon: '✨', label: 'Wow' },
+  { key: 'wow', icon: '😮', label: 'Wow' },
   { key: 'fire', icon: '🔥', label: 'Fire' },
 ] as const;
 
@@ -245,7 +247,7 @@ function buildLocalChatSeed(): BoardChatMessage[] {
       author: 'Mugimaru Team',
       authorAvatarUrl: '',
       body: 'Welcome to Lemon Lounge. Share moments and tips.',
-      sticker: '🍋',
+      sticker: '豪',
       imageUrl: '',
       createdAt: new Date(Date.now() - 1000 * 60 * 12).toISOString(),
     },
@@ -357,10 +359,51 @@ export default function BoardScreen() {
   const { profile } = useAuth();
   const isGuest = profile?.provider === 'guest';
   const categories = text.board.categories;
+  const postsRef = useRef<BoardPost[]>([]);
+  const timelineCopy = useMemo(
+    () =>
+      text.localeGroup === 'japan'
+        ? {
+            title: 'タイムライン',
+            caption: '犬友の近況や新着ポストを流し読みできます。',
+            compose: 'ポスト',
+            room: 'Room',
+            prompt: 'いま何をシェアしますか？',
+            feedCount: 'ポスト',
+            search: '投稿を検索',
+            pullHint: '下にスワイプで新着を取得',
+            emptyTitle: '表示できるポストがありません',
+            emptyBody: '検索条件を変えるか、下にスワイプして新着を取得してください。',
+            refreshed: (count: number) => (count > 0 ? `${count}件の新着を取得しました。` : '新着はありません。'),
+            localRefresh: 'ローカルモードでは新着更新はありません。',
+            synced: 'タイムラインを同期しました。',
+            syncedLocal: 'ローカルモードで表示中です。',
+            loading: '読み込み中...',
+          }
+        : {
+            title: 'Timeline',
+            caption: 'Scan fresh posts from your dog community.',
+            compose: 'Post',
+            room: 'Room',
+            prompt: 'What do you want to share?',
+            feedCount: 'posts',
+            search: 'Search posts',
+            pullHint: 'Pull down to fetch new posts',
+            emptyTitle: 'No posts to show',
+            emptyBody: 'Change your search or pull down to fetch fresh posts.',
+            refreshed: (count: number) => (count > 0 ? `${count} new posts loaded.` : 'No new posts.'),
+            localRefresh: 'No delta refresh in local mode.',
+            synced: 'Timeline synced.',
+            syncedLocal: 'Running in local mode.',
+            loading: 'Loading...',
+          },
+    [text.localeGroup]
+  );
 
   const [posts, setPosts] = useState<BoardPost[]>([]);
   const [query, setQuery] = useState('');
   const [loading, setLoading] = useState(false);
+  const [isRefreshing, setRefreshing] = useState(false);
   const [message, setMessage] = useState('');
   const [likesCountByPost, setLikesCountByPost] = useState<Record<string, number>>({});
   const [likedByPost, setLikedByPost] = useState<Record<string, boolean>>({});
@@ -393,15 +436,15 @@ export default function BoardScreen() {
   const [chatError, setChatError] = useState('');
   const [isChatLoading, setChatLoading] = useState(false);
 
-  useEffect(() => {
-    let active = true;
+  const loadTimeline = useCallback(
+    async (mode: 'initial' | 'refresh' = 'initial') => {
+      const previousPosts = postsRef.current;
 
-    const load = async () => {
       if (!hasSupabaseEnv) {
-        if (!active) return;
         const localPosts = buildSeedPosts(text.board.seedPosts);
         const localLikes: Record<string, number> = {};
         const localStampCounts: Record<string, StampBucket> = {};
+
         for (const [index, post] of localPosts.entries()) {
           localLikes[post.id] = Math.max(0, Math.floor(post.replies / 2));
           const bucket = createEmptyStampBucket();
@@ -412,29 +455,36 @@ export default function BoardScreen() {
         }
 
         setPosts(localPosts);
+        postsRef.current = localPosts;
         setLikesCountByPost(localLikes);
         setLikedByPost({});
         setStampCountsByPost(localStampCounts);
         setMyStampsByPost({});
-        setMessage('Supabase is not configured. Running in local mode.');
+        setMessage(mode === 'refresh' ? timelineCopy.localRefresh : timelineCopy.syncedLocal);
         return;
       }
 
       try {
-        setLoading(true);
-        const rows = await listBoardPosts();
-        if (!active) return;
+        if (mode === 'refresh') {
+          setRefreshing(true);
+        } else {
+          setLoading(true);
+        }
 
+        const rows = await listBoardPosts();
         const loadedPosts = rows.map(mapRowToPost);
+        const nextPostIds = loadedPosts.map((post) => post.id);
+        const previousIds = new Set(previousPosts.map((post) => post.id));
+        const deltaCount = nextPostIds.filter((postId) => !previousIds.has(postId)).length;
+
         setPosts(loadedPosts);
+        postsRef.current = loadedPosts;
 
         if (loadedPosts.length > 0) {
           const [likesRows, stampRows] = await Promise.all([
             listBoardPostLikes(loadedPosts.map((post) => post.id)),
             listBoardPostStamps(loadedPosts.map((post) => post.id)),
           ]);
-
-          if (!active) return;
 
           const engagement = computeEngagement(loadedPosts, likesRows, stampRows, profile?.externalId);
           setLikesCountByPost(engagement.likesCountByPost);
@@ -448,25 +498,32 @@ export default function BoardScreen() {
           setMyStampsByPost({});
         }
 
-        setMessage('Board synced with Supabase.');
+        setMessage(mode === 'refresh' ? timelineCopy.refreshed(deltaCount) : timelineCopy.synced);
       } catch (error) {
-        if (!active) return;
-        setPosts([]);
-        setLikesCountByPost({});
-        setLikedByPost({});
-        setStampCountsByPost({});
-        setMyStampsByPost({});
-        setMessage(error instanceof Error ? error.message : 'Failed to load board posts.');
+        if (mode === 'initial') {
+          setPosts([]);
+          postsRef.current = [];
+          setLikesCountByPost({});
+          setLikedByPost({});
+          setStampCountsByPost({});
+          setMyStampsByPost({});
+        }
+        setMessage(error instanceof Error ? error.message : 'Failed to load timeline posts.');
       } finally {
-        if (active) setLoading(false);
+        setLoading(false);
+        setRefreshing(false);
       }
-    };
+    },
+    [profile?.externalId, text.board.seedPosts, timelineCopy]
+  );
 
-    load();
-    return () => {
-      active = false;
-    };
-  }, [profile?.externalId, text]);
+  useEffect(() => {
+    void loadTimeline('initial');
+  }, [loadTimeline]);
+
+  useEffect(() => {
+    postsRef.current = posts;
+  }, [posts]);
 
   const visiblePosts = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -1029,58 +1086,71 @@ export default function BoardScreen() {
     Boolean(profileModal) &&
     profile?.externalId !== profileModal?.externalId;
 
+  const handleRefresh = () => {
+    void loadTimeline('refresh');
+  };
+
+  const statusLine = loading ? timelineCopy.loading : message;
+
   return (
     <SafeAreaView style={[styles.safeArea, { backgroundColor: themeColors.background }]}>
       <View style={styles.root}>
-        <ScrollView contentContainerStyle={styles.content}>
-          <View
-            style={[
-              styles.heroCard,
-              {
-                backgroundColor: themeColors.elevated,
-                borderColor: themeColors.border,
-              },
-            ]}>
-            <View style={styles.heroGlowPrimary} />
-            <View style={styles.heroGlowSecondary} />
-            <Text style={[styles.heroLabel, { color: themeColors.mutedText }]}>{text.board.heroLabel}</Text>
-            <Text style={[styles.heroTitle, { color: themeColors.text }]}>{text.board.heroTitle}</Text>
-            <Text style={[styles.heroCaption, { color: themeColors.mutedText }]}>{text.board.heroCaption}</Text>
-            <View style={styles.heroStatsRow}>
-              <View style={[styles.heroStatPill, { borderColor: themeColors.border, backgroundColor: themeColors.surface }]}>
-                <Text style={[styles.heroStatLabel, { color: themeColors.mutedText }]}>posts</Text>
-                <Text style={[styles.heroStatValue, { color: themeColors.text }]}>{posts.length}</Text>
-              </View>
-              <View style={[styles.heroStatPill, { borderColor: themeColors.border, backgroundColor: themeColors.surface }]}>
-                <Text style={[styles.heroStatLabel, { color: themeColors.mutedText }]}>visible</Text>
-                <Text style={[styles.heroStatValue, { color: themeColors.text }]}>{visiblePosts.length}</Text>
-              </View>
-              <View style={[styles.heroStatPill, { borderColor: themeColors.border, backgroundColor: themeColors.surface }]}>
-                <Text style={[styles.heroStatLabel, { color: themeColors.mutedText }]}>chat</Text>
-                <Text style={[styles.heroStatValue, { color: themeColors.text }]}>
-                  {hasSupabaseEnv ? chatMessages.length : localChatMessages.length}
-                </Text>
-              </View>
+        <ScrollView
+          contentContainerStyle={styles.content}
+          refreshControl={
+            <RefreshControl
+              refreshing={isRefreshing}
+              onRefresh={handleRefresh}
+              tintColor={themeColors.accent}
+              colors={[themeColors.accent]}
+              progressBackgroundColor={themeColors.surface}
+            />
+          }>
+          <View style={styles.timelineHeader}>
+            <View style={styles.timelineHeaderText}>
+              <Text style={[styles.timelineEyebrow, { color: themeColors.mutedText }]}>Mugimaru</Text>
+              <Text style={[styles.timelineTitle, { color: themeColors.text }]}>{timelineCopy.title}</Text>
+              <Text style={[styles.timelineCaption, { color: themeColors.mutedText }]}>{timelineCopy.caption}</Text>
             </View>
-            <View style={styles.heroActionRow}>
+            <View style={styles.timelineHeaderActions}>
+              <Pressable
+                style={[styles.roomButton, { borderColor: themeColors.border, backgroundColor: themeColors.surface }]}
+                onPress={() => void openChatModal()}>
+                <FontAwesome6 name="comments" size={14} color={themeColors.text} />
+                <Text style={[styles.roomButtonText, { color: themeColors.text }]}>{timelineCopy.room}</Text>
+              </Pressable>
               <Pressable
                 style={[
-                  styles.heroActionButton,
+                  styles.composeButton,
                   { backgroundColor: themeColors.accent },
                   isGuest ? styles.heroActionButtonDisabled : null,
                 ]}
                 onPress={() => (isGuest ? setMessage('Guest users cannot create posts.') : setComposerOpen(true))}>
-                <Text style={[styles.heroActionText, { color: themeColors.accentContrast }]}>Create Post</Text>
-              </Pressable>
-              <Pressable
-                style={[styles.heroGhostButton, { borderColor: themeColors.border, backgroundColor: themeColors.chip }]}
-                onPress={() => void openChatModal()}>
-                <Text style={[styles.heroGhostButtonText, { color: themeColors.chipText }]}>Open Chat</Text>
+                <FontAwesome6 name="pen" size={13} color={themeColors.accentContrast} />
+                <Text style={[styles.composeButtonText, { color: themeColors.accentContrast }]}>{timelineCopy.compose}</Text>
               </Pressable>
             </View>
-            {isGuest ? <Text style={[styles.heroGuest, { color: themeColors.mutedText }]}>Guest mode: posting is disabled.</Text> : null}
-            <Text style={[styles.heroSub, { color: themeColors.mutedText }]}>{loading ? 'Loading...' : message}</Text>
           </View>
+
+          <View style={[styles.timelineStatus, { borderColor: themeColors.border, backgroundColor: themeColors.surface }]}>
+            <Text style={[styles.timelineStatusText, { color: themeColors.text }]}>{statusLine}</Text>
+            <Text style={[styles.timelineStatusMeta, { color: themeColors.mutedText }]}>
+              {visiblePosts.length} {timelineCopy.feedCount}
+            </Text>
+          </View>
+
+          <Pressable
+            style={[styles.composerCard, { borderColor: themeColors.border, backgroundColor: themeColors.surface }]}
+            onPress={() => (isGuest ? setMessage('Guest users cannot create posts.') : setComposerOpen(true))}>
+            <Avatar uri={profile?.avatarUrl ?? ''} label={profile?.name ?? text.board.anonymous} size={42} />
+            <View style={styles.composerTextWrap}>
+              <Text style={[styles.composerPrompt, { color: themeColors.text }]}>{timelineCopy.prompt}</Text>
+              <Text style={[styles.composerMeta, { color: themeColors.mutedText }]}>
+                {timelineCopy.pullHint}
+              </Text>
+            </View>
+            <FontAwesome6 name="plus" size={16} color={themeColors.accent} />
+          </Pressable>
 
           <TextInput
             style={[
@@ -1091,138 +1161,132 @@ export default function BoardScreen() {
                 color: themeColors.text,
               },
             ]}
-            placeholder={text.board.searchPlaceholder}
+            placeholder={timelineCopy.search}
             placeholderTextColor={themeColors.mutedText}
             value={query}
             onChangeText={setQuery}
           />
 
           <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chips}>
-            {categories.map((category) => (
-              <View key={category} style={[styles.chip, { backgroundColor: themeColors.chip, borderColor: themeColors.border }]}>
-                <Text style={[styles.chipText, { color: themeColors.chipText }]}>#{category}</Text>
-              </View>
-            ))}
+            {categories.map((category) => {
+              const active = query.trim().toLowerCase() === category.toLowerCase();
+              return (
+                <Pressable
+                  key={category}
+                  style={[
+                    styles.chip,
+                    { backgroundColor: active ? themeColors.accent : themeColors.chip, borderColor: active ? themeColors.accent : themeColors.border },
+                  ]}
+                  onPress={() => setQuery(active ? '' : category)}>
+                  <Text style={[styles.chipText, { color: active ? themeColors.accentContrast : themeColors.chipText }]}>#{category}</Text>
+                </Pressable>
+              );
+            })}
           </ScrollView>
 
-          <View style={styles.sectionHeader}>
-            <Text style={[styles.sectionTitle, { color: themeColors.text }]}>{text.board.latestThreads}</Text>
-            <Text style={[styles.sectionMeta, { color: themeColors.mutedText }]}>
-              {formatMessage(text.board.itemsCount, { count: visiblePosts.length })}
-            </Text>
-          </View>
-
-          {visiblePosts.map((post) => (
-            <View
-              key={post.id}
-              style={[
-                styles.postCard,
-                {
-                  backgroundColor: themeColors.surface,
-                  borderColor: themeColors.border,
-                },
-              ]}>
-              <View style={styles.postTopRow}>
-                <View style={styles.postAuthorRow}>
-                  <Pressable
-                    style={styles.avatarPress}
-                    onPress={() => void openUserProfile(post.authorExternalId, post.author, post.authorAvatarUrl)}>
-                    <Avatar uri={post.authorAvatarUrl} label={post.author} />
-                  </Pressable>
-                  <View>
-                    <Pressable
-                      onPress={() => void openUserProfile(post.authorExternalId, post.author, post.authorAvatarUrl)}>
-                      <Text style={[styles.authorName, { color: themeColors.text }]}>{post.author}</Text>
-                    </Pressable>
-                    <Text style={[styles.updatedText, { color: themeColors.mutedText }]}>{post.updatedAt}</Text>
-                  </View>
-                </View>
-                <View style={[styles.categoryBadge, { borderColor: themeColors.border, backgroundColor: themeColors.chip }]}>
-                  <Text style={[styles.categoryBadgeText, { color: themeColors.chipText }]}>{post.category}</Text>
-                </View>
+          <View style={styles.timelineFeed}>
+            {visiblePosts.length === 0 ? (
+              <View style={[styles.timelineEmptyState, { borderColor: themeColors.border, backgroundColor: themeColors.surface }]}>
+                <Text style={[styles.timelineEmptyTitle, { color: themeColors.text }]}>{timelineCopy.emptyTitle}</Text>
+                <Text style={[styles.timelineEmptyBody, { color: themeColors.mutedText }]}>{timelineCopy.emptyBody}</Text>
               </View>
+            ) : null}
+            {visiblePosts.map((post) => (
+              <View
+                key={post.id}
+                style={[
+                  styles.timelinePost,
+                  {
+                    backgroundColor: themeColors.surface,
+                    borderColor: themeColors.border,
+                  },
+                ]}>
+                <Pressable
+                  style={styles.avatarPress}
+                  onPress={() => void openUserProfile(post.authorExternalId, post.author, post.authorAvatarUrl)}>
+                  <Avatar uri={post.authorAvatarUrl} label={post.author} size={42} />
+                </Pressable>
 
-              <Text style={[styles.postTitle, { color: themeColors.text }]}>{post.title}</Text>
-              <Text style={[styles.postBody, { color: themeColors.mutedText }]}>{post.body}</Text>
-
-              {post.tags.length > 0 ? (
-                <View style={styles.tagWrap}>
-                  {post.tags.map((tag) => (
-                    <View
-                      key={`${post.id}:${tag}`}
-                      style={[styles.tagChip, { borderColor: themeColors.border, backgroundColor: themeColors.background }]}>
-                      <Text style={[styles.tagText, { color: themeColors.mutedText }]}>#{tag}</Text>
+                <View style={styles.timelinePostBodyWrap}>
+                  <View style={styles.timelinePostHeader}>
+                    <View style={styles.timelinePostMeta}>
+                      <Pressable onPress={() => void openUserProfile(post.authorExternalId, post.author, post.authorAvatarUrl)}>
+                        <Text style={[styles.timelineAuthor, { color: themeColors.text }]}>{post.author}</Text>
+                      </Pressable>
+                      <Text style={[styles.timelineSubline, { color: themeColors.mutedText }]}>
+                        {post.category} · {post.updatedAt}
+                      </Text>
                     </View>
-                  ))}
-                </View>
-              ) : null}
+                    <FontAwesome6 name="ellipsis" size={14} color={themeColors.mutedText} />
+                  </View>
 
-              {post.imageUrl ? (
-                <Image source={{ uri: post.imageUrl }} style={styles.postImage} resizeMode="cover" />
-              ) : null}
+                  {post.title.trim() ? <Text style={[styles.timelinePostTitle, { color: themeColors.text }]}>{post.title}</Text> : null}
+                  <Text style={[styles.timelinePostText, { color: themeColors.mutedText }]}>{post.body}</Text>
 
-              <View style={styles.actionRow}>
-                <Pressable
-                  style={[
-                    styles.actionPill,
-                    {
-                      borderColor: themeColors.border,
-                      backgroundColor: themeColors.background,
-                    },
-                    likedByPost[post.id]
-                      ? [styles.actionPillActive, { borderColor: themeColors.accent, backgroundColor: themeColors.accent }]
-                      : null,
-                  ]}
-                  onPress={() => void handleToggleLike(post.id)}>
-                  <Text
-                    style={[
-                      styles.actionPillText,
-                      { color: likedByPost[post.id] ? themeColors.accentContrast : themeColors.text },
-                      likedByPost[post.id] ? styles.actionPillTextActive : null,
-                    ]}>
-                    💛 Like {likesCountByPost[post.id] ?? 0}
-                  </Text>
-                </Pressable>
-                <Pressable
-                  style={[styles.actionPill, { borderColor: themeColors.border, backgroundColor: themeColors.background }]}
-                  onPress={() => void openComments(post)}>
-                  <Text style={[styles.actionPillText, { color: themeColors.text }]}>
-                    💬 {formatMessage(text.board.repliesCount, { count: post.replies })}
-                  </Text>
-                </Pressable>
-              </View>
+                  {post.tags.length > 0 ? (
+                    <View style={styles.tagWrap}>
+                      {post.tags.map((tag) => (
+                        <View
+                          key={`${post.id}:${tag}`}
+                          style={[styles.timelineTag, { borderColor: themeColors.border, backgroundColor: themeColors.background }]}>
+                          <Text style={[styles.tagText, { color: themeColors.mutedText }]}>#{tag}</Text>
+                        </View>
+                      ))}
+                    </View>
+                  ) : null}
 
-              <View style={styles.stampRow}>
-                {STAMP_OPTIONS.map((stampOption) => {
-                  const bucket = stampCountsByPost[post.id] ?? createEmptyStampBucket();
-                  const mine = myStampsByPost[post.id] ?? [];
-                  const active = mine.includes(stampOption.key);
-                  return (
-                    <Pressable
-                      key={`${post.id}:stamp:${stampOption.key}`}
-                      style={[
-                        styles.stampButton,
-                        { borderColor: themeColors.border, backgroundColor: themeColors.background },
-                        active
-                          ? [styles.stampButtonActive, { borderColor: themeColors.accent, backgroundColor: themeColors.chip }]
-                          : null,
-                      ]}
-                      onPress={() => void handleToggleStamp(post.id, stampOption.key)}>
-                      <Text style={styles.stampEmoji}>{stampOption.icon}</Text>
-                      <Text
-                        style={[
-                          styles.stampCount,
-                          { color: active ? themeColors.text : themeColors.mutedText },
-                          active ? styles.stampCountActive : null,
-                        ]}>
-                        {bucket[stampOption.key]}
+                  {post.imageUrl ? <Image source={{ uri: post.imageUrl }} style={styles.postImage} resizeMode="cover" /> : null}
+
+                  <View style={styles.timelineActions}>
+                    <Pressable style={styles.timelineActionButton} onPress={() => void openComments(post)}>
+                      <FontAwesome6 name="comment" size={14} color={themeColors.mutedText} />
+                      <Text style={[styles.timelineActionText, { color: themeColors.mutedText }]}>
+                        {post.replies}
                       </Text>
                     </Pressable>
-                  );
-                })}
+                    <Pressable style={styles.timelineActionButton} onPress={() => void handleToggleLike(post.id)}>
+                      <FontAwesome6
+                        name="heart"
+                        size={14}
+                        color={likedByPost[post.id] ? themeColors.accent : themeColors.mutedText}
+                      />
+                      <Text
+                        style={[
+                          styles.timelineActionText,
+                          { color: likedByPost[post.id] ? themeColors.accent : themeColors.mutedText },
+                        ]}>
+                        {likesCountByPost[post.id] ?? 0}
+                      </Text>
+                    </Pressable>
+                    <View style={styles.timelineReactionRow}>
+                      {STAMP_OPTIONS.map((stampOption) => {
+                        const bucket = stampCountsByPost[post.id] ?? createEmptyStampBucket();
+                        const mine = myStampsByPost[post.id] ?? [];
+                        const active = mine.includes(stampOption.key);
+                        return (
+                          <Pressable
+                            key={`${post.id}:stamp:${stampOption.key}`}
+                            style={[
+                              styles.timelineReactionButton,
+                              {
+                                borderColor: active ? themeColors.accent : themeColors.border,
+                                backgroundColor: active ? themeColors.chip : themeColors.background,
+                              },
+                            ]}
+                            onPress={() => void handleToggleStamp(post.id, stampOption.key)}>
+                            <Text style={styles.stampEmoji}>{stampOption.icon}</Text>
+                            <Text style={[styles.timelineReactionCount, { color: active ? themeColors.text : themeColors.mutedText }]}>
+                              {bucket[stampOption.key]}
+                            </Text>
+                          </Pressable>
+                        );
+                      })}
+                    </View>
+                  </View>
+                </View>
               </View>
-            </View>
-          ))}
+            ))}
+          </View>
         </ScrollView>
 
         <Pressable
@@ -1670,6 +1734,190 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingBottom: 110,
     paddingTop: 12,
+    gap: 12,
+  },
+  timelineHeader: {
+    gap: 12,
+  },
+  timelineHeaderText: {
+    gap: 3,
+  },
+  timelineEyebrow: {
+    fontSize: 12,
+    fontWeight: '700',
+    letterSpacing: 0.8,
+    textTransform: 'uppercase',
+  },
+  timelineTitle: {
+    fontSize: 30,
+    fontWeight: '800',
+  },
+  timelineCaption: {
+    fontSize: 13,
+    lineHeight: 19,
+  },
+  timelineHeaderActions: {
+    flexDirection: 'row',
+    gap: 10,
+  },
+  roomButton: {
+    minHeight: 42,
+    borderRadius: 999,
+    borderWidth: 1,
+    paddingHorizontal: 14,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+  },
+  roomButtonText: {
+    fontSize: 13,
+    fontWeight: '700',
+  },
+  composeButton: {
+    flex: 1,
+    minHeight: 42,
+    borderRadius: 999,
+    paddingHorizontal: 14,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+  },
+  composeButtonText: {
+    fontSize: 14,
+    fontWeight: '800',
+  },
+  timelineStatus: {
+    minHeight: 44,
+    borderRadius: 18,
+    borderWidth: 1,
+    paddingHorizontal: 14,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 12,
+  },
+  timelineStatusText: {
+    flex: 1,
+    fontSize: 12,
+  },
+  timelineStatusMeta: {
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  composerCard: {
+    minHeight: 72,
+    borderRadius: 22,
+    borderWidth: 1,
+    paddingHorizontal: 14,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  composerTextWrap: {
+    flex: 1,
+    gap: 3,
+  },
+  composerPrompt: {
+    fontSize: 15,
+    fontWeight: '700',
+  },
+  composerMeta: {
+    fontSize: 12,
+  },
+  timelineFeed: {
+    gap: 10,
+  },
+  timelineEmptyState: {
+    borderRadius: 20,
+    borderWidth: 1,
+    padding: 18,
+    gap: 6,
+  },
+  timelineEmptyTitle: {
+    fontSize: 15,
+    fontWeight: '800',
+  },
+  timelineEmptyBody: {
+    fontSize: 13,
+    lineHeight: 19,
+  },
+  timelinePost: {
+    borderRadius: 22,
+    borderWidth: 1,
+    padding: 14,
+    flexDirection: 'row',
+    gap: 12,
+  },
+  timelinePostBodyWrap: {
+    flex: 1,
+    gap: 8,
+  },
+  timelinePostHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    gap: 10,
+  },
+  timelinePostMeta: {
+    flex: 1,
+    gap: 1,
+  },
+  timelineAuthor: {
+    fontSize: 14,
+    fontWeight: '800',
+  },
+  timelineSubline: {
+    fontSize: 12,
+  },
+  timelinePostTitle: {
+    fontSize: 16,
+    fontWeight: '800',
+  },
+  timelinePostText: {
+    fontSize: 14,
+    lineHeight: 21,
+  },
+  timelineTag: {
+    borderRadius: 999,
+    borderWidth: 1,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+  },
+  timelineActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 16,
+  },
+  timelineActionButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  timelineActionText: {
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  timelineReactionRow: {
+    flex: 1,
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+    flexWrap: 'wrap',
+    gap: 6,
+  },
+  timelineReactionButton: {
+    minHeight: 30,
+    borderRadius: 999,
+    borderWidth: 1,
+    paddingHorizontal: 8,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  timelineReactionCount: {
+    fontSize: 11,
+    fontWeight: '700',
   },
   heroCard: {
     backgroundColor: '#ffe681',
@@ -2494,5 +2742,6 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
 });
+
 
 

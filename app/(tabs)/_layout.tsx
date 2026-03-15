@@ -15,6 +15,7 @@ export default function TabLayout() {
   const text = getAppText();
   const eventsText = getEventsText();
   const settingsText = getSettingsText();
+  const boardTabTitle = text.localeGroup === 'japan' ? 'タイムライン' : 'Timeline';
 
   if (!isHydrated) {
     return null;
@@ -43,7 +44,7 @@ export default function TabLayout() {
       <Tabs.Screen
         name="index"
         options={{
-          title: text.tabs.board,
+          title: boardTabTitle,
           tabBarIcon: ({ color }) => <IconSymbol size={28} name="text.bubble.fill" color={color} />,
         }}
       />
