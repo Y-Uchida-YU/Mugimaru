@@ -1,7 +1,8 @@
 import { type PropsWithChildren, type ReactNode } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { ThemedText as Text } from '@/components/themed-typography';
 import { type AppTypography, type AppTheme } from '@/lib/app-theme-context';
 
 type PageScaffoldProps = PropsWithChildren<{
@@ -196,4 +197,3 @@ const styles = StyleSheet.create({
     fontWeight: '500',
   },
 });
-

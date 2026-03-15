@@ -5,12 +5,11 @@ import {
   Pressable,
   ScrollView,
   StyleSheet,
-  Text,
-  TextInput,
   View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { ThemedText as Text, ThemedTextInput as TextInput } from '@/components/themed-typography';
 import { searchDogEvents, type DogEvent } from '@/lib/events-data';
 import { useAppTheme } from '@/lib/app-theme-context';
 import { getEventsText } from '@/lib/events-l10n';

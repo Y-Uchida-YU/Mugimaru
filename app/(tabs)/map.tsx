@@ -1,1131 +1,557 @@
-import { useEffect, useMemo, useState } from 'react';
-import {
-  Image,
-  Linking,
-  Platform,
-  Pressable,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TextInput,
-  View,
-  useWindowDimensions,
-} from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { FontAwesome6 } from '@expo/vector-icons';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { ActivityIndicator, Linking, Platform, Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import MapView, { Marker, UrlTile, type LatLng, type MapPressEvent, type Region } from 'react-native-maps';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import {
-  createReview,
-  createSpot,
-  listReviews,
-  listSpots,
-  type Review,
-  type Spot,
-  type SpotType,
-} from '@/lib/dog-community-data';
+import { ThemedText as Text, ThemedTextInput as TextInput } from '@/components/themed-typography';
+import { createReview, createSpot, listReviews, listSpots, type Review, type Spot, type SpotType } from '@/lib/dog-community-data';
 import { useAuth } from '@/lib/auth-context';
 import { useAppTheme } from '@/lib/app-theme-context';
-import { formatMessage, getAppText } from '@/lib/i18n';
+import { getAppText } from '@/lib/i18n';
 import { hasSupabaseEnv } from '@/lib/supabase';
 
 type FilterType = 'all' | SpotType;
+type SheetMode = 'browse' | 'add';
 
-type Tile = {
-  key: string;
-  left: number;
-  top: number;
-  url: string;
+const DEFAULT_REGION: Region = {
+  latitude: 35.681236,
+  longitude: 139.767125,
+  latitudeDelta: 0.2,
+  longitudeDelta: 0.2,
 };
 
-type ProjectedSpot = {
-  spot: Spot;
-  left: number;
-  top: number;
+const FILTERS: { id: FilterType; label: string; icon: keyof typeof FontAwesome6.glyphMap }[] = [
+  { id: 'all', label: 'すべて', icon: 'paw' },
+  { id: 'dogrun', label: 'ドッグラン', icon: 'dog' },
+  { id: 'vet', label: '動物病院', icon: 'stethoscope' },
+  { id: 'cafe', label: 'ドッグカフェ', icon: 'mug-hot' },
+  { id: 'shop', label: 'ペット用品', icon: 'bag-shopping' },
+];
+
+const TYPE_META: Record<SpotType, { label: string; short: string; icon: keyof typeof FontAwesome6.glyphMap; tone: string; tint: string }> = {
+  dogrun: { label: 'ドッグラン', short: 'Run', icon: 'dog', tone: '#fff1ea', tint: '#e66b52' },
+  vet: { label: '動物病院', short: 'Vet', icon: 'stethoscope', tone: '#edf6ff', tint: '#2d89d3' },
+  cafe: { label: 'ドッグカフェ', short: 'Cafe', icon: 'mug-hot', tone: '#ebfbf4', tint: '#2fa878' },
+  shop: { label: 'ペット用品', short: 'Shop', icon: 'bag-shopping', tone: '#f5efff', tint: '#9560d4' },
 };
 
-const TILE_SIZE = 256;
-const MIN_ZOOM = 4;
-const MAX_ZOOM = 17;
-const DEFAULT_ZOOM = 6;
-const DEFAULT_CENTER_LAT = 36.2048;
-const DEFAULT_CENTER_LNG = 138.2529;
-const MERCATOR_MAX_LAT = 85.05112878;
-
-const TYPE_LABEL: Record<SpotType, string> = {
-  dogrun: 'Dog Run',
-  shop: 'Pet Shop',
-  vet: 'Vet',
-  cafe: 'Dog-Friendly Cafe',
-};
-
-function clampLatitude(latitude: number) {
-  return Math.max(-MERCATOR_MAX_LAT, Math.min(MERCATOR_MAX_LAT, latitude));
+function distanceKm(from: LatLng, to: LatLng) {
+  const r = 6371;
+  const dLat = ((to.latitude - from.latitude) * Math.PI) / 180;
+  const dLng = ((to.longitude - from.longitude) * Math.PI) / 180;
+  const a =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos((from.latitude * Math.PI) / 180) * Math.cos((to.latitude * Math.PI) / 180) * Math.sin(dLng / 2) ** 2;
+  return r * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 }
 
-function normalizeLongitude(longitude: number) {
-  let value = longitude;
-  while (value < -180) value += 360;
-  while (value > 180) value -= 360;
-  return value;
-}
-
-function worldPixelFromLatLng(latitude: number, longitude: number, zoom: number) {
-  const safeLat = clampLatitude(latitude);
-  const scale = TILE_SIZE * 2 ** zoom;
-  const x = ((normalizeLongitude(longitude) + 180) / 360) * scale;
-
-  const sinLat = Math.sin((safeLat * Math.PI) / 180);
-  const y =
-    (0.5 - Math.log((1 + sinLat) / (1 - sinLat)) / (4 * Math.PI)) * scale;
-
-  return { x, y };
-}
-
-function latLngFromWorldPixel(x: number, y: number, zoom: number) {
-  const scale = TILE_SIZE * 2 ** zoom;
-  const longitude = (x / scale) * 360 - 180;
-
-  const n = Math.PI - (2 * Math.PI * y) / scale;
-  const latitude = (180 / Math.PI) * Math.atan(Math.sinh(n));
-
-  return {
-    latitude: clampLatitude(latitude),
-    longitude: normalizeLongitude(longitude),
-  };
-}
-
-function wrapTileX(tileX: number, zoom: number) {
-  const max = 2 ** zoom;
-  return ((tileX % max) + max) % max;
-}
-
-function buildVisibleTiles(
-  centerLat: number,
-  centerLng: number,
-  zoom: number,
-  mapWidth: number,
-  mapHeight: number
-): Tile[] {
-  const centerPx = worldPixelFromLatLng(centerLat, centerLng, zoom);
-  const centerTileX = Math.floor(centerPx.x / TILE_SIZE);
-  const centerTileY = Math.floor(centerPx.y / TILE_SIZE);
-
-  const rangeX = Math.ceil(mapWidth / TILE_SIZE / 2) + 1;
-  const rangeY = Math.ceil(mapHeight / TILE_SIZE / 2) + 1;
-
-  const tiles: Tile[] = [];
-  for (let dy = -rangeY; dy <= rangeY; dy += 1) {
-    for (let dx = -rangeX; dx <= rangeX; dx += 1) {
-      const tileX = centerTileX + dx;
-      const tileY = centerTileY + dy;
-      const wrappedX = wrapTileX(tileX, zoom);
-      const maxY = 2 ** zoom;
-      if (tileY < 0 || tileY >= maxY) continue;
-
-      const left = tileX * TILE_SIZE - (centerPx.x - mapWidth / 2);
-      const top = tileY * TILE_SIZE - (centerPx.y - mapHeight / 2);
-      const url = `https://tile.openstreetmap.org/${zoom}/${wrappedX}/${tileY}.png`;
-
-      tiles.push({
-        key: `${zoom}:${tileX}:${tileY}`,
-        left,
-        top,
-        url,
-      });
-    }
-  }
-
-  return tiles;
-}
-
-function formatCoord(value: number) {
-  return value.toFixed(5);
-}
-
-function buildGoogleMapUrl(spot: Spot) {
+function googleUrl(spot: Spot) {
   return `https://www.google.com/maps/search/?api=1&query=${spot.latitude},${spot.longitude}`;
 }
 
-function buildAppleMapUrl(spot: Spot) {
+function appleUrl(spot: Spot) {
   return `http://maps.apple.com/?ll=${spot.latitude},${spot.longitude}&q=${encodeURIComponent(spot.name)}`;
 }
 
-function getSpotPinStyle(type: SpotType) {
-  if (type === 'dogrun') return styles.pinDogrun;
-  if (type === 'vet') return styles.pinVet;
-  if (type === 'shop') return styles.pinShop;
-  return styles.pinCafe;
-}
-
-function ratingStars(rating: number) {
-  const safe = Math.min(5, Math.max(1, Math.round(rating)));
-  return `${'★'.repeat(safe)}${'☆'.repeat(5 - safe)}`;
-}
-
 export default function MapScreen() {
-  const text = getAppText();
+  const insets = useSafeAreaInsets();
+  const mapRef = useRef<MapView | null>(null);
   const { activeTheme } = useAppTheme();
-  const themeColors = activeTheme.colors;
-  const { width: viewportWidth } = useWindowDimensions();
+  const colors = activeTheme.colors;
+  const text = getAppText();
   const { profile } = useAuth();
   const isGuest = profile?.provider === 'guest';
-
-  const mapWidth = Math.max(320, Math.min(940, viewportWidth - 24));
-  const mapHeight = Math.max(280, Math.min(520, mapWidth * 0.66));
 
   const [spots, setSpots] = useState<Spot[]>([]);
   const [reviews, setReviews] = useState<Review[]>([]);
   const [loading, setLoading] = useState(false);
+  const [reviewsLoading, setReviewsLoading] = useState(false);
   const [message, setMessage] = useState('');
-
-  const [selectedSpotId, setSelectedSpotId] = useState<string | null>(null);
-  const [filterType, setFilterType] = useState<FilterType>('all');
   const [searchKeyword, setSearchKeyword] = useState('');
-
-  const [centerLat, setCenterLat] = useState(DEFAULT_CENTER_LAT);
-  const [centerLng, setCenterLng] = useState(DEFAULT_CENTER_LNG);
-  const [zoom, setZoom] = useState(DEFAULT_ZOOM);
-
+  const [filterType, setFilterType] = useState<FilterType>('all');
+  const [sheetMode, setSheetMode] = useState<SheetMode>('browse');
+  const [selectedSpotId, setSelectedSpotId] = useState<string | null>(null);
+  const [region, setRegion] = useState<Region>(DEFAULT_REGION);
+  const [draftCoordinate, setDraftCoordinate] = useState<LatLng>({ latitude: DEFAULT_REGION.latitude, longitude: DEFAULT_REGION.longitude });
+  const [spotType, setSpotType] = useState<SpotType>('dogrun');
   const [spotName, setSpotName] = useState('');
   const [spotAddress, setSpotAddress] = useState('');
-  const [spotType, setSpotType] = useState<SpotType>('dogrun');
-
   const [ratingText, setRatingText] = useState('5');
   const [comment, setComment] = useState('');
 
-  const centerPx = useMemo(
-    () => worldPixelFromLatLng(centerLat, centerLng, zoom),
-    [centerLat, centerLng, zoom]
-  );
-
-  const visibleTiles = useMemo(
-    () => buildVisibleTiles(centerLat, centerLng, zoom, mapWidth, mapHeight),
-    [centerLat, centerLng, zoom, mapWidth, mapHeight]
-  );
-
-  const filteredSpots = useMemo(() => {
-    const q = searchKeyword.trim().toLowerCase();
-    return spots.filter((spot) => {
-      if (filterType !== 'all' && spot.type !== filterType) return false;
-
-      if (
-        q &&
-        ![
-          spot.name,
-          spot.address ?? '',
-          spot.created_by_name ?? '',
-          TYPE_LABEL[spot.type],
-        ]
-          .join(' ')
-          .toLowerCase()
-          .includes(q)
-      ) {
-        return false;
-      }
-
-      return true;
-    });
-  }, [filterType, searchKeyword, spots]);
-
-  const markerSpots = useMemo(() => {
-    const projected: ProjectedSpot[] = [];
-    for (const spot of filteredSpots) {
-      const p = worldPixelFromLatLng(spot.latitude, spot.longitude, zoom);
-      const left = p.x - (centerPx.x - mapWidth / 2);
-      const top = p.y - (centerPx.y - mapHeight / 2);
-
-      if (left < -20 || left > mapWidth + 20 || top < -20 || top > mapHeight + 20) {
-        continue;
-      }
-
-      projected.push({ spot, left, top });
-      if (projected.length >= 1200) break;
-    }
-
-    return projected;
-  }, [centerPx.x, centerPx.y, filteredSpots, mapHeight, mapWidth, zoom]);
-
-  const selectedSpot = useMemo(
-    () => spots.find((spot) => spot.id === selectedSpotId) ?? null,
-    [selectedSpotId, spots]
-  );
-
   useEffect(() => {
     let active = true;
-
-    const loadSpots = async () => {
+    const load = async () => {
       if (!hasSupabaseEnv) {
-        if (active) {
-          setMessage(text.map.envMissing);
-        }
+        if (active) setMessage('Supabase 未接続のため、マップ投稿は同期されません。');
         return;
       }
-
       try {
         setLoading(true);
         const rows = await listSpots();
         if (!active) return;
         setSpots(rows);
-        setMessage('Spots loaded from Supabase.');
+        setMessage(rows.length ? '犬関連施設を読み込みました。' : 'まだ施設データがありません。');
       } catch (error) {
         if (!active) return;
-        setMessage(error instanceof Error ? error.message : text.map.failedLoadSpots);
+        setMessage(error instanceof Error ? error.message : '施設データの読み込みに失敗しました。');
       } finally {
         if (active) setLoading(false);
       }
     };
-
-    void loadSpots();
+    void load();
     return () => {
       active = false;
     };
-  }, [text]);
+  }, []);
 
   useEffect(() => {
     if (!selectedSpotId || !hasSupabaseEnv) {
       setReviews([]);
       return;
     }
-
     let active = true;
-
-    const loadReviews = async () => {
+    const load = async () => {
       try {
+        setReviewsLoading(true);
         const rows = await listReviews(selectedSpotId);
         if (!active) return;
         setReviews(rows);
       } catch (error) {
         if (!active) return;
-        setMessage(error instanceof Error ? error.message : text.map.failedLoadReviews);
+        setMessage(error instanceof Error ? error.message : '口コミの読み込みに失敗しました。');
+      } finally {
+        if (active) setReviewsLoading(false);
       }
     };
-
-    void loadReviews();
+    void load();
     return () => {
       active = false;
     };
-  }, [selectedSpotId, text]);
+  }, [selectedSpotId]);
 
-  const moveMapByPixels = (deltaX: number, deltaY: number) => {
-    const nextX = centerPx.x + deltaX;
-    const nextY = centerPx.y + deltaY;
-    const next = latLngFromWorldPixel(nextX, nextY, zoom);
-    setCenterLat(next.latitude);
-    setCenterLng(next.longitude);
-  };
-
-  const handleZoom = (delta: number) => {
-    setZoom((current) => {
-      const next = Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, current + delta));
-      return next;
+  const filteredSpots = useMemo(() => {
+    const q = searchKeyword.trim().toLowerCase();
+    return spots.filter((spot) => {
+      if (filterType !== 'all' && spot.type !== filterType) return false;
+      if (!q) return true;
+      return [spot.name, TYPE_META[spot.type].label, spot.address ?? '', spot.created_by_name ?? ''].join(' ').toLowerCase().includes(q);
     });
-  };
+  }, [filterType, searchKeyword, spots]);
 
-  const handleSelectSpot = (spot: Spot) => {
+  const selectedSpot = useMemo(
+    () => spots.find((spot) => spot.id === selectedSpotId) ?? null,
+    [selectedSpotId, spots]
+  );
+
+  const nearbySpots = useMemo(() => {
+    const center = { latitude: region.latitude, longitude: region.longitude };
+    return filteredSpots
+      .map((spot) => ({ spot, distance: distanceKm(center, { latitude: spot.latitude, longitude: spot.longitude }) }))
+      .sort((a, b) => a.distance - b.distance)
+      .slice(0, 6);
+  }, [filteredSpots, region.latitude, region.longitude]);
+
+  const avgRating = useMemo(() => {
+    if (!reviews.length) return null;
+    return reviews.reduce((sum, item) => sum + item.rating, 0) / reviews.length;
+  }, [reviews]);
+
+  const selectSpot = (spot: Spot) => {
     setSelectedSpotId(spot.id);
-    setCenterLat(spot.latitude);
-    setCenterLng(spot.longitude);
+    setSheetMode('browse');
+    const nextRegion = {
+      latitude: spot.latitude,
+      longitude: spot.longitude,
+      latitudeDelta: Math.max(region.latitudeDelta * 0.6, 0.02),
+      longitudeDelta: Math.max(region.longitudeDelta * 0.6, 0.02),
+    };
+    setRegion(nextRegion);
+    mapRef.current?.animateToRegion(nextRegion, 250);
   };
 
-  const handleOpenMap = async (target: 'google' | 'apple' | 'default') => {
+  const openMap = async (target: 'default' | 'google' | 'apple') => {
     if (!selectedSpot) {
-      setMessage(text.map.selectSpotFirst);
+      setMessage('先に施設を選択してください。');
       return;
     }
-
-    const googleUrl = buildGoogleMapUrl(selectedSpot);
-    const appleUrl = buildAppleMapUrl(selectedSpot);
-
-    const open = async (url: string) => {
-      try {
-        await Linking.openURL(url);
-        return true;
-      } catch {
-        return false;
-      }
-    };
-
-    if (target === 'google') {
-      const ok = await open(googleUrl);
-      if (!ok) setMessage('Unable to open Google Maps.');
-      return;
+    try {
+      const url = target === 'google' ? googleUrl(selectedSpot) : target === 'apple' ? appleUrl(selectedSpot) : Platform.OS === 'ios' ? appleUrl(selectedSpot) : googleUrl(selectedSpot);
+      await Linking.openURL(url);
+    } catch {
+      setMessage('地図アプリを開けませんでした。');
     }
-
-    if (target === 'apple') {
-      const ok = await open(appleUrl);
-      if (!ok) setMessage('Unable to open Apple Maps.');
-      return;
-    }
-
-    const defaultUrl = Platform.OS === 'ios' ? appleUrl : googleUrl;
-    const ok = await open(defaultUrl);
-    if (!ok) setMessage('Unable to open map application.');
   };
 
-  const handleResetMap = () => {
-    setCenterLat(DEFAULT_CENTER_LAT);
-    setCenterLng(DEFAULT_CENTER_LNG);
-    setZoom(DEFAULT_ZOOM);
-  };
-
-  const handleAddSpot = async () => {
-    if (isGuest) {
-      setMessage('Guest users cannot add spots.');
-      return;
-    }
-
-    if (!spotName.trim()) {
-      setMessage(text.map.spotRequired);
-      return;
-    }
-
-    const payload = {
-      name: spotName.trim(),
-      type: spotType,
-      latitude: centerLat,
-      longitude: centerLng,
-      address: spotAddress.trim() || null,
-      source: 'user',
-      created_by_external_id: profile?.externalId ?? null,
-      created_by_name: profile?.name ?? null,
-    };
-
-    if (!hasSupabaseEnv) {
-      setMessage(text.map.addedLocalSpot);
-      return;
-    }
-
+  const saveSpot = async () => {
+    if (isGuest) return setMessage('ゲストでは施設投稿はできません。');
+    if (!hasSupabaseEnv) return setMessage('Supabase 未接続のため、施設投稿は利用できません。');
+    if (!spotName.trim()) return setMessage('施設名を入力してください。');
     try {
       setLoading(true);
-      const created = await createSpot(payload);
+      const created = await createSpot({
+        name: spotName.trim(),
+        type: spotType,
+        latitude: draftCoordinate.latitude,
+        longitude: draftCoordinate.longitude,
+        address: spotAddress.trim() || null,
+        source: 'user',
+        created_by_external_id: profile?.externalId ?? null,
+        created_by_name: profile?.name ?? null,
+      });
       setSpots((prev) => [created, ...prev]);
-      setSelectedSpotId(created.id);
       setSpotName('');
       setSpotAddress('');
-      setMessage(text.map.savedSpot);
+      setMessage('施設を追加しました。');
+      selectSpot(created);
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : text.map.failedSaveSpot);
+      setMessage(error instanceof Error ? error.message : '施設の追加に失敗しました。');
     } finally {
       setLoading(false);
     }
   };
 
-  const handleAddReview = async () => {
-    if (isGuest) {
-      setMessage('Guest users cannot post reviews.');
-      return;
-    }
-
-    if (!selectedSpotId) {
-      setMessage(text.map.selectSpotFirst);
-      return;
-    }
-
+  const saveReview = async () => {
+    if (isGuest) return setMessage('ゲストでは口コミ投稿はできません。');
+    if (!hasSupabaseEnv) return setMessage('Supabase 未接続のため、口コミ投稿は利用できません。');
+    if (!selectedSpot) return setMessage('先に施設を選択してください。');
     const rating = Number(ratingText);
-    if (!comment.trim() || Number.isNaN(rating)) {
-      setMessage(text.map.reviewRequired);
-      return;
-    }
-
-    const safeRating = Math.min(5, Math.max(1, Math.round(rating)));
-    const payload = {
-      spot_id: selectedSpotId,
-      author_external_id: profile?.externalId ?? null,
-      author_name: profile?.name || text.board.anonymous,
-      rating: safeRating,
-      comment: comment.trim(),
-    };
-
-    if (!hasSupabaseEnv) {
-      setMessage(text.map.addedLocalReview);
-      return;
-    }
-
+    if (!comment.trim() || Number.isNaN(rating)) return setMessage('評価とコメントを入力してください。');
     try {
-      const created = await createReview(payload);
+      const created = await createReview({
+        spot_id: selectedSpot.id,
+        author_external_id: profile?.externalId ?? null,
+        author_name: profile?.name || text.board.anonymous,
+        rating: Math.max(1, Math.min(5, Math.round(rating))),
+        comment: comment.trim(),
+      });
       setReviews((prev) => [created, ...prev]);
       setComment('');
       setRatingText('5');
-      setMessage(text.map.savedReview);
+      setMessage('口コミを投稿しました。');
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : text.map.failedSaveReview);
+      setMessage(error instanceof Error ? error.message : '口コミ投稿に失敗しました。');
     }
   };
 
-  const centerLabel = `${formatCoord(centerLat)}, ${formatCoord(centerLng)} (z${zoom})`;
+  const handleMapPress = (event: MapPressEvent) => {
+    if (sheetMode === 'add') setDraftCoordinate(event.nativeEvent.coordinate);
+  };
 
   return (
-    <SafeAreaView style={[styles.safeArea, { backgroundColor: themeColors.background }]}>
-      <ScrollView contentContainerStyle={styles.content}>
-        <View style={styles.header}>
-          <Text style={[styles.title, { color: themeColors.text }]}>{text.map.title}</Text>
-          <Text style={[styles.caption, { color: themeColors.mutedText }]}>{text.map.caption}</Text>
-          <Text style={[styles.note, { color: themeColors.mutedText }]}>Map data source: OpenStreetMap</Text>
-          <Text style={[styles.message, { color: themeColors.mutedText }]}>{loading ? text.map.loading : message}</Text>
-          {isGuest ? <Text style={[styles.guestNote, { color: themeColors.mutedText }]}>Guest mode: posting and comments are disabled.</Text> : null}
-        </View>
-
-        <TextInput
-          style={[
-            styles.input,
-            {
-              backgroundColor: themeColors.surface,
-              borderColor: themeColors.border,
-              color: themeColors.text,
-            },
-          ]}
-          value={searchKeyword}
-          onChangeText={setSearchKeyword}
-          placeholder="Search spots, address, category"
-          placeholderTextColor={themeColors.mutedText}
-        />
-
-        <View style={styles.filterRow}>
-          <Pressable
-            style={[
-              styles.filterChip,
-              {
-                borderColor: themeColors.border,
-                backgroundColor: themeColors.chip,
-              },
-              filterType === 'all'
-                ? [styles.filterChipActive, { borderColor: themeColors.accent, backgroundColor: themeColors.accent }]
-                : null,
-            ]}
-            onPress={() => setFilterType('all')}>
-            <Text style={[styles.filterChipText, { color: filterType === 'all' ? themeColors.accentContrast : themeColors.chipText }]}>All</Text>
-          </Pressable>
-          <Pressable
-            style={[
-              styles.filterChip,
-              {
-                borderColor: themeColors.border,
-                backgroundColor: themeColors.chip,
-              },
-              filterType === 'dogrun'
-                ? [styles.filterChipActive, { borderColor: themeColors.accent, backgroundColor: themeColors.accent }]
-                : null,
-            ]}
-            onPress={() => setFilterType('dogrun')}>
-            <Text
-              style={[styles.filterChipText, { color: filterType === 'dogrun' ? themeColors.accentContrast : themeColors.chipText }]}>
-              Dog Run
-            </Text>
-          </Pressable>
-          <Pressable
-            style={[
-              styles.filterChip,
-              {
-                borderColor: themeColors.border,
-                backgroundColor: themeColors.chip,
-              },
-              filterType === 'shop'
-                ? [styles.filterChipActive, { borderColor: themeColors.accent, backgroundColor: themeColors.accent }]
-                : null,
-            ]}
-            onPress={() => setFilterType('shop')}>
-            <Text style={[styles.filterChipText, { color: filterType === 'shop' ? themeColors.accentContrast : themeColors.chipText }]}>
-              Pet Shop
-            </Text>
-          </Pressable>
-          <Pressable
-            style={[
-              styles.filterChip,
-              {
-                borderColor: themeColors.border,
-                backgroundColor: themeColors.chip,
-              },
-              filterType === 'vet'
-                ? [styles.filterChipActive, { borderColor: themeColors.accent, backgroundColor: themeColors.accent }]
-                : null,
-            ]}
-            onPress={() => setFilterType('vet')}>
-            <Text style={[styles.filterChipText, { color: filterType === 'vet' ? themeColors.accentContrast : themeColors.chipText }]}>
-              Vet
-            </Text>
-          </Pressable>
-          <Pressable
-            style={[
-              styles.filterChip,
-              {
-                borderColor: themeColors.border,
-                backgroundColor: themeColors.chip,
-              },
-              filterType === 'cafe'
-                ? [styles.filterChipActive, { borderColor: themeColors.accent, backgroundColor: themeColors.accent }]
-                : null,
-            ]}
-            onPress={() => setFilterType('cafe')}>
-            <Text style={[styles.filterChipText, { color: filterType === 'cafe' ? themeColors.accentContrast : themeColors.chipText }]}>
-              Cafe
-            </Text>
-          </Pressable>
-        </View>
-
-        <View style={styles.toolbarRow}>
-          <Pressable
-            style={[styles.controlBtn, { borderColor: themeColors.border, backgroundColor: themeColors.surface }]}
-            onPress={() => handleZoom(1)}>
-            <Text style={[styles.controlBtnText, { color: themeColors.text }]}>+</Text>
-          </Pressable>
-          <Pressable
-            style={[styles.controlBtn, { borderColor: themeColors.border, backgroundColor: themeColors.surface }]}
-            onPress={() => handleZoom(-1)}>
-            <Text style={[styles.controlBtnText, { color: themeColors.text }]}>-</Text>
-          </Pressable>
-          <Pressable
-            style={[styles.controlBtn, { borderColor: themeColors.border, backgroundColor: themeColors.surface }]}
-            onPress={() => moveMapByPixels(0, -120)}>
-            <Text style={[styles.controlBtnText, { color: themeColors.text }]}>↑</Text>
-          </Pressable>
-          <Pressable
-            style={[styles.controlBtn, { borderColor: themeColors.border, backgroundColor: themeColors.surface }]}
-            onPress={() => moveMapByPixels(-120, 0)}>
-            <Text style={[styles.controlBtnText, { color: themeColors.text }]}>←</Text>
-          </Pressable>
-          <Pressable
-            style={[styles.controlBtn, { borderColor: themeColors.border, backgroundColor: themeColors.surface }]}
-            onPress={() => moveMapByPixels(120, 0)}>
-            <Text style={[styles.controlBtnText, { color: themeColors.text }]}>→</Text>
-          </Pressable>
-          <Pressable
-            style={[styles.controlBtn, { borderColor: themeColors.border, backgroundColor: themeColors.surface }]}
-            onPress={() => moveMapByPixels(0, 120)}>
-            <Text style={[styles.controlBtnText, { color: themeColors.text }]}>↓</Text>
-          </Pressable>
-          <Pressable
-            style={[styles.controlBtnWide, { borderColor: themeColors.border, backgroundColor: themeColors.surface }]}
-            onPress={handleResetMap}>
-            <Text style={[styles.controlBtnText, { color: themeColors.text }]}>Reset</Text>
-          </Pressable>
-        </View>
-
-        <Text style={[styles.centerText, { color: themeColors.mutedText }]}>Center: {centerLabel}</Text>
-
-        <View
-          style={[
-            styles.mapWrap,
-            {
-              width: mapWidth,
-              height: mapHeight,
-              borderColor: themeColors.border,
-              backgroundColor: themeColors.elevated,
-            },
-          ]}>
-          {visibleTiles.map((tile) => (
-            <Image
-              key={tile.key}
-              source={{ uri: tile.url }}
-              style={[styles.tileImage, { left: tile.left, top: tile.top }]}
-            />
-          ))}
-
-          {markerSpots.map(({ spot, left, top }) => {
-            const active = selectedSpotId === spot.id;
-            return (
-              <Pressable
-                key={spot.id}
-                style={[styles.pinWrap, { left, top }]}
-                onPress={() => handleSelectSpot(spot)}>
-                <View
-                  style={[
-                    styles.pin,
-                    getSpotPinStyle(spot.type),
-                    active ? styles.pinActive : null,
-                  ]}
-                />
-              </Pressable>
-            );
-          })}
-
-          <View style={[styles.centerCrossOuter, { borderColor: themeColors.border }]} pointerEvents="none">
-            <View style={[styles.centerCrossInner, { backgroundColor: themeColors.text }]} />
-          </View>
-
-          {markerSpots.length === 0 ? (
-            <View style={styles.emptyWrap}>
-              <Text style={styles.emptyText}>No spots in this area/filter.</Text>
-            </View>
-          ) : null}
-        </View>
-        <Text style={[styles.attribution, { color: themeColors.mutedText }]}>© OpenStreetMap contributors</Text>
-
-        <View style={[styles.formCard, { backgroundColor: themeColors.surface, borderColor: themeColors.border }]}>
-          <Text style={[styles.blockTitle, { color: themeColors.text }]}>Add a new place at map center</Text>
-          <View style={styles.row}>
-            <Pressable
-              style={[
-                styles.typeButton,
-                { backgroundColor: themeColors.chip, borderColor: themeColors.border },
-                spotType === 'dogrun'
-                  ? [styles.typeButtonActive, { backgroundColor: themeColors.accent, borderColor: themeColors.accent }]
-                  : null,
-              ]}
-              onPress={() => setSpotType('dogrun')}>
-              <Text style={[styles.typeText, { color: spotType === 'dogrun' ? themeColors.accentContrast : themeColors.chipText }]}>
-                Dog Run
-              </Text>
-            </Pressable>
-            <Pressable
-              style={[
-                styles.typeButton,
-                { backgroundColor: themeColors.chip, borderColor: themeColors.border },
-                spotType === 'shop'
-                  ? [styles.typeButtonActive, { backgroundColor: themeColors.accent, borderColor: themeColors.accent }]
-                  : null,
-              ]}
-              onPress={() => setSpotType('shop')}>
-              <Text style={[styles.typeText, { color: spotType === 'shop' ? themeColors.accentContrast : themeColors.chipText }]}>
-                Pet Shop
-              </Text>
-            </Pressable>
-            <Pressable
-              style={[
-                styles.typeButton,
-                { backgroundColor: themeColors.chip, borderColor: themeColors.border },
-                spotType === 'vet'
-                  ? [styles.typeButtonActive, { backgroundColor: themeColors.accent, borderColor: themeColors.accent }]
-                  : null,
-              ]}
-              onPress={() => setSpotType('vet')}>
-              <Text style={[styles.typeText, { color: spotType === 'vet' ? themeColors.accentContrast : themeColors.chipText }]}>
-                Vet
-              </Text>
-            </Pressable>
-            <Pressable
-              style={[
-                styles.typeButton,
-                { backgroundColor: themeColors.chip, borderColor: themeColors.border },
-                spotType === 'cafe'
-                  ? [styles.typeButtonActive, { backgroundColor: themeColors.accent, borderColor: themeColors.accent }]
-                  : null,
-              ]}
-              onPress={() => setSpotType('cafe')}>
-              <Text style={[styles.typeText, { color: spotType === 'cafe' ? themeColors.accentContrast : themeColors.chipText }]}>
-                Cafe
-              </Text>
-            </Pressable>
-          </View>
-          <TextInput
-            style={[
-              styles.input,
-              {
-                backgroundColor: themeColors.background,
-                borderColor: themeColors.border,
-                color: themeColors.text,
-              },
-            ]}
-            value={spotName}
-            onChangeText={setSpotName}
-            placeholder={text.map.spotNamePlaceholder}
-            placeholderTextColor={themeColors.mutedText}
-          />
-          <TextInput
-            style={[
-              styles.input,
-              {
-                backgroundColor: themeColors.background,
-                borderColor: themeColors.border,
-                color: themeColors.text,
-              },
-            ]}
-            value={spotAddress}
-            onChangeText={setSpotAddress}
-            placeholder="Address (optional)"
-            placeholderTextColor={themeColors.mutedText}
-          />
-          <Text style={[styles.centerText, { color: themeColors.mutedText }]}>Pin location: {centerLabel}</Text>
-          <Pressable
-            style={[
-              styles.actionButton,
-              { backgroundColor: themeColors.accent },
-              isGuest ? styles.actionButtonDisabled : null,
-            ]}
-            onPress={() => void handleAddSpot()}>
-            <Text style={[styles.actionText, { color: themeColors.accentContrast }]}>{text.map.saveSpotAction}</Text>
-          </Pressable>
-        </View>
-
-        <View style={[styles.formCard, { backgroundColor: themeColors.surface, borderColor: themeColors.border }]}>
-          <Text style={[styles.blockTitle, { color: themeColors.text }]}>Map pins</Text>
-          {filteredSpots.slice(0, 40).map((spot) => (
-            <Pressable key={spot.id} style={styles.spotListItem} onPress={() => handleSelectSpot(spot)}>
-              <View style={[styles.spotDot, getSpotPinStyle(spot.type)]} />
-              <View style={styles.spotInfoWrap}>
-                <Text style={[styles.spotListTitle, { color: themeColors.text }]}>{spot.name}</Text>
-                <Text style={[styles.spotListMeta, { color: themeColors.mutedText }]}>{TYPE_LABEL[spot.type]}</Text>
+    <View style={[styles.root, { backgroundColor: colors.background }]}>
+      <MapView
+        ref={mapRef}
+        style={StyleSheet.absoluteFill}
+        initialRegion={DEFAULT_REGION}
+        onRegionChangeComplete={setRegion}
+        onPress={handleMapPress}
+        toolbarEnabled={false}
+        rotateEnabled={false}
+        pitchEnabled={false}>
+        <UrlTile urlTemplate="https://tile.openstreetmap.org/{z}/{x}/{y}.png" maximumZ={19} shouldReplaceMapContent />
+        {filteredSpots.map((spot) => {
+          const meta = TYPE_META[spot.type];
+          const selected = spot.id === selectedSpotId;
+          return (
+            <Marker key={spot.id} coordinate={{ latitude: spot.latitude, longitude: spot.longitude }} anchor={{ x: 0.5, y: 1 }} onPress={() => selectSpot(spot)}>
+              <View style={styles.markerWrap}>
+                <View style={[styles.markerBubble, { backgroundColor: selected ? colors.accent : colors.surface, borderColor: selected ? colors.accent : colors.border }]}>
+                  <FontAwesome6 name={meta.icon} size={11} color={selected ? colors.accentContrast : meta.tint} />
+                  <Text style={[styles.markerLabel, { color: selected ? colors.accentContrast : colors.text }]}>{meta.short}</Text>
+                </View>
+                <View style={[styles.markerPointer, { backgroundColor: selected ? colors.accent : colors.surface, borderColor: colors.border }]} />
               </View>
-            </Pressable>
-          ))}
-          {filteredSpots.length > 40 ? (
-            <Text style={[styles.smallCaption, { color: themeColors.mutedText }]}>
-              Showing first 40 / {filteredSpots.length} results.
-            </Text>
-          ) : null}
+            </Marker>
+          );
+        })}
+        {sheetMode === 'add' ? (
+          <Marker coordinate={draftCoordinate} anchor={{ x: 0.5, y: 1 }}>
+            <View style={styles.markerWrap}>
+              <View style={[styles.addPin, { backgroundColor: colors.accent }]}>
+                <FontAwesome6 name="plus" size={12} color={colors.accentContrast} />
+              </View>
+              <View style={[styles.markerPointer, { backgroundColor: colors.accent, borderColor: colors.accent }]} />
+            </View>
+          </Marker>
+        ) : null}
+      </MapView>
+
+      <View style={[styles.topOverlay, { paddingTop: insets.top + 8 }]}>
+        <View style={[styles.searchCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+          <View style={styles.searchRow}>
+            <FontAwesome6 name="magnifying-glass" size={15} color={colors.mutedText} />
+            <TextInput
+              style={[styles.searchInput, { color: colors.text }]}
+              value={searchKeyword}
+              onChangeText={setSearchKeyword}
+              placeholder="施設名・住所で検索"
+              placeholderTextColor={colors.mutedText}
+            />
+          </View>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filterRow}>
+            {FILTERS.map((filter) => {
+              const active = filter.id === filterType;
+              return (
+                <Pressable
+                  key={filter.id}
+                  style={[styles.filterChip, { backgroundColor: active ? colors.accent : colors.background, borderColor: active ? colors.accent : colors.border }]}
+                  onPress={() => setFilterType(filter.id)}>
+                  <FontAwesome6 name={filter.icon} size={12} color={active ? colors.accentContrast : colors.text} />
+                  <Text style={[styles.filterText, { color: active ? colors.accentContrast : colors.text }]}>{filter.label}</Text>
+                </Pressable>
+              );
+            })}
+          </ScrollView>
+        </View>
+        {message ? (
+          <View style={[styles.messagePill, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+            {loading ? <ActivityIndicator size="small" color={colors.accent} /> : null}
+            <Text style={[styles.messageText, { color: colors.text }]}>{message}</Text>
+          </View>
+        ) : null}
+      </View>
+
+      <View style={[styles.sideRail, { top: insets.top + 138 }]}>
+        <Pressable style={[styles.railButton, { backgroundColor: colors.surface, borderColor: colors.border }]} onPress={() => { setSelectedSpotId(null); setSheetMode('browse'); }}>
+          <FontAwesome6 name="compass" size={16} color={colors.text} />
+        </Pressable>
+        <Pressable style={[styles.railButton, { backgroundColor: colors.surface, borderColor: colors.border }]} onPress={() => { setSelectedSpotId(null); setSheetMode('add'); setDraftCoordinate({ latitude: region.latitude, longitude: region.longitude }); }}>
+          <FontAwesome6 name="circle-plus" size={16} color={colors.text} />
+        </Pressable>
+        <Pressable style={[styles.railButton, { backgroundColor: colors.surface, borderColor: colors.border }]} onPress={() => { setSelectedSpotId(null); setSheetMode('browse'); setRegion(DEFAULT_REGION); mapRef.current?.animateToRegion(DEFAULT_REGION, 250); }}>
+          <FontAwesome6 name="location-crosshairs" size={16} color={colors.text} />
+        </Pressable>
+      </View>
+
+      <View style={[styles.sheet, { backgroundColor: colors.surface, borderColor: colors.border, paddingBottom: Math.max(insets.bottom, 12) }]}>
+        <View style={styles.handleWrap}>
+          <View style={[styles.handle, { backgroundColor: colors.border }]} />
+        </View>
+        <View style={styles.sheetHeader}>
+          <View style={styles.sheetTitleWrap}>
+            <Text style={[styles.sheetEyebrow, { color: colors.mutedText }]}>Dog Map</Text>
+            <Text style={[styles.sheetTitle, { color: colors.text }]}>{sheetMode === 'add' ? '新しい施設を追加' : selectedSpot ? selectedSpot.name : '近くの犬関連スポット'}</Text>
+          </View>
+          <View style={styles.segmentRow}>
+            {(['browse', 'add'] as const).map((mode) => {
+              const active = sheetMode === mode;
+              return (
+                <Pressable
+                  key={mode}
+                  style={[styles.segment, { backgroundColor: active ? colors.accent : colors.background, borderColor: active ? colors.accent : colors.border }]}
+                  onPress={() => {
+                    setSheetMode(mode);
+                    if (mode === 'add') {
+                      setSelectedSpotId(null);
+                      setDraftCoordinate({ latitude: region.latitude, longitude: region.longitude });
+                    }
+                  }}>
+                  <Text style={[styles.segmentText, { color: active ? colors.accentContrast : colors.text }]}>{mode === 'browse' ? 'Browse' : 'Add'}</Text>
+                </Pressable>
+              );
+            })}
+          </View>
         </View>
 
-        <View style={[styles.formCard, { backgroundColor: themeColors.surface, borderColor: themeColors.border }]}>
-          <Text style={[styles.blockTitle, { color: themeColors.text }]}>
-            {selectedSpot
-              ? formatMessage(text.map.reviewsFor, { name: selectedSpot.name })
-              : 'Tap a pin to see details'}
-          </Text>
-
-          {selectedSpot ? (
-            <>
-              <Text style={[styles.detailName, { color: themeColors.text }]}>{selectedSpot.name}</Text>
-              <Text style={[styles.detailMeta, { color: themeColors.mutedText }]}>{TYPE_LABEL[selectedSpot.type]}</Text>
-              {selectedSpot.address ? <Text style={[styles.detailMeta, { color: themeColors.mutedText }]}>{selectedSpot.address}</Text> : null}
-              <Text style={[styles.detailMeta, { color: themeColors.mutedText }]}>
-                {formatCoord(selectedSpot.latitude)}, {formatCoord(selectedSpot.longitude)}
-              </Text>
-
-              <View style={styles.row}>
-                <Pressable
-                  style={[styles.mapOpenBtn, { backgroundColor: themeColors.chip, borderColor: themeColors.border }]}
-                  onPress={() => void handleOpenMap('default')}>
-                  <Text style={[styles.mapOpenBtnText, { color: themeColors.chipText }]}>Open Map</Text>
+        <ScrollView style={styles.sheetScroll} contentContainerStyle={styles.sheetContent} showsVerticalScrollIndicator={false}>
+          {sheetMode === 'add' ? (
+            <View style={[styles.card, { backgroundColor: colors.background, borderColor: colors.border }]}>
+              <Text style={[styles.blockTitle, { color: colors.text }]}>新規施設ピン</Text>
+              <Text style={[styles.blockCaption, { color: colors.mutedText }]}>地図をタップすると追加位置を変更できます。犬連れで利用できる場所だけを登録してください。</Text>
+              <View style={styles.typeRow}>
+                {(Object.keys(TYPE_META) as SpotType[]).map((type) => {
+                  const active = spotType === type;
+                  return (
+                    <Pressable
+                      key={type}
+                      style={[styles.typeChip, { backgroundColor: active ? colors.accent : colors.surface, borderColor: active ? colors.accent : colors.border }]}
+                      onPress={() => setSpotType(type)}>
+                      <FontAwesome6 name={TYPE_META[type].icon} size={12} color={active ? colors.accentContrast : TYPE_META[type].tint} />
+                      <Text style={[styles.typeText, { color: active ? colors.accentContrast : colors.text }]}>{TYPE_META[type].label}</Text>
+                    </Pressable>
+                  );
+                })}
+              </View>
+              <TextInput style={[styles.input, { backgroundColor: colors.surface, borderColor: colors.border, color: colors.text }]} value={spotName} onChangeText={setSpotName} placeholder="施設名" placeholderTextColor={colors.mutedText} />
+              <TextInput style={[styles.input, { backgroundColor: colors.surface, borderColor: colors.border, color: colors.text }]} value={spotAddress} onChangeText={setSpotAddress} placeholder="住所または目印" placeholderTextColor={colors.mutedText} />
+              <View style={[styles.coordinateBox, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+                <Text style={[styles.coordinateLabel, { color: colors.mutedText }]}>追加座標</Text>
+                <Text style={[styles.coordinateValue, { color: colors.text }]}>{draftCoordinate.latitude.toFixed(5)}, {draftCoordinate.longitude.toFixed(5)}</Text>
+              </View>
+              <Pressable style={[styles.primaryButton, { backgroundColor: colors.accent }, isGuest ? styles.disabled : null]} onPress={() => void saveSpot()} disabled={isGuest}>
+                <Text style={[styles.primaryButtonText, { color: colors.accentContrast }]}>施設を追加</Text>
+              </Pressable>
+            </View>
+          ) : selectedSpot ? (
+            <View style={[styles.card, { backgroundColor: colors.background, borderColor: colors.border }]}>
+              <View style={styles.selectedTop}>
+                <View style={[styles.badge, { backgroundColor: TYPE_META[selectedSpot.type].tone, borderColor: colors.border }]}>
+                  <FontAwesome6 name={TYPE_META[selectedSpot.type].icon} size={12} color={TYPE_META[selectedSpot.type].tint} />
+                  <Text style={[styles.badgeText, { color: colors.text }]}>{TYPE_META[selectedSpot.type].label}</Text>
+                </View>
+                <Pressable onPress={() => setSelectedSpotId(null)}>
+                  <FontAwesome6 name="xmark" size={16} color={colors.mutedText} />
                 </Pressable>
-                <Pressable
-                  style={[styles.mapOpenBtn, { backgroundColor: themeColors.chip, borderColor: themeColors.border }]}
-                  onPress={() => void handleOpenMap('google')}>
-                  <Text style={[styles.mapOpenBtnText, { color: themeColors.chipText }]}>Google Maps</Text>
+              </View>
+              {selectedSpot.address ? <Text style={[styles.blockCaption, { color: colors.mutedText }]}>{selectedSpot.address}</Text> : null}
+              <View style={styles.ratingRow}>
+                <FontAwesome6 name="star" size={13} color={colors.accent} />
+                <Text style={[styles.rating, { color: colors.text }]}>{avgRating == null ? '未評価' : `${avgRating.toFixed(1)} / 5.0`}</Text>
+                <Text style={[styles.ratingMeta, { color: colors.mutedText }]}>口コミ {reviews.length}件</Text>
+              </View>
+              <View style={styles.actionRow}>
+                <Pressable style={[styles.primaryAction, { backgroundColor: colors.accent }]} onPress={() => void openMap('default')}>
+                  <Text style={[styles.primaryActionText, { color: colors.accentContrast }]}>開く</Text>
+                </Pressable>
+                <Pressable style={[styles.secondaryAction, { backgroundColor: colors.surface, borderColor: colors.border }]} onPress={() => void openMap('google')}>
+                  <Text style={[styles.secondaryActionText, { color: colors.text }]}>Google</Text>
                 </Pressable>
                 {Platform.OS === 'ios' ? (
-                  <Pressable
-                    style={[styles.mapOpenBtn, { backgroundColor: themeColors.chip, borderColor: themeColors.border }]}
-                    onPress={() => void handleOpenMap('apple')}>
-                    <Text style={[styles.mapOpenBtnText, { color: themeColors.chipText }]}>Apple Maps</Text>
+                  <Pressable style={[styles.secondaryAction, { backgroundColor: colors.surface, borderColor: colors.border }]} onPress={() => void openMap('apple')}>
+                    <Text style={[styles.secondaryActionText, { color: colors.text }]}>Apple</Text>
                   </Pressable>
                 ) : null}
               </View>
-
-              <Text style={[styles.smallCaption, { color: themeColors.mutedText }]}>Comments ({reviews.length})</Text>
-              {reviews.length === 0 ? <Text style={[styles.emptyComments, { color: themeColors.mutedText }]}>No comments yet.</Text> : null}
+              <View style={styles.reviewHeader}>
+                <Text style={[styles.blockTitle, { color: colors.text }]}>口コミ</Text>
+                {reviewsLoading ? <ActivityIndicator size="small" color={colors.accent} /> : null}
+              </View>
+              {!reviews.length && !reviewsLoading ? <Text style={[styles.blockCaption, { color: colors.mutedText }]}>まだ口コミはありません。最初の感想を残せます。</Text> : null}
               {reviews.map((review) => (
-                <View key={review.id} style={styles.reviewItem}>
-                  <Text style={[styles.reviewTitle, { color: themeColors.text }]}>
-                    {review.author_name} · {ratingStars(review.rating)}
-                  </Text>
-                  <Text style={[styles.reviewBody, { color: themeColors.mutedText }]}>{review.comment}</Text>
+                <View key={review.id} style={[styles.reviewCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+                  <View style={styles.reviewRow}>
+                    <Text style={[styles.reviewAuthor, { color: colors.text }]}>{review.author_name}</Text>
+                    <Text style={[styles.reviewStars, { color: colors.accent }]}>{'★'.repeat(review.rating)}</Text>
+                  </View>
+                  <Text style={[styles.reviewBody, { color: colors.mutedText }]}>{review.comment}</Text>
                 </View>
               ))}
-
-              <View
-                style={[styles.readonlyBox, { borderColor: themeColors.border, backgroundColor: themeColors.background }]}>
-                <Text style={[styles.readonlyText, { color: themeColors.mutedText }]}>
-                  Author: {profile?.name || text.board.anonymous}
-                </Text>
+              <View style={[styles.reviewComposer, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+                <Text style={[styles.blockTitle, { color: colors.text }]}>口コミを追加</Text>
+                <View style={styles.composerRow}>
+                  <TextInput style={[styles.ratingInput, { backgroundColor: colors.background, borderColor: colors.border, color: colors.text }]} value={ratingText} onChangeText={setRatingText} keyboardType="number-pad" placeholder="5" placeholderTextColor={colors.mutedText} />
+                  <TextInput style={[styles.reviewInput, { backgroundColor: colors.background, borderColor: colors.border, color: colors.text }]} value={comment} onChangeText={setComment} placeholder="清潔感、犬連れしやすさ、混雑感など" placeholderTextColor={colors.mutedText} />
+                </View>
+                <Pressable style={[styles.primaryButton, { backgroundColor: colors.accent }, isGuest ? styles.disabled : null]} onPress={() => void saveReview()} disabled={isGuest}>
+                  <Text style={[styles.primaryButtonText, { color: colors.accentContrast }]}>口コミを投稿</Text>
+                </Pressable>
               </View>
-              <TextInput
-                style={[
-                  styles.input,
-                  {
-                    backgroundColor: themeColors.background,
-                    borderColor: themeColors.border,
-                    color: themeColors.text,
-                  },
-                ]}
-                value={ratingText}
-                onChangeText={setRatingText}
-                placeholder={text.map.ratingPlaceholder}
-                placeholderTextColor={themeColors.mutedText}
-              />
-              <TextInput
-                style={[
-                  styles.input,
-                  styles.textArea,
-                  {
-                    backgroundColor: themeColors.background,
-                    borderColor: themeColors.border,
-                    color: themeColors.text,
-                  },
-                ]}
-                value={comment}
-                onChangeText={setComment}
-                placeholder={text.map.reviewPlaceholder}
-                placeholderTextColor={themeColors.mutedText}
-                multiline
-                textAlignVertical="top"
-              />
-              <Pressable
-                style={[
-                  styles.actionButton,
-                  { backgroundColor: themeColors.accent },
-                  isGuest ? styles.actionButtonDisabled : null,
-                ]}
-                onPress={() => void handleAddReview()}>
-                <Text style={[styles.actionText, { color: themeColors.accentContrast }]}>{text.map.saveReviewAction}</Text>
-              </Pressable>
-            </>
+            </View>
           ) : (
-            <Text style={[styles.emptyComments, { color: themeColors.mutedText }]}>
-              Select one pin to load comments and actions.
-            </Text>
+            <>
+              <View style={styles.statRow}>
+                <View style={[styles.statCard, { backgroundColor: colors.background, borderColor: colors.border }]}>
+                  <Text style={[styles.statLabel, { color: colors.mutedText }]}>表示中</Text>
+                  <Text style={[styles.statValue, { color: colors.text }]}>{filteredSpots.length}件</Text>
+                </View>
+                <View style={[styles.statCard, { backgroundColor: colors.background, borderColor: colors.border }]}>
+                  <Text style={[styles.statLabel, { color: colors.mutedText }]}>中心</Text>
+                  <Text style={[styles.statSmall, { color: colors.text }]}>{region.latitude.toFixed(4)}, {region.longitude.toFixed(4)}</Text>
+                </View>
+              </View>
+              <View style={styles.listWrap}>
+                <Text style={[styles.blockTitle, { color: colors.text }]}>現在地周辺のおすすめ候補</Text>
+                <Text style={[styles.blockCaption, { color: colors.mutedText }]}>タップすると地図の中心と詳細カードが切り替わります。</Text>
+                {!nearbySpots.length ? <Text style={[styles.blockCaption, { color: colors.mutedText }]}>条件に一致する施設がありません。</Text> : null}
+                {nearbySpots.map(({ spot, distance }) => (
+                  <Pressable key={spot.id} style={[styles.listItem, { backgroundColor: colors.background, borderColor: colors.border }]} onPress={() => selectSpot(spot)}>
+                    <View style={[styles.listIcon, { backgroundColor: TYPE_META[spot.type].tone, borderColor: colors.border }]}>
+                      <FontAwesome6 name={TYPE_META[spot.type].icon} size={13} color={TYPE_META[spot.type].tint} />
+                    </View>
+                    <View style={styles.listBody}>
+                      <Text style={[styles.listTitle, { color: colors.text }]}>{spot.name}</Text>
+                      <Text style={[styles.listMeta, { color: colors.mutedText }]}>{TYPE_META[spot.type].label}{spot.address ? ` ・ ${spot.address}` : ''}</Text>
+                    </View>
+                    <Text style={[styles.listDistance, { color: colors.mutedText }]}>{distance.toFixed(1)}km</Text>
+                  </Pressable>
+                ))}
+              </View>
+            </>
           )}
-        </View>
-      </ScrollView>
-    </SafeAreaView>
+          <Text style={[styles.attribution, { color: colors.mutedText }]}>Map tiles: OpenStreetMap contributors</Text>
+        </ScrollView>
+      </View>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  safeArea: { flex: 1, backgroundColor: '#f6efe3' },
-  content: { padding: 12, gap: 10, paddingBottom: 24 },
-  header: { padding: 6 },
-  title: { color: '#4a3828', fontSize: 24, fontWeight: '800' },
-  caption: { color: '#7e674d', fontSize: 13, marginTop: 2 },
-  note: { color: '#8f785e', fontSize: 12, marginTop: 3 },
-  guestNote: { color: '#8a6742', fontSize: 12, marginTop: 3 },
-  message: { color: '#6f583f', fontSize: 12, marginTop: 4 },
-  input: {
-    backgroundColor: '#fff9f1',
-    borderColor: '#dac9b2',
-    borderWidth: 1,
-    borderRadius: 10,
-    paddingHorizontal: 10,
-    paddingVertical: 9,
-  },
-  filterRow: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 8,
-  },
-  filterChip: {
-    borderRadius: 999,
-    borderWidth: 1,
-    borderColor: '#d8c8af',
-    backgroundColor: '#f5ece0',
-    paddingVertical: 6,
-    paddingHorizontal: 10,
-  },
-  filterChipActive: {
-    borderColor: '#b59772',
-    backgroundColor: '#ecdfce',
-  },
-  filterChipText: {
-    color: '#6d563d',
-    fontWeight: '700',
-    fontSize: 12,
-  },
-  toolbarRow: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 8,
-  },
-  controlBtn: {
-    minWidth: 42,
-    paddingVertical: 7,
-    paddingHorizontal: 10,
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: '#d5c4ad',
-    backgroundColor: '#fffaf4',
-    alignItems: 'center',
-  },
-  controlBtnWide: {
-    minWidth: 72,
-    paddingVertical: 7,
-    paddingHorizontal: 12,
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: '#d5c4ad',
-    backgroundColor: '#fffaf4',
-    alignItems: 'center',
-  },
-  controlBtnText: {
-    color: '#5f4930',
-    fontWeight: '700',
-    fontSize: 14,
-  },
-  centerText: {
-    color: '#7e674d',
-    fontSize: 12,
-    fontWeight: '600',
-  },
-  mapWrap: {
-    borderRadius: 16,
-    overflow: 'hidden',
-    borderWidth: 1,
-    borderColor: '#ddccb5',
-    backgroundColor: '#efe4d4',
-    position: 'relative',
-    alignSelf: 'center',
-  },
-  tileImage: {
-    position: 'absolute',
-    width: TILE_SIZE,
-    height: TILE_SIZE,
-  },
-  pinWrap: {
-    position: 'absolute',
-    width: 16,
-    height: 16,
-    marginTop: -8,
-    marginLeft: -8,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  pin: {
-    width: 12,
-    height: 12,
-    borderRadius: 999,
-    borderWidth: 1.5,
-    borderColor: '#ffffff',
-  },
-  pinDogrun: { backgroundColor: '#9b7a50' },
-  pinVet: { backgroundColor: '#8a6b47' },
-  pinCafe: { backgroundColor: '#c39a6d' },
-  pinShop: { backgroundColor: '#ad8756' },
-  pinActive: { width: 15, height: 15, borderWidth: 2 },
-  centerCrossOuter: {
-    position: 'absolute',
-    left: '50%',
-    top: '50%',
-    marginLeft: -10,
-    marginTop: -10,
-    width: 20,
-    height: 20,
-    borderRadius: 999,
-    borderWidth: 1,
-    borderColor: 'rgba(76, 48, 20, 0.55)',
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: 'rgba(255,255,255,0.25)',
-  },
-  centerCrossInner: {
-    width: 6,
-    height: 6,
-    borderRadius: 999,
-    backgroundColor: '#5c4430',
-  },
-  emptyWrap: {
-    ...StyleSheet.absoluteFillObject,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  emptyText: {
-    color: '#6c553c',
-    fontSize: 14,
-    fontWeight: '700',
-    backgroundColor: 'rgba(255,255,255,0.8)',
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 8,
-  },
-  attribution: {
-    color: '#90785b',
-    fontSize: 11,
-    textAlign: 'right',
-    marginTop: -2,
-  },
-  formCard: {
-    backgroundColor: '#ffffff',
-    borderColor: '#dac9b2',
-    borderWidth: 1,
-    borderRadius: 12,
-    padding: 12,
-    gap: 8,
-  },
-  blockTitle: { color: '#4a3828', fontSize: 15, fontWeight: '700' },
-  row: { flexDirection: 'row', gap: 8, flexWrap: 'wrap' },
-  typeButton: {
-    backgroundColor: '#f4ebdf',
-    borderColor: '#ddccb5',
-    borderWidth: 1,
-    borderRadius: 10,
-    paddingVertical: 8,
-    paddingHorizontal: 12,
-  },
-  typeButtonActive: { backgroundColor: '#ede2d2', borderColor: '#bfa482' },
-  typeText: { color: '#6d563d', fontWeight: '600' },
-  actionButton: {
-    backgroundColor: '#b39169',
-    borderRadius: 10,
-    paddingVertical: 10,
-    alignItems: 'center',
-  },
-  actionButtonDisabled: {
-    backgroundColor: '#c7b59b',
-  },
-  actionText: { color: '#ffffff', fontWeight: '700' },
-  spotListItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-    borderBottomWidth: 1,
-    borderBottomColor: '#f0e5d5',
-    paddingBottom: 8,
-    marginBottom: 2,
-  },
-  spotDot: {
-    width: 12,
-    height: 12,
-    borderRadius: 999,
-    borderWidth: 1,
-    borderColor: '#fff',
-  },
-  spotInfoWrap: {
-    flex: 1,
-  },
-  spotListTitle: {
-    color: '#4a3828',
-    fontWeight: '700',
-    fontSize: 13,
-  },
-  spotListMeta: {
-    color: '#7e674d',
-    fontSize: 12,
-    marginTop: 1,
-  },
-  smallCaption: {
-    color: '#8f785e',
-    fontSize: 11,
-  },
-  detailName: {
-    color: '#4a3828',
-    fontWeight: '800',
-    fontSize: 16,
-  },
-  detailMeta: {
-    color: '#7e674d',
-    fontSize: 12,
-  },
-  mapOpenBtn: {
-    backgroundColor: '#f3e8d7',
-    borderColor: '#d8c6ab',
-    borderWidth: 1,
-    borderRadius: 999,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-  },
-  mapOpenBtnText: {
-    color: '#5f4930',
-    fontWeight: '700',
-    fontSize: 12,
-  },
-  readonlyBox: {
-    borderWidth: 1,
-    borderColor: '#dac9b2',
-    borderRadius: 10,
-    backgroundColor: '#f8f1e7',
-    paddingHorizontal: 10,
-    paddingVertical: 8,
-  },
-  readonlyText: {
-    color: '#745d43',
-    fontSize: 13,
-  },
-  textArea: { minHeight: 86 },
-  reviewItem: {
-    marginTop: 2,
-    borderTopWidth: 1,
-    borderColor: '#e5d7c2',
-    paddingTop: 8,
-  },
-  reviewTitle: { color: '#5d4731', fontWeight: '700', fontSize: 13 },
-  reviewBody: { color: '#7e674d', fontSize: 13, marginTop: 2 },
-  emptyComments: {
-    color: '#7e674d',
-    fontSize: 13,
-  },
+  root: { flex: 1 },
+  topOverlay: { position: 'absolute', left: 14, right: 14, gap: 10 },
+  searchCard: { borderRadius: 22, borderWidth: 1, padding: 12, gap: 10, shadowColor: '#000', shadowOpacity: 0.16, shadowRadius: 16, shadowOffset: { width: 0, height: 8 }, elevation: 6 },
+  searchRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  searchInput: { flex: 1, fontSize: 15, paddingVertical: 0 },
+  filterRow: { gap: 8, paddingRight: 4 },
+  filterChip: { minHeight: 36, borderRadius: 999, borderWidth: 1, paddingHorizontal: 12, flexDirection: 'row', alignItems: 'center', gap: 8 },
+  filterText: { fontSize: 13, fontWeight: '700' },
+  messagePill: { alignSelf: 'flex-start', maxWidth: '96%', borderRadius: 999, borderWidth: 1, paddingHorizontal: 12, paddingVertical: 8, flexDirection: 'row', alignItems: 'center', gap: 8 },
+  messageText: { fontSize: 12 },
+  sideRail: { position: 'absolute', right: 14, gap: 10 },
+  railButton: { width: 46, height: 46, borderRadius: 16, borderWidth: 1, alignItems: 'center', justifyContent: 'center', shadowColor: '#000', shadowOpacity: 0.15, shadowRadius: 10, shadowOffset: { width: 0, height: 5 }, elevation: 4 },
+  markerWrap: { alignItems: 'center' },
+  markerBubble: { minWidth: 54, height: 30, paddingHorizontal: 10, borderRadius: 15, borderWidth: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6 },
+  markerLabel: { fontSize: 11, fontWeight: '800' },
+  markerPointer: { width: 12, height: 12, borderWidth: 1, transform: [{ rotate: '45deg' }], marginTop: -6 },
+  addPin: { width: 34, height: 34, borderRadius: 17, alignItems: 'center', justifyContent: 'center' },
+  sheet: { position: 'absolute', left: 0, right: 0, bottom: 0, minHeight: '36%', maxHeight: '52%', borderTopLeftRadius: 28, borderTopRightRadius: 28, borderWidth: 1, paddingTop: 10, paddingHorizontal: 16, shadowColor: '#000', shadowOpacity: 0.18, shadowRadius: 18, shadowOffset: { width: 0, height: -6 }, elevation: 14 },
+  handleWrap: { alignItems: 'center', marginBottom: 10 },
+  handle: { width: 46, height: 5, borderRadius: 999 },
+  sheetHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12, marginBottom: 12 },
+  sheetTitleWrap: { flex: 1, gap: 2 },
+  sheetEyebrow: { fontSize: 11, fontWeight: '700', letterSpacing: 0.8, textTransform: 'uppercase' },
+  sheetTitle: { fontSize: 21, fontWeight: '800' },
+  segmentRow: { flexDirection: 'row', gap: 8 },
+  segment: { minHeight: 34, minWidth: 66, borderRadius: 999, borderWidth: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 14 },
+  segmentText: { fontSize: 12, fontWeight: '800' },
+  sheetScroll: { flex: 1 },
+  sheetContent: { gap: 12, paddingBottom: 8 },
+  card: { borderRadius: 20, borderWidth: 1, padding: 14, gap: 12 },
+  blockTitle: { fontSize: 15, fontWeight: '800' },
+  blockCaption: { fontSize: 13, lineHeight: 19 },
+  typeRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  typeChip: { minHeight: 36, borderRadius: 999, borderWidth: 1, paddingHorizontal: 12, flexDirection: 'row', alignItems: 'center', gap: 8 },
+  typeText: { fontSize: 12, fontWeight: '700' },
+  input: { minHeight: 44, borderRadius: 12, borderWidth: 1, paddingHorizontal: 12 },
+  coordinateBox: { borderRadius: 14, borderWidth: 1, paddingHorizontal: 12, paddingVertical: 10, gap: 4 },
+  coordinateLabel: { fontSize: 11, fontWeight: '700' },
+  coordinateValue: { fontSize: 13, fontWeight: '700' },
+  primaryButton: { minHeight: 44, borderRadius: 14, alignItems: 'center', justifyContent: 'center' },
+  primaryButtonText: { fontSize: 14, fontWeight: '800' },
+  disabled: { opacity: 0.55 },
+  selectedTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  badge: { minHeight: 32, borderRadius: 999, borderWidth: 1, paddingHorizontal: 10, flexDirection: 'row', alignItems: 'center', gap: 8 },
+  badgeText: { fontSize: 12, fontWeight: '800' },
+  ratingRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  rating: { fontSize: 14, fontWeight: '800' },
+  ratingMeta: { fontSize: 12 },
+  actionRow: { flexDirection: 'row', gap: 8, flexWrap: 'wrap' },
+  primaryAction: { minHeight: 40, borderRadius: 12, paddingHorizontal: 14, alignItems: 'center', justifyContent: 'center' },
+  primaryActionText: { fontSize: 13, fontWeight: '800' },
+  secondaryAction: { minHeight: 40, borderRadius: 12, borderWidth: 1, paddingHorizontal: 14, alignItems: 'center', justifyContent: 'center' },
+  secondaryActionText: { fontSize: 13, fontWeight: '700' },
+  reviewHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  reviewCard: { borderRadius: 14, borderWidth: 1, paddingHorizontal: 12, paddingVertical: 10, gap: 6 },
+  reviewRow: { flexDirection: 'row', justifyContent: 'space-between', gap: 12 },
+  reviewAuthor: { fontSize: 13, fontWeight: '800' },
+  reviewStars: { fontSize: 12, fontWeight: '800' },
+  reviewBody: { fontSize: 13, lineHeight: 19 },
+  reviewComposer: { borderRadius: 16, borderWidth: 1, padding: 12, gap: 10 },
+  composerRow: { flexDirection: 'row', gap: 8 },
+  ratingInput: { width: 58, minHeight: 42, borderRadius: 12, borderWidth: 1, textAlign: 'center' },
+  reviewInput: { flex: 1, minHeight: 42, borderRadius: 12, borderWidth: 1, paddingHorizontal: 12 },
+  statRow: { flexDirection: 'row', gap: 10 },
+  statCard: { flex: 1, borderRadius: 16, borderWidth: 1, paddingHorizontal: 12, paddingVertical: 12, gap: 4 },
+  statLabel: { fontSize: 11, fontWeight: '700' },
+  statValue: { fontSize: 20, fontWeight: '800' },
+  statSmall: { fontSize: 12, fontWeight: '700' },
+  listWrap: { gap: 10 },
+  listItem: { minHeight: 68, borderRadius: 16, borderWidth: 1, paddingHorizontal: 12, flexDirection: 'row', alignItems: 'center', gap: 12 },
+  listIcon: { width: 40, height: 40, borderRadius: 14, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
+  listBody: { flex: 1, gap: 2 },
+  listTitle: { fontSize: 14, fontWeight: '800' },
+  listMeta: { fontSize: 12, lineHeight: 18 },
+  listDistance: { fontSize: 12, fontWeight: '700' },
+  attribution: { fontSize: 11, textAlign: 'center' },
 });

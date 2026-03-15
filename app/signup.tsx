@@ -5,8 +5,6 @@ import {
   Platform,
   Pressable,
   StyleSheet,
-  Text,
-  TextInput,
   useWindowDimensions,
   View,
 } from 'react-native';
@@ -14,6 +12,7 @@ import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
 import { Redirect, useLocalSearchParams, useRouter } from 'expo-router';
 import { FontAwesome6 } from '@expo/vector-icons';
 
+import { ThemedText as Text, ThemedTextInput as TextInput } from '@/components/themed-typography';
 import { Fonts } from '@/constants/theme';
 import { useAuth } from '@/lib/auth-context';
 import { sendEmailVerificationCode, verifyEmailCode } from '@/lib/email-auth';

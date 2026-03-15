@@ -6,13 +6,12 @@ import {
   Pressable,
   ScrollView,
   StyleSheet,
-  Text,
-  TextInput,
   View,
 } from 'react-native';
 import { Redirect, useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { ThemedText as Text, ThemedTextInput as TextInput } from '@/components/themed-typography';
 import { Fonts } from '@/constants/theme';
 import { useAuth } from '@/lib/auth-context';
 import { getAppText } from '@/lib/i18n';

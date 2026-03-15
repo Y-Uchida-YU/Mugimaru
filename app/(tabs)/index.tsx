@@ -7,12 +7,11 @@ import {
   Pressable,
   ScrollView,
   StyleSheet,
-  Text,
-  TextInput,
   View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { ThemedText as Text, ThemedTextInput as TextInput } from '@/components/themed-typography';
 import {
   addBoardPostLike,
   addBoardPostStamp,
