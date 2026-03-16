@@ -1,39 +1,38 @@
 import { FontAwesome6 } from '@expo/vector-icons';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, Linking, Platform, Pressable, ScrollView, StyleSheet, View } from 'react-native';
-import MapView, { Marker, UrlTile, type LatLng, type MapPressEvent, type Region } from 'react-native-maps';
+import MapView, { Marker, UrlTile, type LatLng, type Region } from 'react-native-maps';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { ThemedText as Text, ThemedTextInput as TextInput } from '@/components/themed-typography';
-import { createReview, createSpot, listReviews, listSpots, type Review, type Spot, type SpotType } from '@/lib/dog-community-data';
+import { createReview, listReviews, listSpots, type Review, type Spot, type SpotType } from '@/lib/dog-community-data';
 import { useAuth } from '@/lib/auth-context';
 import { useAppTheme } from '@/lib/app-theme-context';
 import { getAppText } from '@/lib/i18n';
 import { hasSupabaseEnv } from '@/lib/supabase';
 
 type FilterType = 'all' | SpotType;
-type SheetMode = 'browse' | 'add';
 
 const DEFAULT_REGION: Region = {
   latitude: 35.681236,
   longitude: 139.767125,
-  latitudeDelta: 0.2,
-  longitudeDelta: 0.2,
+  latitudeDelta: 0.18,
+  longitudeDelta: 0.18,
 };
 
 const FILTERS: { id: FilterType; label: string; icon: keyof typeof FontAwesome6.glyphMap }[] = [
-  { id: 'all', label: 'すべて', icon: 'paw' },
-  { id: 'dogrun', label: 'ドッグラン', icon: 'dog' },
-  { id: 'vet', label: '動物病院', icon: 'stethoscope' },
-  { id: 'cafe', label: 'ドッグカフェ', icon: 'mug-hot' },
-  { id: 'shop', label: 'ペット用品', icon: 'bag-shopping' },
+  { id: 'all', label: 'All', icon: 'paw' },
+  { id: 'dogrun', label: 'Dogrun', icon: 'dog' },
+  { id: 'vet', label: 'Vet', icon: 'stethoscope' },
+  { id: 'cafe', label: 'Cafe', icon: 'mug-hot' },
+  { id: 'shop', label: 'Shop', icon: 'bag-shopping' },
 ];
 
 const TYPE_META: Record<SpotType, { label: string; short: string; icon: keyof typeof FontAwesome6.glyphMap; tone: string; tint: string }> = {
-  dogrun: { label: 'ドッグラン', short: 'Run', icon: 'dog', tone: '#fff1ea', tint: '#e66b52' },
-  vet: { label: '動物病院', short: 'Vet', icon: 'stethoscope', tone: '#edf6ff', tint: '#2d89d3' },
-  cafe: { label: 'ドッグカフェ', short: 'Cafe', icon: 'mug-hot', tone: '#ebfbf4', tint: '#2fa878' },
-  shop: { label: 'ペット用品', short: 'Shop', icon: 'bag-shopping', tone: '#f5efff', tint: '#9560d4' },
+  dogrun: { label: 'Dogrun', short: 'Run', icon: 'dog', tone: '#fff1ea', tint: '#e66b52' },
+  vet: { label: 'Vet', short: 'Vet', icon: 'stethoscope', tone: '#edf6ff', tint: '#2d89d3' },
+  cafe: { label: 'Cafe', short: 'Cafe', icon: 'mug-hot', tone: '#ebfbf4', tint: '#2fa878' },
+  shop: { label: 'Shop', short: 'Shop', icon: 'bag-shopping', tone: '#f5efff', tint: '#9560d4' },
 };
 
 function distanceKm(from: LatLng, to: LatLng) {
@@ -70,13 +69,8 @@ export default function MapScreen() {
   const [message, setMessage] = useState('');
   const [searchKeyword, setSearchKeyword] = useState('');
   const [filterType, setFilterType] = useState<FilterType>('all');
-  const [sheetMode, setSheetMode] = useState<SheetMode>('browse');
   const [selectedSpotId, setSelectedSpotId] = useState<string | null>(null);
   const [region, setRegion] = useState<Region>(DEFAULT_REGION);
-  const [draftCoordinate, setDraftCoordinate] = useState<LatLng>({ latitude: DEFAULT_REGION.latitude, longitude: DEFAULT_REGION.longitude });
-  const [spotType, setSpotType] = useState<SpotType>('dogrun');
-  const [spotName, setSpotName] = useState('');
-  const [spotAddress, setSpotAddress] = useState('');
   const [ratingText, setRatingText] = useState('5');
   const [comment, setComment] = useState('');
 
@@ -84,7 +78,7 @@ export default function MapScreen() {
     let active = true;
     const load = async () => {
       if (!hasSupabaseEnv) {
-        if (active) setMessage('Supabase 未接続のため、マップ投稿は同期されません。');
+        if (active) setMessage('Supabase env is missing. Seed map data is not loaded.');
         return;
       }
       try {
@@ -92,10 +86,10 @@ export default function MapScreen() {
         const rows = await listSpots();
         if (!active) return;
         setSpots(rows);
-        setMessage(rows.length ? '犬関連施設を読み込みました。' : 'まだ施設データがありません。');
+        setMessage(rows.length ? 'Spots loaded.' : 'No spots yet.');
       } catch (error) {
         if (!active) return;
-        setMessage(error instanceof Error ? error.message : '施設データの読み込みに失敗しました。');
+        setMessage(error instanceof Error ? error.message : 'Failed to load spots.');
       } finally {
         if (active) setLoading(false);
       }
@@ -120,7 +114,7 @@ export default function MapScreen() {
         setReviews(rows);
       } catch (error) {
         if (!active) return;
-        setMessage(error instanceof Error ? error.message : '口コミの読み込みに失敗しました。');
+        setMessage(error instanceof Error ? error.message : 'Failed to load reviews.');
       } finally {
         if (active) setReviewsLoading(false);
       }
@@ -150,7 +144,7 @@ export default function MapScreen() {
     return filteredSpots
       .map((spot) => ({ spot, distance: distanceKm(center, { latitude: spot.latitude, longitude: spot.longitude }) }))
       .sort((a, b) => a.distance - b.distance)
-      .slice(0, 6);
+      .slice(0, 10);
   }, [filteredSpots, region.latitude, region.longitude]);
 
   const avgRating = useMemo(() => {
@@ -160,64 +154,41 @@ export default function MapScreen() {
 
   const selectSpot = (spot: Spot) => {
     setSelectedSpotId(spot.id);
-    setSheetMode('browse');
     const nextRegion = {
       latitude: spot.latitude,
       longitude: spot.longitude,
-      latitudeDelta: Math.max(region.latitudeDelta * 0.6, 0.02),
-      longitudeDelta: Math.max(region.longitudeDelta * 0.6, 0.02),
+      latitudeDelta: Math.max(region.latitudeDelta * 0.65, 0.015),
+      longitudeDelta: Math.max(region.longitudeDelta * 0.65, 0.015),
     };
     setRegion(nextRegion);
-    mapRef.current?.animateToRegion(nextRegion, 250);
+    mapRef.current?.animateToRegion(nextRegion, 220);
+  };
+
+  const resetToDefaultRegion = () => {
+    setSelectedSpotId(null);
+    setRegion(DEFAULT_REGION);
+    mapRef.current?.animateToRegion(DEFAULT_REGION, 220);
   };
 
   const openMap = async (target: 'default' | 'google' | 'apple') => {
     if (!selectedSpot) {
-      setMessage('先に施設を選択してください。');
+      setMessage('Select a spot first.');
       return;
     }
     try {
       const url = target === 'google' ? googleUrl(selectedSpot) : target === 'apple' ? appleUrl(selectedSpot) : Platform.OS === 'ios' ? appleUrl(selectedSpot) : googleUrl(selectedSpot);
       await Linking.openURL(url);
     } catch {
-      setMessage('地図アプリを開けませんでした。');
-    }
-  };
-
-  const saveSpot = async () => {
-    if (isGuest) return setMessage('ゲストでは施設投稿はできません。');
-    if (!hasSupabaseEnv) return setMessage('Supabase 未接続のため、施設投稿は利用できません。');
-    if (!spotName.trim()) return setMessage('施設名を入力してください。');
-    try {
-      setLoading(true);
-      const created = await createSpot({
-        name: spotName.trim(),
-        type: spotType,
-        latitude: draftCoordinate.latitude,
-        longitude: draftCoordinate.longitude,
-        address: spotAddress.trim() || null,
-        source: 'user',
-        created_by_external_id: profile?.externalId ?? null,
-        created_by_name: profile?.name ?? null,
-      });
-      setSpots((prev) => [created, ...prev]);
-      setSpotName('');
-      setSpotAddress('');
-      setMessage('施設を追加しました。');
-      selectSpot(created);
-    } catch (error) {
-      setMessage(error instanceof Error ? error.message : '施設の追加に失敗しました。');
-    } finally {
-      setLoading(false);
+      setMessage('Failed to open maps app.');
     }
   };
 
   const saveReview = async () => {
-    if (isGuest) return setMessage('ゲストでは口コミ投稿はできません。');
-    if (!hasSupabaseEnv) return setMessage('Supabase 未接続のため、口コミ投稿は利用できません。');
-    if (!selectedSpot) return setMessage('先に施設を選択してください。');
+    if (isGuest) return setMessage('Guest users cannot post reviews.');
+    if (!hasSupabaseEnv) return setMessage('Supabase env is missing.');
+    if (!selectedSpot) return setMessage('Select a spot first.');
     const rating = Number(ratingText);
-    if (!comment.trim() || Number.isNaN(rating)) return setMessage('評価とコメントを入力してください。');
+    if (!comment.trim() || Number.isNaN(rating)) return setMessage('Rating and comment are required.');
     try {
       const created = await createReview({
         spot_id: selectedSpot.id,
@@ -229,14 +200,10 @@ export default function MapScreen() {
       setReviews((prev) => [created, ...prev]);
       setComment('');
       setRatingText('5');
-      setMessage('口コミを投稿しました。');
+      setMessage('Review submitted.');
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : '口コミ投稿に失敗しました。');
+      setMessage(error instanceof Error ? error.message : 'Failed to submit review.');
     }
-  };
-
-  const handleMapPress = (event: MapPressEvent) => {
-    if (sheetMode === 'add') setDraftCoordinate(event.nativeEvent.coordinate);
   };
 
   return (
@@ -246,7 +213,6 @@ export default function MapScreen() {
         style={StyleSheet.absoluteFill}
         initialRegion={DEFAULT_REGION}
         onRegionChangeComplete={setRegion}
-        onPress={handleMapPress}
         toolbarEnabled={false}
         rotateEnabled={false}
         pitchEnabled={false}>
@@ -266,16 +232,6 @@ export default function MapScreen() {
             </Marker>
           );
         })}
-        {sheetMode === 'add' ? (
-          <Marker coordinate={draftCoordinate} anchor={{ x: 0.5, y: 1 }}>
-            <View style={styles.markerWrap}>
-              <View style={[styles.addPin, { backgroundColor: colors.accent }]}>
-                <FontAwesome6 name="plus" size={12} color={colors.accentContrast} />
-              </View>
-              <View style={[styles.markerPointer, { backgroundColor: colors.accent, borderColor: colors.accent }]} />
-            </View>
-          </Marker>
-        ) : null}
       </MapView>
 
       <View style={[styles.topOverlay, { paddingTop: insets.top + 8 }]}>
@@ -286,7 +242,7 @@ export default function MapScreen() {
               style={[styles.searchInput, { color: colors.text }]}
               value={searchKeyword}
               onChangeText={setSearchKeyword}
-              placeholder="施設名・住所で検索"
+              placeholder="Search spots, type, area"
               placeholderTextColor={colors.mutedText}
             />
           </View>
@@ -305,6 +261,7 @@ export default function MapScreen() {
             })}
           </ScrollView>
         </View>
+
         {message ? (
           <View style={[styles.messagePill, { backgroundColor: colors.surface, borderColor: colors.border }]}>
             {loading ? <ActivityIndicator size="small" color={colors.accent} /> : null}
@@ -314,13 +271,7 @@ export default function MapScreen() {
       </View>
 
       <View style={[styles.sideRail, { top: insets.top + 138 }]}>
-        <Pressable style={[styles.railButton, { backgroundColor: colors.surface, borderColor: colors.border }]} onPress={() => { setSelectedSpotId(null); setSheetMode('browse'); }}>
-          <FontAwesome6 name="compass" size={16} color={colors.text} />
-        </Pressable>
-        <Pressable style={[styles.railButton, { backgroundColor: colors.surface, borderColor: colors.border }]} onPress={() => { setSelectedSpotId(null); setSheetMode('add'); setDraftCoordinate({ latitude: region.latitude, longitude: region.longitude }); }}>
-          <FontAwesome6 name="circle-plus" size={16} color={colors.text} />
-        </Pressable>
-        <Pressable style={[styles.railButton, { backgroundColor: colors.surface, borderColor: colors.border }]} onPress={() => { setSelectedSpotId(null); setSheetMode('browse'); setRegion(DEFAULT_REGION); mapRef.current?.animateToRegion(DEFAULT_REGION, 250); }}>
+        <Pressable style={[styles.railButton, { backgroundColor: colors.surface, borderColor: colors.border }]} onPress={resetToDefaultRegion}>
           <FontAwesome6 name="location-crosshairs" size={16} color={colors.text} />
         </Pressable>
       </View>
@@ -332,78 +283,34 @@ export default function MapScreen() {
         <View style={styles.sheetHeader}>
           <View style={styles.sheetTitleWrap}>
             <Text style={[styles.sheetEyebrow, { color: colors.mutedText }]}>Dog Map</Text>
-            <Text style={[styles.sheetTitle, { color: colors.text }]}>{sheetMode === 'add' ? '新しい施設を追加' : selectedSpot ? selectedSpot.name : '近くの犬関連スポット'}</Text>
+            <Text style={[styles.sheetTitle, { color: colors.text }]}>{selectedSpot ? selectedSpot.name : 'Nearby Dog Spots'}</Text>
           </View>
-          <View style={styles.segmentRow}>
-            {(['browse', 'add'] as const).map((mode) => {
-              const active = sheetMode === mode;
-              return (
-                <Pressable
-                  key={mode}
-                  style={[styles.segment, { backgroundColor: active ? colors.accent : colors.background, borderColor: active ? colors.accent : colors.border }]}
-                  onPress={() => {
-                    setSheetMode(mode);
-                    if (mode === 'add') {
-                      setSelectedSpotId(null);
-                      setDraftCoordinate({ latitude: region.latitude, longitude: region.longitude });
-                    }
-                  }}>
-                  <Text style={[styles.segmentText, { color: active ? colors.accentContrast : colors.text }]}>{mode === 'browse' ? 'Browse' : 'Add'}</Text>
-                </Pressable>
-              );
-            })}
-          </View>
+          {selectedSpot ? (
+            <Pressable style={[styles.closeButton, { borderColor: colors.border, backgroundColor: colors.background }]} onPress={() => setSelectedSpotId(null)}>
+              <FontAwesome6 name="xmark" size={14} color={colors.text} />
+            </Pressable>
+          ) : null}
         </View>
 
         <ScrollView style={styles.sheetScroll} contentContainerStyle={styles.sheetContent} showsVerticalScrollIndicator={false}>
-          {sheetMode === 'add' ? (
-            <View style={[styles.card, { backgroundColor: colors.background, borderColor: colors.border }]}>
-              <Text style={[styles.blockTitle, { color: colors.text }]}>新規施設ピン</Text>
-              <Text style={[styles.blockCaption, { color: colors.mutedText }]}>地図をタップすると追加位置を変更できます。犬連れで利用できる場所だけを登録してください。</Text>
-              <View style={styles.typeRow}>
-                {(Object.keys(TYPE_META) as SpotType[]).map((type) => {
-                  const active = spotType === type;
-                  return (
-                    <Pressable
-                      key={type}
-                      style={[styles.typeChip, { backgroundColor: active ? colors.accent : colors.surface, borderColor: active ? colors.accent : colors.border }]}
-                      onPress={() => setSpotType(type)}>
-                      <FontAwesome6 name={TYPE_META[type].icon} size={12} color={active ? colors.accentContrast : TYPE_META[type].tint} />
-                      <Text style={[styles.typeText, { color: active ? colors.accentContrast : colors.text }]}>{TYPE_META[type].label}</Text>
-                    </Pressable>
-                  );
-                })}
-              </View>
-              <TextInput style={[styles.input, { backgroundColor: colors.surface, borderColor: colors.border, color: colors.text }]} value={spotName} onChangeText={setSpotName} placeholder="施設名" placeholderTextColor={colors.mutedText} />
-              <TextInput style={[styles.input, { backgroundColor: colors.surface, borderColor: colors.border, color: colors.text }]} value={spotAddress} onChangeText={setSpotAddress} placeholder="住所または目印" placeholderTextColor={colors.mutedText} />
-              <View style={[styles.coordinateBox, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-                <Text style={[styles.coordinateLabel, { color: colors.mutedText }]}>追加座標</Text>
-                <Text style={[styles.coordinateValue, { color: colors.text }]}>{draftCoordinate.latitude.toFixed(5)}, {draftCoordinate.longitude.toFixed(5)}</Text>
-              </View>
-              <Pressable style={[styles.primaryButton, { backgroundColor: colors.accent }, isGuest ? styles.disabled : null]} onPress={() => void saveSpot()} disabled={isGuest}>
-                <Text style={[styles.primaryButtonText, { color: colors.accentContrast }]}>施設を追加</Text>
-              </Pressable>
-            </View>
-          ) : selectedSpot ? (
+          {selectedSpot ? (
             <View style={[styles.card, { backgroundColor: colors.background, borderColor: colors.border }]}>
               <View style={styles.selectedTop}>
                 <View style={[styles.badge, { backgroundColor: TYPE_META[selectedSpot.type].tone, borderColor: colors.border }]}>
                   <FontAwesome6 name={TYPE_META[selectedSpot.type].icon} size={12} color={TYPE_META[selectedSpot.type].tint} />
                   <Text style={[styles.badgeText, { color: colors.text }]}>{TYPE_META[selectedSpot.type].label}</Text>
                 </View>
-                <Pressable onPress={() => setSelectedSpotId(null)}>
-                  <FontAwesome6 name="xmark" size={16} color={colors.mutedText} />
-                </Pressable>
               </View>
               {selectedSpot.address ? <Text style={[styles.blockCaption, { color: colors.mutedText }]}>{selectedSpot.address}</Text> : null}
               <View style={styles.ratingRow}>
                 <FontAwesome6 name="star" size={13} color={colors.accent} />
-                <Text style={[styles.rating, { color: colors.text }]}>{avgRating == null ? '未評価' : `${avgRating.toFixed(1)} / 5.0`}</Text>
-                <Text style={[styles.ratingMeta, { color: colors.mutedText }]}>口コミ {reviews.length}件</Text>
+                <Text style={[styles.rating, { color: colors.text }]}>{avgRating == null ? 'No reviews yet' : `${avgRating.toFixed(1)} / 5.0`}</Text>
+                <Text style={[styles.ratingMeta, { color: colors.mutedText }]}>{reviews.length} reviews</Text>
               </View>
+
               <View style={styles.actionRow}>
                 <Pressable style={[styles.primaryAction, { backgroundColor: colors.accent }]} onPress={() => void openMap('default')}>
-                  <Text style={[styles.primaryActionText, { color: colors.accentContrast }]}>開く</Text>
+                  <Text style={[styles.primaryActionText, { color: colors.accentContrast }]}>Open Map</Text>
                 </Pressable>
                 <Pressable style={[styles.secondaryAction, { backgroundColor: colors.surface, borderColor: colors.border }]} onPress={() => void openMap('google')}>
                   <Text style={[styles.secondaryActionText, { color: colors.text }]}>Google</Text>
@@ -414,11 +321,12 @@ export default function MapScreen() {
                   </Pressable>
                 ) : null}
               </View>
+
               <View style={styles.reviewHeader}>
-                <Text style={[styles.blockTitle, { color: colors.text }]}>口コミ</Text>
+                <Text style={[styles.blockTitle, { color: colors.text }]}>Reviews</Text>
                 {reviewsLoading ? <ActivityIndicator size="small" color={colors.accent} /> : null}
               </View>
-              {!reviews.length && !reviewsLoading ? <Text style={[styles.blockCaption, { color: colors.mutedText }]}>まだ口コミはありません。最初の感想を残せます。</Text> : null}
+              {!reviews.length && !reviewsLoading ? <Text style={[styles.blockCaption, { color: colors.mutedText }]}>No reviews yet.</Text> : null}
               {reviews.map((review) => (
                 <View key={review.id} style={[styles.reviewCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
                   <View style={styles.reviewRow}>
@@ -428,47 +336,58 @@ export default function MapScreen() {
                   <Text style={[styles.reviewBody, { color: colors.mutedText }]}>{review.comment}</Text>
                 </View>
               ))}
+
               <View style={[styles.reviewComposer, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-                <Text style={[styles.blockTitle, { color: colors.text }]}>口コミを追加</Text>
+                <Text style={[styles.blockTitle, { color: colors.text }]}>Write review</Text>
                 <View style={styles.composerRow}>
-                  <TextInput style={[styles.ratingInput, { backgroundColor: colors.background, borderColor: colors.border, color: colors.text }]} value={ratingText} onChangeText={setRatingText} keyboardType="number-pad" placeholder="5" placeholderTextColor={colors.mutedText} />
-                  <TextInput style={[styles.reviewInput, { backgroundColor: colors.background, borderColor: colors.border, color: colors.text }]} value={comment} onChangeText={setComment} placeholder="清潔感、犬連れしやすさ、混雑感など" placeholderTextColor={colors.mutedText} />
+                  <TextInput
+                    style={[styles.ratingInput, { backgroundColor: colors.background, borderColor: colors.border, color: colors.text }]}
+                    value={ratingText}
+                    onChangeText={setRatingText}
+                    keyboardType="number-pad"
+                    placeholder="5"
+                    placeholderTextColor={colors.mutedText}
+                  />
+                  <TextInput
+                    style={[styles.reviewInput, { backgroundColor: colors.background, borderColor: colors.border, color: colors.text }]}
+                    value={comment}
+                    onChangeText={setComment}
+                    placeholder="Cleanliness, dog-friendliness, crowd..."
+                    placeholderTextColor={colors.mutedText}
+                  />
                 </View>
                 <Pressable style={[styles.primaryButton, { backgroundColor: colors.accent }, isGuest ? styles.disabled : null]} onPress={() => void saveReview()} disabled={isGuest}>
-                  <Text style={[styles.primaryButtonText, { color: colors.accentContrast }]}>口コミを投稿</Text>
+                  <Text style={[styles.primaryButtonText, { color: colors.accentContrast }]}>Submit Review</Text>
                 </Pressable>
               </View>
             </View>
           ) : (
-            <>
+            <View style={styles.listWrap}>
               <View style={styles.statRow}>
                 <View style={[styles.statCard, { backgroundColor: colors.background, borderColor: colors.border }]}>
-                  <Text style={[styles.statLabel, { color: colors.mutedText }]}>表示中</Text>
-                  <Text style={[styles.statValue, { color: colors.text }]}>{filteredSpots.length}件</Text>
+                  <Text style={[styles.statLabel, { color: colors.mutedText }]}>Visible</Text>
+                  <Text style={[styles.statValue, { color: colors.text }]}>{filteredSpots.length}</Text>
                 </View>
                 <View style={[styles.statCard, { backgroundColor: colors.background, borderColor: colors.border }]}>
-                  <Text style={[styles.statLabel, { color: colors.mutedText }]}>中心</Text>
-                  <Text style={[styles.statSmall, { color: colors.text }]}>{region.latitude.toFixed(4)}, {region.longitude.toFixed(4)}</Text>
+                  <Text style={[styles.statLabel, { color: colors.mutedText }]}>Center</Text>
+                  <Text style={[styles.statSmall, { color: colors.text }]}>{region.latitude.toFixed(3)}, {region.longitude.toFixed(3)}</Text>
                 </View>
               </View>
-              <View style={styles.listWrap}>
-                <Text style={[styles.blockTitle, { color: colors.text }]}>現在地周辺のおすすめ候補</Text>
-                <Text style={[styles.blockCaption, { color: colors.mutedText }]}>タップすると地図の中心と詳細カードが切り替わります。</Text>
-                {!nearbySpots.length ? <Text style={[styles.blockCaption, { color: colors.mutedText }]}>条件に一致する施設がありません。</Text> : null}
-                {nearbySpots.map(({ spot, distance }) => (
-                  <Pressable key={spot.id} style={[styles.listItem, { backgroundColor: colors.background, borderColor: colors.border }]} onPress={() => selectSpot(spot)}>
-                    <View style={[styles.listIcon, { backgroundColor: TYPE_META[spot.type].tone, borderColor: colors.border }]}>
-                      <FontAwesome6 name={TYPE_META[spot.type].icon} size={13} color={TYPE_META[spot.type].tint} />
-                    </View>
-                    <View style={styles.listBody}>
-                      <Text style={[styles.listTitle, { color: colors.text }]}>{spot.name}</Text>
-                      <Text style={[styles.listMeta, { color: colors.mutedText }]}>{TYPE_META[spot.type].label}{spot.address ? ` ・ ${spot.address}` : ''}</Text>
-                    </View>
-                    <Text style={[styles.listDistance, { color: colors.mutedText }]}>{distance.toFixed(1)}km</Text>
-                  </Pressable>
-                ))}
-              </View>
-            </>
+
+              {!nearbySpots.length ? <Text style={[styles.blockCaption, { color: colors.mutedText }]}>No spot matches your current filter.</Text> : null}
+              {nearbySpots.map(({ spot, distance }) => (
+                <Pressable key={spot.id} style={[styles.listItem, { backgroundColor: colors.background, borderColor: colors.border }]} onPress={() => selectSpot(spot)}>
+                  <View style={[styles.listIcon, { backgroundColor: TYPE_META[spot.type].tone, borderColor: colors.border }]}>
+                    <FontAwesome6 name={TYPE_META[spot.type].icon} size={13} color={TYPE_META[spot.type].tint} />
+                  </View>
+                  <View style={styles.listBody}>
+                    <Text style={[styles.listTitle, { color: colors.text }]}>{spot.name}</Text>
+                    <Text style={[styles.listMeta, { color: colors.mutedText }]}>{TYPE_META[spot.type].label}{spot.address ? ` · ${spot.address}` : ''}</Text>
+                  </View>
+                  <Text style={[styles.listDistance, { color: colors.mutedText }]}>{distance.toFixed(1)}km</Text>
+                </Pressable>
+              ))}
+            </View>
           )}
           <Text style={[styles.attribution, { color: colors.mutedText }]}>Map tiles: OpenStreetMap contributors</Text>
         </ScrollView>
@@ -480,7 +399,17 @@ export default function MapScreen() {
 const styles = StyleSheet.create({
   root: { flex: 1 },
   topOverlay: { position: 'absolute', left: 14, right: 14, gap: 10 },
-  searchCard: { borderRadius: 22, borderWidth: 1, padding: 12, gap: 10, shadowColor: '#000', shadowOpacity: 0.16, shadowRadius: 16, shadowOffset: { width: 0, height: 8 }, elevation: 6 },
+  searchCard: {
+    borderRadius: 22,
+    borderWidth: 1,
+    padding: 12,
+    gap: 10,
+    shadowColor: '#000',
+    shadowOpacity: 0.16,
+    shadowRadius: 16,
+    shadowOffset: { width: 0, height: 8 },
+    elevation: 6,
+  },
   searchRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   searchInput: { flex: 1, fontSize: 15, paddingVertical: 0 },
   filterRow: { gap: 8, paddingRight: 4 },
@@ -494,35 +423,22 @@ const styles = StyleSheet.create({
   markerBubble: { minWidth: 54, height: 30, paddingHorizontal: 10, borderRadius: 15, borderWidth: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6 },
   markerLabel: { fontSize: 11, fontWeight: '800' },
   markerPointer: { width: 12, height: 12, borderWidth: 1, transform: [{ rotate: '45deg' }], marginTop: -6 },
-  addPin: { width: 34, height: 34, borderRadius: 17, alignItems: 'center', justifyContent: 'center' },
-  sheet: { position: 'absolute', left: 0, right: 0, bottom: 0, minHeight: '36%', maxHeight: '52%', borderTopLeftRadius: 28, borderTopRightRadius: 28, borderWidth: 1, paddingTop: 10, paddingHorizontal: 16, shadowColor: '#000', shadowOpacity: 0.18, shadowRadius: 18, shadowOffset: { width: 0, height: -6 }, elevation: 14 },
+  sheet: { position: 'absolute', left: 0, right: 0, bottom: 0, minHeight: '38%', maxHeight: '56%', borderTopLeftRadius: 28, borderTopRightRadius: 28, borderWidth: 1, paddingTop: 10, paddingHorizontal: 16, shadowColor: '#000', shadowOpacity: 0.18, shadowRadius: 18, shadowOffset: { width: 0, height: -6 }, elevation: 14 },
   handleWrap: { alignItems: 'center', marginBottom: 10 },
   handle: { width: 46, height: 5, borderRadius: 999 },
   sheetHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12, marginBottom: 12 },
   sheetTitleWrap: { flex: 1, gap: 2 },
   sheetEyebrow: { fontSize: 11, fontWeight: '700', letterSpacing: 0.8, textTransform: 'uppercase' },
   sheetTitle: { fontSize: 21, fontWeight: '800' },
-  segmentRow: { flexDirection: 'row', gap: 8 },
-  segment: { minHeight: 34, minWidth: 66, borderRadius: 999, borderWidth: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 14 },
-  segmentText: { fontSize: 12, fontWeight: '800' },
+  closeButton: { width: 34, height: 34, borderRadius: 17, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
   sheetScroll: { flex: 1 },
   sheetContent: { gap: 12, paddingBottom: 8 },
   card: { borderRadius: 20, borderWidth: 1, padding: 14, gap: 12 },
-  blockTitle: { fontSize: 15, fontWeight: '800' },
-  blockCaption: { fontSize: 13, lineHeight: 19 },
-  typeRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-  typeChip: { minHeight: 36, borderRadius: 999, borderWidth: 1, paddingHorizontal: 12, flexDirection: 'row', alignItems: 'center', gap: 8 },
-  typeText: { fontSize: 12, fontWeight: '700' },
-  input: { minHeight: 44, borderRadius: 12, borderWidth: 1, paddingHorizontal: 12 },
-  coordinateBox: { borderRadius: 14, borderWidth: 1, paddingHorizontal: 12, paddingVertical: 10, gap: 4 },
-  coordinateLabel: { fontSize: 11, fontWeight: '700' },
-  coordinateValue: { fontSize: 13, fontWeight: '700' },
-  primaryButton: { minHeight: 44, borderRadius: 14, alignItems: 'center', justifyContent: 'center' },
-  primaryButtonText: { fontSize: 14, fontWeight: '800' },
-  disabled: { opacity: 0.55 },
   selectedTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   badge: { minHeight: 32, borderRadius: 999, borderWidth: 1, paddingHorizontal: 10, flexDirection: 'row', alignItems: 'center', gap: 8 },
   badgeText: { fontSize: 12, fontWeight: '800' },
+  blockTitle: { fontSize: 15, fontWeight: '800' },
+  blockCaption: { fontSize: 13, lineHeight: 19 },
   ratingRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   rating: { fontSize: 14, fontWeight: '800' },
   ratingMeta: { fontSize: 12 },
@@ -541,12 +457,15 @@ const styles = StyleSheet.create({
   composerRow: { flexDirection: 'row', gap: 8 },
   ratingInput: { width: 58, minHeight: 42, borderRadius: 12, borderWidth: 1, textAlign: 'center' },
   reviewInput: { flex: 1, minHeight: 42, borderRadius: 12, borderWidth: 1, paddingHorizontal: 12 },
+  primaryButton: { minHeight: 44, borderRadius: 14, alignItems: 'center', justifyContent: 'center' },
+  primaryButtonText: { fontSize: 14, fontWeight: '800' },
+  disabled: { opacity: 0.55 },
+  listWrap: { gap: 10 },
   statRow: { flexDirection: 'row', gap: 10 },
   statCard: { flex: 1, borderRadius: 16, borderWidth: 1, paddingHorizontal: 12, paddingVertical: 12, gap: 4 },
   statLabel: { fontSize: 11, fontWeight: '700' },
   statValue: { fontSize: 20, fontWeight: '800' },
   statSmall: { fontSize: 12, fontWeight: '700' },
-  listWrap: { gap: 10 },
   listItem: { minHeight: 68, borderRadius: 16, borderWidth: 1, paddingHorizontal: 12, flexDirection: 'row', alignItems: 'center', gap: 12 },
   listIcon: { width: 40, height: 40, borderRadius: 14, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
   listBody: { flex: 1, gap: 2 },

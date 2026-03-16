@@ -20,7 +20,6 @@ import {
   createBoardChatMessage,
   createBoardComment,
   createBoardPost,
-  listBoardChatMessages,
   listBoardComments,
   listBoardPostLikes,
   listBoardPostStamps,
@@ -409,6 +408,7 @@ export default function BoardScreen() {
   const [likedByPost, setLikedByPost] = useState<Record<string, boolean>>({});
   const [stampCountsByPost, setStampCountsByPost] = useState<Record<string, StampBucket>>({});
   const [myStampsByPost, setMyStampsByPost] = useState<Record<string, StampKey[]>>({});
+  const [isSearchModalOpen, setSearchModalOpen] = useState(false);
 
   const [isComposerOpen, setComposerOpen] = useState(false);
   const [title, setTitle] = useState('');
@@ -430,11 +430,11 @@ export default function BoardScreen() {
   const [isFollowBusy, setFollowBusy] = useState(false);
   const [isChatModalOpen, setChatModalOpen] = useState(false);
   const [chatMessages, setChatMessages] = useState<BoardChatMessage[]>([]);
-  const [localChatMessages, setLocalChatMessages] = useState<BoardChatMessage[]>(buildLocalChatSeed);
+  const [, setLocalChatMessages] = useState<BoardChatMessage[]>(buildLocalChatSeed);
   const [chatBody, setChatBody] = useState('');
   const [chatSticker, setChatSticker] = useState<string | null>(null);
   const [chatError, setChatError] = useState('');
-  const [isChatLoading, setChatLoading] = useState(false);
+  const [isChatLoading] = useState(false);
 
   const loadTimeline = useCallback(
     async (mode: 'initial' | 'refresh' = 'initial') => {
@@ -1005,27 +1005,6 @@ export default function BoardScreen() {
     }
   };
 
-  const openChatModal = async () => {
-    setChatModalOpen(true);
-    setChatError('');
-
-    if (!hasSupabaseEnv) {
-      setChatMessages(localChatMessages);
-      return;
-    }
-
-    try {
-      setChatLoading(true);
-      const rows = await listBoardChatMessages(200);
-      setChatMessages(rows.map(mapRowToChatMessage));
-    } catch (error) {
-      setChatMessages([]);
-      setChatError(error instanceof Error ? error.message : 'Failed to load chat.');
-    } finally {
-      setChatLoading(false);
-    }
-  };
-
   const handleSendChatMessage = async () => {
     if (!profile || isGuest) {
       setChatError('Please sign in to use chat.');
@@ -1090,8 +1069,6 @@ export default function BoardScreen() {
     void loadTimeline('refresh');
   };
 
-  const statusLine = loading ? timelineCopy.loading : message;
-
   return (
     <SafeAreaView style={[styles.safeArea, { backgroundColor: themeColors.background }]}>
       <View style={styles.root}>
@@ -1106,89 +1083,22 @@ export default function BoardScreen() {
               progressBackgroundColor={themeColors.surface}
             />
           }>
-          <View style={styles.timelineHeader}>
-            <View style={styles.timelineHeaderText}>
-              <Text style={[styles.timelineEyebrow, { color: themeColors.mutedText }]}>Mugimaru</Text>
-              <Text style={[styles.timelineTitle, { color: themeColors.text }]}>{timelineCopy.title}</Text>
-              <Text style={[styles.timelineCaption, { color: themeColors.mutedText }]}>{timelineCopy.caption}</Text>
-            </View>
-            <View style={styles.timelineHeaderActions}>
-              <Pressable
-                style={[styles.roomButton, { borderColor: themeColors.border, backgroundColor: themeColors.surface }]}
-                onPress={() => void openChatModal()}>
-                <FontAwesome6 name="comments" size={14} color={themeColors.text} />
-                <Text style={[styles.roomButtonText, { color: themeColors.text }]}>{timelineCopy.room}</Text>
-              </Pressable>
-              <Pressable
-                style={[
-                  styles.composeButton,
-                  { backgroundColor: themeColors.accent },
-                  isGuest ? styles.heroActionButtonDisabled : null,
-                ]}
-                onPress={() => (isGuest ? setMessage('Guest users cannot create posts.') : setComposerOpen(true))}>
-                <FontAwesome6 name="pen" size={13} color={themeColors.accentContrast} />
-                <Text style={[styles.composeButtonText, { color: themeColors.accentContrast }]}>{timelineCopy.compose}</Text>
-              </Pressable>
-            </View>
+          <View style={styles.timelineTopBar}>
+            <Text style={[styles.timelineTopBarTitle, { color: themeColors.text }]}>{timelineCopy.title}</Text>
+            <Pressable
+              style={[styles.searchIconButton, { borderColor: themeColors.border, backgroundColor: themeColors.surface }]}
+              onPress={() => setSearchModalOpen(true)}>
+              <FontAwesome6 name="magnifying-glass" size={15} color={themeColors.text} />
+            </Pressable>
           </View>
-
-          <View style={[styles.timelineStatus, { borderColor: themeColors.border, backgroundColor: themeColors.surface }]}>
-            <Text style={[styles.timelineStatusText, { color: themeColors.text }]}>{statusLine}</Text>
-            <Text style={[styles.timelineStatusMeta, { color: themeColors.mutedText }]}>
-              {visiblePosts.length} {timelineCopy.feedCount}
-            </Text>
-          </View>
-
-          <Pressable
-            style={[styles.composerCard, { borderColor: themeColors.border, backgroundColor: themeColors.surface }]}
-            onPress={() => (isGuest ? setMessage('Guest users cannot create posts.') : setComposerOpen(true))}>
-            <Avatar uri={profile?.avatarUrl ?? ''} label={profile?.name ?? text.board.anonymous} size={42} />
-            <View style={styles.composerTextWrap}>
-              <Text style={[styles.composerPrompt, { color: themeColors.text }]}>{timelineCopy.prompt}</Text>
-              <Text style={[styles.composerMeta, { color: themeColors.mutedText }]}>
-                {timelineCopy.pullHint}
-              </Text>
-            </View>
-            <FontAwesome6 name="plus" size={16} color={themeColors.accent} />
-          </Pressable>
-
-          <TextInput
-            style={[
-              styles.searchInput,
-              {
-                backgroundColor: themeColors.surface,
-                borderColor: themeColors.border,
-                color: themeColors.text,
-              },
-            ]}
-            placeholder={timelineCopy.search}
-            placeholderTextColor={themeColors.mutedText}
-            value={query}
-            onChangeText={setQuery}
-          />
-
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chips}>
-            {categories.map((category) => {
-              const active = query.trim().toLowerCase() === category.toLowerCase();
-              return (
-                <Pressable
-                  key={category}
-                  style={[
-                    styles.chip,
-                    { backgroundColor: active ? themeColors.accent : themeColors.chip, borderColor: active ? themeColors.accent : themeColors.border },
-                  ]}
-                  onPress={() => setQuery(active ? '' : category)}>
-                  <Text style={[styles.chipText, { color: active ? themeColors.accentContrast : themeColors.chipText }]}>#{category}</Text>
-                </Pressable>
-              );
-            })}
-          </ScrollView>
 
           <View style={styles.timelineFeed}>
             {visiblePosts.length === 0 ? (
               <View style={[styles.timelineEmptyState, { borderColor: themeColors.border, backgroundColor: themeColors.surface }]}>
                 <Text style={[styles.timelineEmptyTitle, { color: themeColors.text }]}>{timelineCopy.emptyTitle}</Text>
-                <Text style={[styles.timelineEmptyBody, { color: themeColors.mutedText }]}>{timelineCopy.emptyBody}</Text>
+                <Text style={[styles.timelineEmptyBody, { color: themeColors.mutedText }]}>
+                  {loading ? timelineCopy.loading : message || timelineCopy.emptyBody}
+                </Text>
               </View>
             ) : null}
             {visiblePosts.map((post) => (
@@ -1294,6 +1204,70 @@ export default function BoardScreen() {
           onPress={() => (isGuest ? setMessage('Guest users cannot create posts.') : setComposerOpen(true))}>
           <Text style={[styles.fabText, { color: themeColors.accentContrast }]}>+</Text>
         </Pressable>
+
+        <Modal visible={isSearchModalOpen} transparent animationType="fade" onRequestClose={() => setSearchModalOpen(false)}>
+          <Pressable style={styles.modalOverlay} onPress={() => setSearchModalOpen(false)}>
+            <Pressable
+              style={[styles.searchModalCard, { backgroundColor: themeColors.surface, borderColor: themeColors.border }]}
+              onPress={(event) => event.stopPropagation()}>
+              <View style={styles.searchModalHeader}>
+                <Text style={[styles.searchModalTitle, { color: themeColors.text }]}>Search & Filter</Text>
+                <Pressable onPress={() => setSearchModalOpen(false)}>
+                  <Text style={[styles.closeText, { color: themeColors.mutedText }]}>Close</Text>
+                </Pressable>
+              </View>
+
+              <TextInput
+                style={[
+                  styles.searchInput,
+                  {
+                    backgroundColor: themeColors.background,
+                    borderColor: themeColors.border,
+                    color: themeColors.text,
+                  },
+                ]}
+                placeholder={timelineCopy.search}
+                placeholderTextColor={themeColors.mutedText}
+                value={query}
+                onChangeText={setQuery}
+                autoFocus
+              />
+
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.searchModalChips}>
+                {categories.map((category) => {
+                  const active = query.trim().toLowerCase() === category.toLowerCase();
+                  return (
+                    <Pressable
+                      key={category}
+                      style={[
+                        styles.chip,
+                        {
+                          backgroundColor: active ? themeColors.accent : themeColors.chip,
+                          borderColor: active ? themeColors.accent : themeColors.border,
+                        },
+                      ]}
+                      onPress={() => setQuery(active ? '' : category)}>
+                      <Text style={[styles.chipText, { color: active ? themeColors.accentContrast : themeColors.chipText }]}>#{category}</Text>
+                    </Pressable>
+                  );
+                })}
+              </ScrollView>
+
+              <View style={styles.searchModalActions}>
+                <Pressable
+                  style={[styles.modalButton, styles.cancelButton, { backgroundColor: themeColors.chip }]}
+                  onPress={() => setQuery('')}>
+                  <Text style={[styles.cancelText, { color: themeColors.chipText }]}>Clear</Text>
+                </Pressable>
+                <Pressable
+                  style={[styles.modalButton, styles.submitButton, { backgroundColor: themeColors.accent }]}
+                  onPress={() => setSearchModalOpen(false)}>
+                  <Text style={[styles.submitText, { color: themeColors.accentContrast }]}>Apply</Text>
+                </Pressable>
+              </View>
+            </Pressable>
+          </Pressable>
+        </Modal>
 
         <Modal visible={isComposerOpen} transparent animationType="fade" onRequestClose={closeComposer}>
           <KeyboardAvoidingView
@@ -1735,6 +1709,26 @@ const styles = StyleSheet.create({
     paddingBottom: 110,
     paddingTop: 12,
     gap: 12,
+  },
+  timelineTopBar: {
+    minHeight: 52,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 12,
+  },
+  timelineTopBarTitle: {
+    fontSize: 26,
+    fontWeight: '800',
+    flex: 1,
+  },
+  searchIconButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    borderWidth: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   timelineHeader: {
     gap: 12,
@@ -2257,6 +2251,32 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(30, 25, 12, 0.4)',
     justifyContent: 'center',
     padding: 14,
+  },
+  searchModalCard: {
+    backgroundColor: '#fffef7',
+    borderRadius: 18,
+    borderColor: '#f1dfb1',
+    borderWidth: 1,
+    padding: 14,
+    gap: 12,
+  },
+  searchModalHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  searchModalTitle: {
+    fontSize: 18,
+    fontWeight: '800',
+  },
+  searchModalChips: {
+    gap: 8,
+    paddingRight: 6,
+  },
+  searchModalActions: {
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+    gap: 10,
   },
   modalCard: {
     backgroundColor: '#fffef7',
