@@ -6,6 +6,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { ThemedText as Text } from '@/components/themed-typography';
 import { useAuth } from '@/lib/auth-context';
 import { useAppTheme } from '@/lib/app-theme-context';
+import { getSettingsText } from '@/lib/settings-l10n';
 
 type SettingsRowProps = {
   icon: keyof typeof FontAwesome6.glyphMap;
@@ -13,15 +14,16 @@ type SettingsRowProps = {
   subtitle: string;
   onPress: () => void;
   value?: string;
+  isLast?: boolean;
 };
 
-function SettingsRow({ icon, title, subtitle, onPress, value }: SettingsRowProps) {
+function SettingsRow({ icon, title, subtitle, onPress, value, isLast }: SettingsRowProps) {
   const { activeTheme } = useAppTheme();
   const colors = activeTheme.colors;
 
   return (
     <Pressable
-      style={[styles.row, { borderBottomColor: colors.border }]}
+      style={[styles.row, { borderBottomColor: colors.border }, isLast ? styles.rowLast : null]}
       onPress={onPress}
       android_ripple={{ color: `${colors.accent}22` }}>
       <View style={[styles.rowIconWrap, { backgroundColor: colors.background, borderColor: colors.border }]}>
@@ -37,11 +39,18 @@ function SettingsRow({ icon, title, subtitle, onPress, value }: SettingsRowProps
   );
 }
 
+type SettingsSection = {
+  id: string;
+  title: string;
+  items: Omit<SettingsRowProps, 'isLast'>[];
+};
+
 export default function SettingsScreen() {
   const router = useRouter();
   const { profile, logout } = useAuth();
-  const { activeTheme } = useAppTheme();
+  const { activeTheme, typography, textScale, fontStyle } = useAppTheme();
   const colors = activeTheme.colors;
+  const settingsText = getSettingsText();
 
   const open = (path: string) => {
     router.push(path as never);
@@ -52,6 +61,54 @@ export default function SettingsScreen() {
     router.replace('/signup');
   };
 
+  const sections: SettingsSection[] = [
+    {
+      id: 'account',
+      title: 'Account',
+      items: [
+        {
+          icon: 'user-gear',
+          title: '個人設定',
+          subtitle: '通知、メール、利用環境などの設定',
+          onPress: () => open('/settings/personal'),
+        },
+        {
+          icon: 'id-card',
+          title: 'プロフィール',
+          subtitle: '掲示板で表示する名前、自己紹介、犬情報',
+          onPress: () => open('/settings/profile'),
+        },
+      ],
+    },
+    {
+      id: 'appearance',
+      title: 'Appearance',
+      items: [
+        {
+          icon: 'palette',
+          title: 'テーマカラー',
+          subtitle: 'アプリ全体の色味を切り替え',
+          value: activeTheme.name,
+          onPress: () => open('/settings/theme'),
+        },
+        {
+          icon: 'text-height',
+          title: '文字サイズ',
+          subtitle: '読みやすさに合わせて表示サイズを調整',
+          value: textScale,
+          onPress: () => open('/settings/text'),
+        },
+        {
+          icon: 'font',
+          title: 'フォントスタイル',
+          subtitle: 'システム、丸み、セリフ、等幅から選択',
+          value: fontStyle,
+          onPress: () => open('/settings/font'),
+        },
+      ],
+    },
+  ];
+
   return (
     <SafeAreaView style={[styles.safeArea, { backgroundColor: colors.background }]}>
       <ScrollView
@@ -61,7 +118,7 @@ export default function SettingsScreen() {
         <View style={styles.header}>
           <View style={styles.headerTextBlock}>
             <Text style={[styles.headerEyebrow, { color: colors.mutedText }]}>Settings</Text>
-            <Text style={[styles.headerTitle, { color: colors.text }]}>設定</Text>
+            <Text style={[styles.headerTitle, { color: colors.text }]}>{settingsText.tabLabel}</Text>
             <Text style={[styles.headerCaption, { color: colors.mutedText }]}>
               アカウント、掲示板プロフィール、表示テーマをここから管理します。
             </Text>
@@ -95,51 +152,31 @@ export default function SettingsScreen() {
               <Text style={[styles.profileInfoLabel, { color: colors.mutedText }]}>テーマ</Text>
               <Text style={[styles.profileInfoValue, { color: colors.text }]}>{activeTheme.name}</Text>
             </View>
+            <View style={[styles.profileInfoPill, { backgroundColor: colors.background, borderColor: colors.border }]}>
+              <Text style={[styles.profileInfoLabel, { color: colors.mutedText }]}>表示</Text>
+              <Text style={[styles.profileInfoValue, { color: colors.text }]}>{`${textScale} / ${fontStyle}`}</Text>
+            </View>
           </View>
         </View>
 
-        <View style={[styles.groupCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-          <SettingsRow
-            icon="user-gear"
-            title="個人設定"
-            subtitle="通知、メール、利用環境などの設定"
-            onPress={() => open('/settings/personal')}
-          />
-          <SettingsRow
-            icon="id-card"
-            title="プロフィール"
-            subtitle="掲示板で表示する名前、自己紹介、犬情報"
-            onPress={() => open('/settings/profile')}
-          />
-        </View>
-
-        <View style={[styles.groupCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-          <SettingsRow
-            icon="palette"
-            title="テーマカラー"
-            subtitle="アプリ全体の色味を切り替え"
-            value={activeTheme.name}
-            onPress={() => open('/settings/theme')}
-          />
-          <SettingsRow
-            icon="text-height"
-            title="文字サイズ"
-            subtitle="読みやすさに合わせて表示サイズを調整"
-            onPress={() => open('/settings/text')}
-          />
-          <SettingsRow
-            icon="font"
-            title="フォントスタイル"
-            subtitle="システム、丸み、セリフ、等幅から選択"
-            onPress={() => open('/settings/font')}
-          />
-        </View>
+        {sections.map((section) => (
+          <View key={section.id} style={styles.sectionWrap}>
+            <Text style={[styles.sectionLabel, { color: colors.mutedText, fontFamily: typography.fontFamily }]}>
+              {section.title}
+            </Text>
+            <View style={[styles.groupCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+              {section.items.map((item, index) => (
+                <SettingsRow key={item.title} {...item} isLast={index === section.items.length - 1} />
+              ))}
+            </View>
+          </View>
+        ))}
 
         <Pressable
           style={[styles.logoutButton, { backgroundColor: colors.accent, borderColor: colors.border }]}
           onPress={handleLogout}>
           <FontAwesome6 name="right-from-bracket" size={16} color={colors.accentContrast} />
-          <Text style={[styles.logoutText, { color: colors.accentContrast }]}>ログアウト</Text>
+          <Text style={[styles.logoutText, { color: colors.accentContrast }]}>{settingsText.logoutButton}</Text>
         </Pressable>
       </ScrollView>
     </SafeAreaView>
@@ -223,10 +260,12 @@ const styles = StyleSheet.create({
   },
   profileInfoRow: {
     flexDirection: 'row',
+    flexWrap: 'wrap',
     gap: 10,
   },
   profileInfoPill: {
     flex: 1,
+    minWidth: 118,
     minHeight: 62,
     borderRadius: 16,
     borderWidth: 1,
@@ -242,6 +281,15 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '800',
   },
+  sectionWrap: {
+    gap: 8,
+  },
+  sectionLabel: {
+    fontSize: 12,
+    fontWeight: '800',
+    paddingHorizontal: 2,
+    textTransform: 'uppercase',
+  },
   groupCard: {
     borderRadius: 20,
     borderWidth: 1,
@@ -254,6 +302,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 12,
     borderBottomWidth: 1,
+  },
+  rowLast: {
+    borderBottomWidth: 0,
   },
   rowIconWrap: {
     width: 38,
@@ -276,9 +327,10 @@ const styles = StyleSheet.create({
     lineHeight: 18,
   },
   rowValue: {
-    maxWidth: 100,
+    maxWidth: 112,
     fontSize: 12,
     marginRight: 6,
+    textAlign: 'right',
   },
   logoutButton: {
     minHeight: 50,

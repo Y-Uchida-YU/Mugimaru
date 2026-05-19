@@ -14,6 +14,7 @@ type EventItem = {
   title: string;
   region: Exclude<EventRegion, 'all'>;
   type: Exclude<EventType, 'all'>;
+  dateISO: string;
   dateLabel: string;
   venue: string;
   description: string;
@@ -48,6 +49,7 @@ const EVENT_ITEMS: EventItem[] = [
     title: 'Tokyo Dog Life Festival 2026',
     region: 'kanto',
     type: 'festival',
+    dateISO: '2026-04-19',
     dateLabel: 'Apr 19, 2026',
     venue: 'Yoyogi Park, Tokyo',
     description: 'Food, grooming booths, vet talks, and stage events for dog owners.',
@@ -59,6 +61,7 @@ const EVENT_ITEMS: EventItem[] = [
     title: 'Osaka Night Dog Run Meetup',
     region: 'kansai',
     type: 'run',
+    dateISO: '2026-04-26',
     dateLabel: 'Apr 26, 2026',
     venue: 'Expo Commemoration Park, Osaka',
     description: 'Evening meetup focused on safe social runs and leash etiquette.',
@@ -70,6 +73,7 @@ const EVENT_ITEMS: EventItem[] = [
     title: 'Nagoya Dog Goods Market',
     region: 'chubu',
     type: 'market',
+    dateISO: '2026-05-03',
     dateLabel: 'May 3, 2026',
     venue: 'Hisaya-odori Park, Nagoya',
     description: 'Curated vendors for premium dog food, apparel, and accessories.',
@@ -81,6 +85,7 @@ const EVENT_ITEMS: EventItem[] = [
     title: 'Fukuoka Rescue Adoption Day',
     region: 'kyushu-okinawa',
     type: 'adoption',
+    dateISO: '2026-05-10',
     dateLabel: 'May 10, 2026',
     venue: 'Maizuru Park, Fukuoka',
     description: 'Shelters and foster groups host meetups for adoption and counseling.',
@@ -92,6 +97,7 @@ const EVENT_ITEMS: EventItem[] = [
     title: 'Sapporo Puppy Starter Class',
     region: 'hokkaido',
     type: 'training',
+    dateISO: '2026-05-17',
     dateLabel: 'May 17, 2026',
     venue: 'Sapporo Community Center',
     description: 'Beginner training class for socialization, recall, and house rules.',
@@ -103,6 +109,7 @@ const EVENT_ITEMS: EventItem[] = [
     title: 'Sendai Dog Charity Walk',
     region: 'tohoku',
     type: 'charity',
+    dateISO: '2026-05-24',
     dateLabel: 'May 24, 2026',
     venue: 'Nishi Park, Sendai',
     description: 'Charity walk to support regional rescue and treatment funds.',
@@ -114,6 +121,7 @@ const EVENT_ITEMS: EventItem[] = [
     title: 'Yokohama Recall Bootcamp',
     region: 'kanto',
     type: 'training',
+    dateISO: '2026-05-31',
     dateLabel: 'May 31, 2026',
     venue: 'Yamashita Park, Yokohama',
     description: 'Practical outdoor recall and distraction control workshop.',
@@ -125,6 +133,7 @@ const EVENT_ITEMS: EventItem[] = [
     title: 'Kobe Waterfront Dog Festival',
     region: 'kansai',
     type: 'festival',
+    dateISO: '2026-06-07',
     dateLabel: 'Jun 7, 2026',
     venue: 'Meriken Park, Kobe',
     description: 'Photo booths, mini games, and seasonal pet travel information.',
@@ -136,6 +145,7 @@ const EVENT_ITEMS: EventItem[] = [
     title: 'Hiroshima Morning Dog Run',
     region: 'chugoku-shikoku',
     type: 'run',
+    dateISO: '2026-06-14',
     dateLabel: 'Jun 14, 2026',
     venue: 'Peace Boulevard, Hiroshima',
     description: 'Small-group run and behavior sharing session by local owners.',
@@ -147,6 +157,7 @@ const EVENT_ITEMS: EventItem[] = [
     title: 'Okinawa Pet Weekend Market',
     region: 'kyushu-okinawa',
     type: 'market',
+    dateISO: '2026-06-21',
     dateLabel: 'Jun 21, 2026',
     venue: 'Ginowan Seaside Park, Okinawa',
     description: 'Weekend market for tropical-safe pet products and treats.',
@@ -172,6 +183,24 @@ function typeLabel(type: Exclude<EventType, 'all'>) {
   return hit?.label ?? type;
 }
 
+function startOfDay(date: Date) {
+  return new Date(date.getFullYear(), date.getMonth(), date.getDate()).getTime();
+}
+
+function daysUntil(dateISO: string) {
+  const eventTime = startOfDay(new Date(`${dateISO}T00:00:00`));
+  const todayTime = startOfDay(new Date());
+  return Math.round((eventTime - todayTime) / 86400000);
+}
+
+function eventTimingLabel(dateISO: string) {
+  const diff = daysUntil(dateISO);
+  if (diff < 0) return 'Past';
+  if (diff === 0) return 'Today';
+  if (diff === 1) return 'Tomorrow';
+  return `${diff} days`;
+}
+
 export default function EventsScreen() {
   const { activeTheme } = useAppTheme();
   const colors = activeTheme.colors;
@@ -187,9 +216,19 @@ export default function EventsScreen() {
       if (region !== 'all' && event.region !== region) return false;
       if (eventType !== 'all' && event.type !== eventType) return false;
       if (!q) return true;
-      return [event.title, event.venue, event.description, regionLabel(event.region), typeLabel(event.type)].join(' ').toLowerCase().includes(q);
-    });
+      return [event.title, event.venue, event.description, regionLabel(event.region), typeLabel(event.type)]
+        .join(' ')
+        .toLowerCase()
+        .includes(q);
+    }).sort((a, b) => a.dateISO.localeCompare(b.dateISO));
   }, [eventType, query, region]);
+
+  const upcomingEvents = useMemo(
+    () => filteredEvents.filter((event) => daysUntil(event.dateISO) >= 0),
+    [filteredEvents]
+  );
+
+  const featuredEvent = upcomingEvents[0] ?? filteredEvents[0];
 
   const openLink = async (url: string) => {
     try {
@@ -204,10 +243,28 @@ export default function EventsScreen() {
     <SafeAreaView style={[styles.safeArea, { backgroundColor: colors.background }]}>
       <ScrollView contentContainerStyle={styles.content}>
         <View style={[styles.heroCard, { backgroundColor: colors.elevated, borderColor: colors.border }]}>
-          <Text style={[styles.heroTitle, { color: colors.text }]}>Dog Events</Text>
-          <Text style={[styles.heroCaption, { color: colors.mutedText }]}>
-            Find dog-friendly events by region and type, then jump to the organizer site.
-          </Text>
+          <View style={styles.heroTopRow}>
+            <View style={styles.heroTextWrap}>
+              <Text style={[styles.heroTitle, { color: colors.text }]}>Dog Events</Text>
+              <Text style={[styles.heroCaption, { color: colors.mutedText }]}>
+                Find dog-friendly events by region and type, then jump to the organizer site.
+              </Text>
+            </View>
+            <View style={[styles.heroCountPill, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+              <Text style={[styles.heroCountValue, { color: colors.text }]}>{upcomingEvents.length}</Text>
+              <Text style={[styles.heroCountLabel, { color: colors.mutedText }]}>upcoming</Text>
+            </View>
+          </View>
+          {featuredEvent ? (
+            <View style={[styles.featuredStrip, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+              <FontAwesome6 name="calendar-check" size={14} color={colors.accent} />
+              <View style={styles.featuredTextWrap}>
+                <Text style={[styles.featuredLabel, { color: colors.mutedText }]}>Next event</Text>
+                <Text style={[styles.featuredTitle, { color: colors.text }]}>{featuredEvent.title}</Text>
+              </View>
+              <Text style={[styles.featuredDate, { color: colors.accent }]}>{eventTimingLabel(featuredEvent.dateISO)}</Text>
+            </View>
+          ) : null}
         </View>
 
         <View style={[styles.controlCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
@@ -271,17 +328,33 @@ export default function EventsScreen() {
 
         <View style={[styles.listCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
           <View style={styles.listHeader}>
-            <Text style={[styles.listTitle, { color: colors.text }]}>Event List</Text>
+            <View>
+              <Text style={[styles.listTitle, { color: colors.text }]}>Event List</Text>
+              <Text style={[styles.listSubMeta, { color: colors.mutedText }]}>
+                {upcomingEvents.length} upcoming / {filteredEvents.length} total
+              </Text>
+            </View>
             <Text style={[styles.listMeta, { color: colors.mutedText }]}>{filteredEvents.length} results</Text>
           </View>
 
           {filteredEvents.length === 0 ? (
             <Text style={[styles.emptyText, { color: colors.mutedText }]}>No events match your current filter.</Text>
           ) : (
-            filteredEvents.map((event) => (
-              <View key={event.id} style={[styles.eventCard, { backgroundColor: colors.background, borderColor: colors.border }]}>
+            filteredEvents.map((event) => {
+              const past = daysUntil(event.dateISO) < 0;
+              return (
+              <View
+                key={event.id}
+                style={[
+                  styles.eventCard,
+                  { backgroundColor: colors.background, borderColor: colors.border },
+                  past ? styles.eventCardPast : null,
+                ]}>
                 <View style={styles.eventTop}>
-                  <Text style={[styles.eventDate, { color: colors.accent }]}>{event.dateLabel}</Text>
+                  <View style={styles.eventDateWrap}>
+                    <Text style={[styles.eventDate, { color: past ? colors.mutedText : colors.accent }]}>{event.dateLabel}</Text>
+                    <Text style={[styles.eventTiming, { color: colors.mutedText }]}>{eventTimingLabel(event.dateISO)}</Text>
+                  </View>
                   <Text style={[styles.eventSource, { color: colors.mutedText }]}>{event.source}</Text>
                 </View>
                 <Text style={[styles.eventTitle, { color: colors.text }]}>{event.title}</Text>
@@ -299,7 +372,8 @@ export default function EventsScreen() {
                   <Text style={[styles.linkButtonText, { color: colors.accentContrast }]}>Open External Site</Text>
                 </Pressable>
               </View>
-            ))
+            );
+            })
           )}
         </View>
 
@@ -312,9 +386,19 @@ export default function EventsScreen() {
 const styles = StyleSheet.create({
   safeArea: { flex: 1 },
   content: { paddingHorizontal: 16, paddingTop: 14, paddingBottom: 30, gap: 12 },
-  heroCard: { borderRadius: 18, borderWidth: 1, paddingHorizontal: 16, paddingVertical: 14, gap: 4 },
+  heroCard: { borderRadius: 18, borderWidth: 1, paddingHorizontal: 16, paddingVertical: 14, gap: 12 },
+  heroTopRow: { flexDirection: 'row', gap: 12, alignItems: 'flex-start' },
+  heroTextWrap: { flex: 1, gap: 4 },
   heroTitle: { fontSize: 26, fontWeight: '800' },
   heroCaption: { fontSize: 13, lineHeight: 20 },
+  heroCountPill: { minWidth: 88, borderRadius: 14, borderWidth: 1, paddingHorizontal: 10, paddingVertical: 8, alignItems: 'center' },
+  heroCountValue: { fontSize: 20, fontWeight: '800' },
+  heroCountLabel: { fontSize: 11, fontWeight: '700' },
+  featuredStrip: { minHeight: 58, borderRadius: 14, borderWidth: 1, paddingHorizontal: 12, flexDirection: 'row', alignItems: 'center', gap: 10 },
+  featuredTextWrap: { flex: 1, gap: 2 },
+  featuredLabel: { fontSize: 11, fontWeight: '700' },
+  featuredTitle: { fontSize: 13, fontWeight: '800' },
+  featuredDate: { fontSize: 12, fontWeight: '800' },
   controlCard: { borderRadius: 16, borderWidth: 1, padding: 12, gap: 10 },
   searchWrap: { minHeight: 44, borderRadius: 12, borderWidth: 1, paddingHorizontal: 12, flexDirection: 'row', alignItems: 'center', gap: 8 },
   searchInput: { flex: 1, fontSize: 14, paddingVertical: 0 },
@@ -331,11 +415,15 @@ const styles = StyleSheet.create({
   listCard: { borderRadius: 16, borderWidth: 1, padding: 12, gap: 10 },
   listHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   listTitle: { fontSize: 17, fontWeight: '800' },
+  listSubMeta: { fontSize: 11, fontWeight: '700', marginTop: 2 },
   listMeta: { fontSize: 12, fontWeight: '700' },
   emptyText: { fontSize: 13 },
   eventCard: { borderRadius: 14, borderWidth: 1, padding: 12, gap: 7 },
+  eventCardPast: { opacity: 0.62 },
   eventTop: { flexDirection: 'row', justifyContent: 'space-between', gap: 8 },
+  eventDateWrap: { gap: 2 },
   eventDate: { fontSize: 12, fontWeight: '800' },
+  eventTiming: { fontSize: 11, fontWeight: '700' },
   eventSource: { fontSize: 11, fontWeight: '700' },
   eventTitle: { fontSize: 16, fontWeight: '800' },
   eventMeta: { fontSize: 12 },

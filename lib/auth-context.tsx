@@ -4,7 +4,7 @@ import { hasSupabaseEnv } from '@/lib/supabase';
 import { loginWithEmailAndPassword } from '@/lib/password-auth';
 import { getAppUserByExternalId, upsertAppUser } from '@/lib/user-data';
 
-export type AuthProvider = 'line' | 'x' | 'email' | 'guest';
+export type AuthProvider = 'line' | 'google' | 'apple' | 'x' | 'email' | 'guest';
 
 export type SocialLoginProfile = {
   externalId: string;
@@ -28,7 +28,10 @@ type AuthContextValue = {
   isHydrated: boolean;
   isAuthenticated: boolean;
   profile: UserProfile | null;
-  loginWithSocial: (provider: 'line' | 'x', socialProfile: SocialLoginProfile) => Promise<void>;
+  loginWithSocial: (
+    provider: 'line' | 'google' | 'apple' | 'x',
+    socialProfile: SocialLoginProfile
+  ) => Promise<void>;
   loginWithEmail: (email: string, options?: { externalId?: string; name?: string }) => Promise<void>;
   loginWithPassword: (credential: string, password: string) => Promise<void>;
   loginAsGuest: () => Promise<void>;
@@ -102,10 +105,16 @@ export function AuthProviderRoot({ children }: PropsWithChildren) {
   }, [profile, isHydrated]);
 
   const loginWithSocial = useCallback(
-    async (provider: 'line' | 'x', socialProfile: SocialLoginProfile) => {
+    async (provider: 'line' | 'google' | 'apple' | 'x', socialProfile: SocialLoginProfile) => {
+      const defaultNameByProvider: Record<'line' | 'google' | 'apple' | 'x', string> = {
+        line: 'LINE User',
+        google: 'Google User',
+        apple: 'Apple User',
+        x: 'X User',
+      };
       const nextProfile: UserProfile = {
         externalId: socialProfile.externalId || createLocalExternalId(provider),
-        name: socialProfile.name || (provider === 'line' ? 'LINE User' : 'X User'),
+        name: socialProfile.name || defaultNameByProvider[provider],
         email: socialProfile.email?.trim().toLowerCase() ?? '',
         avatarUrl: socialProfile.avatarUrl?.trim() ?? '',
         bio: '',

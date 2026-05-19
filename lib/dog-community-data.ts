@@ -1,6 +1,6 @@
 import { supabaseInsert, supabaseSelect } from '@/lib/supabase';
 
-export type SpotType = 'dogrun' | 'vet' | 'cafe';
+export type SpotType = 'dogrun' | 'vet' | 'cafe' | 'shop';
 
 export type Spot = {
   id: string;
@@ -8,9 +8,17 @@ export type Spot = {
   type: SpotType;
   latitude: number;
   longitude: number;
+  source?: string | null;
+  source_id?: string | null;
+  source_url?: string | null;
+  address?: string | null;
+  phone?: string | null;
+  website?: string | null;
+  metadata?: Record<string, unknown> | null;
   created_by_external_id?: string | null;
   created_by_name?: string | null;
   created_at?: string;
+  updated_at?: string;
 };
 
 export type Review = {
@@ -25,7 +33,7 @@ export type Review = {
 
 export async function listSpots() {
   return supabaseSelect<Spot[]>(
-    'spots?select=id,name,type,latitude,longitude,created_by_external_id,created_by_name,created_at&order=created_at.desc'
+    'spots?select=id,name,type,latitude,longitude,source,source_id,source_url,address,phone,website,metadata,created_by_external_id,created_by_name,created_at,updated_at&order=created_at.desc'
   );
 }
 
