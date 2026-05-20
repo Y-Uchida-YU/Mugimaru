@@ -95,12 +95,20 @@ jobs:
             --arg keyPath "AuthKey.p8" \
             --arg keyId "$ASC_API_KEY_ID" \
             --arg issuerId "$ASC_API_ISSUER_ID" \
+            --arg bundleId "com.yutauchida.mugimaru" \
             '.submit.production.ios.ascAppId = $appId
               | .submit.production.ios.ascApiKeyPath = $keyPath
               | .submit.production.ios.ascApiKeyId = $keyId
-              | .submit.production.ios.ascApiKeyIssuerId = $issuerId' \
+              | .submit.production.ios.ascApiKeyIssuerId = $issuerId
+              | .submit.production.ios.bundleIdentifier = $bundleId' \
             eas.json > "$tmp_file"
           mv "$tmp_file" eas.json
+          jq -e '.submit.production.ios.ascAppId
+            and .submit.production.ios.ascApiKeyPath
+            and .submit.production.ios.ascApiKeyId
+            and .submit.production.ios.ascApiKeyIssuerId
+            and .submit.production.ios.bundleIdentifier' eas.json > /dev/null
+          echo "Submit profile is configured for bundleIdentifier=com.yutauchida.mugimaru."
 
       - name: Build iOS (production)
         id: build_ios
