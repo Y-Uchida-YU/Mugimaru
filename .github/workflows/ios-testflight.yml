@@ -82,9 +82,11 @@ jobs:
             --non-interactive \
             --wait
 
-      - name: Inject App Store app id into submit profile
+      - name: Inject App Store Connect settings into submit profile
         env:
           ASC_APP_ID: ${{ secrets.ASC_APP_ID }}
+          ASC_API_KEY_ID: ${{ secrets.ASC_API_KEY_ID }}
+          ASC_API_ISSUER_ID: ${{ secrets.ASC_API_ISSUER_ID }}
         run: |
           set -euo pipefail
           if [ -z "${ASC_APP_ID:-}" ]; then
@@ -92,15 +94,24 @@ jobs:
             echo "::error::Set ASC_APP_ID to the Apple numeric App ID (not bundle id)."
             exit 1
           fi
+          if [ -z "${ASC_API_KEY_ID:-}" ] || [ -z "${ASC_API_ISSUER_ID:-}" ]; then
+            echo "::error::Missing App Store Connect API key id or issuer id."
+            exit 1
+          fi
           tmp_file="$(mktemp)"
-          jq --arg appId "$ASC_APP_ID" '.submit.production.ios.ascAppId = $appId' eas.json > "$tmp_file"
+          jq \
+            --arg appId "$ASC_APP_ID" \
+            --arg keyPath "AuthKey.p8" \
+            --arg keyId "$ASC_API_KEY_ID" \
+            --arg issuerId "$ASC_API_ISSUER_ID" \
+            '.submit.production.ios.ascAppId = $appId
+              | .submit.production.ios.ascApiKeyPath = $keyPath
+              | .submit.production.ios.ascApiKeyId = $keyId
+              | .submit.production.ios.ascApiKeyIssuerId = $issuerId' \
+            eas.json > "$tmp_file"
           mv "$tmp_file" eas.json
 
       - name: Submit latest iOS build to TestFlight
-        env:
-          EXPO_ASC_API_KEY_PATH: AuthKey.p8
-          EXPO_ASC_KEY_ID: ${{ secrets.ASC_API_KEY_ID }}
-          EXPO_ASC_ISSUER_ID: ${{ secrets.ASC_API_ISSUER_ID }}
         run: |
           set -euo pipefail
           eas submit \
