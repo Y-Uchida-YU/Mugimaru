@@ -6,343 +6,207 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { ThemedText as Text } from '@/components/themed-typography';
 import { useAuth } from '@/lib/auth-context';
 import { useAppTheme } from '@/lib/app-theme-context';
-import { getSettingsText } from '@/lib/settings-l10n';
+import { getAppText } from '@/lib/i18n';
 
-type SettingsRowProps = {
+type RowProps = {
   icon: keyof typeof FontAwesome6.glyphMap;
   title: string;
   subtitle: string;
   onPress: () => void;
   value?: string;
-  isLast?: boolean;
 };
 
-function SettingsRow({ icon, title, subtitle, onPress, value, isLast }: SettingsRowProps) {
+function SettingsRow({ icon, title, subtitle, value, onPress }: RowProps) {
   const { activeTheme } = useAppTheme();
   const colors = activeTheme.colors;
-
   return (
     <Pressable
-      style={[styles.row, { borderBottomColor: colors.border }, isLast ? styles.rowLast : null]}
+      style={[styles.row, { backgroundColor: colors.surface, borderColor: colors.border }]}
       onPress={onPress}
       android_ripple={{ color: `${colors.accent}22` }}>
-      <View style={[styles.rowIconWrap, { backgroundColor: colors.background, borderColor: colors.border }]}>
-        <FontAwesome6 name={icon} size={16} color={colors.text} />
+      <View style={[styles.rowIcon, { backgroundColor: colors.chip }]}>
+        <FontAwesome6 name={icon} size={15} color={colors.chipText} />
       </View>
       <View style={styles.rowBody}>
         <Text style={[styles.rowTitle, { color: colors.text }]}>{title}</Text>
         <Text style={[styles.rowSubtitle, { color: colors.mutedText }]}>{subtitle}</Text>
       </View>
       {value ? <Text style={[styles.rowValue, { color: colors.mutedText }]}>{value}</Text> : null}
-      <FontAwesome6 name="chevron-right" size={14} color={colors.mutedText} />
+      <FontAwesome6 name="chevron-right" size={13} color={colors.mutedText} />
     </Pressable>
   );
 }
 
-type SettingsSection = {
-  id: string;
-  title: string;
-  items: Omit<SettingsRowProps, 'isLast'>[];
-};
-
 export default function SettingsScreen() {
   const router = useRouter();
+  const text = getAppText();
   const { profile, logout } = useAuth();
   const { activeTheme, typography, textScale, fontStyle } = useAppTheme();
   const colors = activeTheme.colors;
-  const settingsText = getSettingsText();
+  const isJapan = text.localeGroup === 'japan';
 
-  const open = (path: string) => {
-    router.push(path as never);
-  };
+  const copy = isJapan
+    ? {
+        title: '設定',
+        caption: 'アカウント、プロフィール、見た目をまとめて管理できます。',
+        account: 'アカウント',
+        appearance: '表示とテーマ',
+        recommendations: 'おすすめ',
+        personal: '個人設定',
+        personalSub: '通知、メール、利用環境の設定',
+        profile: 'プロフィール',
+        profileSub: '掲示板に表示する名前、自己紹介、愛犬情報',
+        theme: 'テーマカラー',
+        themeSub: 'アプリ全体の色味を変更',
+        textSize: '文字サイズ',
+        textSizeSub: '読みやすい表示サイズへ調整',
+        font: 'フォント',
+        fontSub: 'システム、丸み、セリフ、等幅から選択',
+        help: 'ヘルプ',
+        helpSub: '使い方とよくある質問',
+        recommendTitle: '今日のおすすめ設定',
+        recommendBody: 'テーマを「Ocean Tide」か「Mint Breeze」にすると、地図やイベント画面がより見やすくなります。',
+        guestMail: 'メール未設定',
+        loginMethod: 'ログイン',
+        logout: 'ログアウト',
+      }
+    : {
+        title: 'Settings',
+        caption: 'Manage account, profile, appearance, and recommendation preferences.',
+        account: 'Account',
+        appearance: 'Appearance',
+        recommendations: 'Recommendations',
+        personal: 'Personal settings',
+        personalSub: 'Notifications, email, and account environment',
+        profile: 'Profile',
+        profileSub: 'Name, bio, and dog info shown on the board',
+        theme: 'Theme color',
+        themeSub: 'Change the whole app palette',
+        textSize: 'Text size',
+        textSizeSub: 'Tune readability and density',
+        font: 'Font style',
+        fontSub: 'System, rounded, serif, or mono',
+        help: 'Help',
+        helpSub: 'How to use Mugimaru and FAQ',
+        recommendTitle: 'Recommended setting',
+        recommendBody: 'Try Ocean Tide or Mint Breeze for clearer map and event screens.',
+        guestMail: 'No email set',
+        loginMethod: 'Login',
+        logout: 'Log out',
+      };
+
+  const open = (path: string) => router.push(path as never);
 
   const handleLogout = () => {
     logout();
     router.replace('/signup');
   };
 
-  const sections: SettingsSection[] = [
-    {
-      id: 'account',
-      title: 'Account',
-      items: [
-        {
-          icon: 'user-gear',
-          title: '個人設定',
-          subtitle: '通知、メール、利用環境などの設定',
-          onPress: () => open('/settings/personal'),
-        },
-        {
-          icon: 'id-card',
-          title: 'プロフィール',
-          subtitle: '掲示板で表示する名前、自己紹介、犬情報',
-          onPress: () => open('/settings/profile'),
-        },
-      ],
-    },
-    {
-      id: 'appearance',
-      title: 'Appearance',
-      items: [
-        {
-          icon: 'palette',
-          title: 'テーマカラー',
-          subtitle: 'アプリ全体の色味を切り替え',
-          value: activeTheme.name,
-          onPress: () => open('/settings/theme'),
-        },
-        {
-          icon: 'text-height',
-          title: '文字サイズ',
-          subtitle: '読みやすさに合わせて表示サイズを調整',
-          value: textScale,
-          onPress: () => open('/settings/text'),
-        },
-        {
-          icon: 'font',
-          title: 'フォントスタイル',
-          subtitle: 'システム、丸み、セリフ、等幅から選択',
-          value: fontStyle,
-          onPress: () => open('/settings/font'),
-        },
-      ],
-    },
-  ];
-
   return (
     <SafeAreaView style={[styles.safeArea, { backgroundColor: colors.background }]}>
-      <ScrollView
-        contentContainerStyle={styles.content}
-        showsVerticalScrollIndicator={false}
-        contentInsetAdjustmentBehavior="automatic">
+      <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
         <View style={styles.header}>
-          <View style={styles.headerTextBlock}>
-            <Text style={[styles.headerEyebrow, { color: colors.mutedText }]}>Settings</Text>
-            <Text style={[styles.headerTitle, { color: colors.text }]}>{settingsText.tabLabel}</Text>
-            <Text style={[styles.headerCaption, { color: colors.mutedText }]}>
-              アカウント、掲示板プロフィール、表示テーマをここから管理します。
-            </Text>
-          </View>
-          <Pressable
-            style={[styles.helpChip, { backgroundColor: colors.surface, borderColor: colors.border }]}
-            onPress={() => open('/settings/help')}>
-            <FontAwesome6 name="circle-question" size={14} color={colors.text} />
-            <Text style={[styles.helpChipText, { color: colors.text }]}>ヘルプ</Text>
-          </Pressable>
+          <Text style={[styles.eyebrow, { color: colors.accent }]}>{copy.account}</Text>
+          <Text style={[styles.title, { color: colors.text }]}>{copy.title}</Text>
+          <Text style={[styles.caption, { color: colors.mutedText }]}>{copy.caption}</Text>
         </View>
 
-        <View style={[styles.profileCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-          <View style={styles.profileTopRow}>
-            <View style={[styles.avatarShell, { backgroundColor: colors.chip, borderColor: colors.border }]}>
-              <FontAwesome6 name="paw" size={22} color={colors.chipText} />
+        <View style={[styles.profileCard, { backgroundColor: colors.elevated, borderColor: colors.border }]}>
+          <View style={styles.profileTop}>
+            <View style={[styles.avatar, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+              <FontAwesome6 name="paw" size={22} color={colors.accent} />
             </View>
             <View style={styles.profileMeta}>
               <Text style={[styles.profileName, { color: colors.text }]}>{profile?.name ?? 'Guest'}</Text>
               <Text style={[styles.profileEmail, { color: colors.mutedText }]}>
-                {profile?.email?.trim() ? profile.email : 'メールアドレス未設定'}
+                {profile?.email?.trim() ? profile.email : copy.guestMail}
               </Text>
             </View>
+            <Pressable style={[styles.editButton, { backgroundColor: colors.surface }]} onPress={() => open('/settings/profile')}>
+              <FontAwesome6 name="pen" size={13} color={colors.text} />
+            </Pressable>
           </View>
-          <View style={styles.profileInfoRow}>
-            <View style={[styles.profileInfoPill, { backgroundColor: colors.background, borderColor: colors.border }]}>
-              <Text style={[styles.profileInfoLabel, { color: colors.mutedText }]}>ログイン</Text>
-              <Text style={[styles.profileInfoValue, { color: colors.text }]}>{profile?.provider ?? 'guest'}</Text>
-            </View>
-            <View style={[styles.profileInfoPill, { backgroundColor: colors.background, borderColor: colors.border }]}>
-              <Text style={[styles.profileInfoLabel, { color: colors.mutedText }]}>テーマ</Text>
-              <Text style={[styles.profileInfoValue, { color: colors.text }]}>{activeTheme.name}</Text>
-            </View>
-            <View style={[styles.profileInfoPill, { backgroundColor: colors.background, borderColor: colors.border }]}>
-              <Text style={[styles.profileInfoLabel, { color: colors.mutedText }]}>表示</Text>
-              <Text style={[styles.profileInfoValue, { color: colors.text }]}>{`${textScale} / ${fontStyle}`}</Text>
-            </View>
+          <View style={styles.statsRow}>
+            <Metric label={copy.loginMethod} value={profile?.provider ?? 'guest'} />
+            <Metric label={copy.theme} value={activeTheme.name} />
+            <Metric label={copy.textSize} value={textScale} />
           </View>
         </View>
 
-        {sections.map((section) => (
-          <View key={section.id} style={styles.sectionWrap}>
-            <Text style={[styles.sectionLabel, { color: colors.mutedText, fontFamily: typography.fontFamily }]}>
-              {section.title}
-            </Text>
-            <View style={[styles.groupCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-              {section.items.map((item, index) => (
-                <SettingsRow key={item.title} {...item} isLast={index === section.items.length - 1} />
-              ))}
-            </View>
+        <View style={[styles.recommendCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+          <View style={[styles.recommendIcon, { backgroundColor: colors.chip }]}>
+            <FontAwesome6 name="star" size={15} color={colors.chipText} />
           </View>
-        ))}
+          <View style={styles.recommendBody}>
+            <Text style={[styles.recommendTitle, { color: colors.text }]}>{copy.recommendTitle}</Text>
+            <Text style={[styles.recommendText, { color: colors.mutedText }]}>{copy.recommendBody}</Text>
+          </View>
+        </View>
 
-        <Pressable
-          style={[styles.logoutButton, { backgroundColor: colors.accent, borderColor: colors.border }]}
-          onPress={handleLogout}>
-          <FontAwesome6 name="right-from-bracket" size={16} color={colors.accentContrast} />
-          <Text style={[styles.logoutText, { color: colors.accentContrast }]}>{settingsText.logoutButton}</Text>
+        <SectionTitle title={copy.account} />
+        <SettingsRow icon="user-gear" title={copy.personal} subtitle={copy.personalSub} onPress={() => open('/settings/personal')} />
+        <SettingsRow icon="id-card" title={copy.profile} subtitle={copy.profileSub} onPress={() => open('/settings/profile')} />
+
+        <SectionTitle title={copy.appearance} />
+        <SettingsRow icon="palette" title={copy.theme} subtitle={copy.themeSub} value={activeTheme.name} onPress={() => open('/settings/theme')} />
+        <SettingsRow icon="text-height" title={copy.textSize} subtitle={copy.textSizeSub} value={textScale} onPress={() => open('/settings/text')} />
+        <SettingsRow icon="font" title={copy.font} subtitle={copy.fontSub} value={fontStyle} onPress={() => open('/settings/font')} />
+
+        <SectionTitle title={copy.recommendations} />
+        <SettingsRow icon="circle-question" title={copy.help} subtitle={copy.helpSub} onPress={() => open('/settings/help')} />
+
+        <Pressable style={[styles.logoutButton, { backgroundColor: colors.accent }]} onPress={handleLogout}>
+          <FontAwesome6 name="right-from-bracket" size={15} color={colors.accentContrast} />
+          <Text style={[styles.logoutText, { color: colors.accentContrast }]}>{copy.logout}</Text>
         </Pressable>
       </ScrollView>
     </SafeAreaView>
   );
+
+  function SectionTitle({ title }: { title: string }) {
+    return <Text style={[styles.sectionTitle, { color: colors.mutedText, fontFamily: typography.fontFamily }]}>{title}</Text>;
+  }
+
+  function Metric({ label, value }: { label: string; value: string }) {
+    return (
+      <View style={[styles.metric, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+        <Text style={[styles.metricLabel, { color: colors.mutedText }]}>{label}</Text>
+        <Text style={[styles.metricValue, { color: colors.text }]} numberOfLines={1}>{value}</Text>
+      </View>
+    );
+  }
 }
 
 const styles = StyleSheet.create({
-  safeArea: {
-    flex: 1,
-  },
-  content: {
-    paddingHorizontal: 16,
-    paddingTop: 10,
-    paddingBottom: 36,
-    gap: 16,
-  },
-  header: {
-    gap: 14,
-  },
-  headerTextBlock: {
-    gap: 4,
-  },
-  headerEyebrow: {
-    fontSize: 12,
-    fontWeight: '700',
-    letterSpacing: 0.8,
-    textTransform: 'uppercase',
-  },
-  headerTitle: {
-    fontSize: 30,
-    fontWeight: '800',
-  },
-  headerCaption: {
-    fontSize: 13,
-    lineHeight: 20,
-    maxWidth: 420,
-  },
-  helpChip: {
-    alignSelf: 'flex-start',
-    minHeight: 38,
-    borderRadius: 999,
-    borderWidth: 1,
-    paddingHorizontal: 14,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  helpChipText: {
-    fontSize: 13,
-    fontWeight: '700',
-  },
-  profileCard: {
-    borderRadius: 22,
-    borderWidth: 1,
-    padding: 16,
-    gap: 14,
-  },
-  profileTopRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-  },
-  avatarShell: {
-    width: 58,
-    height: 58,
-    borderRadius: 29,
-    borderWidth: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  profileMeta: {
-    flex: 1,
-    gap: 2,
-  },
-  profileName: {
-    fontSize: 19,
-    fontWeight: '800',
-  },
-  profileEmail: {
-    fontSize: 12,
-  },
-  profileInfoRow: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 10,
-  },
-  profileInfoPill: {
-    flex: 1,
-    minWidth: 118,
-    minHeight: 62,
-    borderRadius: 16,
-    borderWidth: 1,
-    paddingHorizontal: 12,
-    justifyContent: 'center',
-    gap: 3,
-  },
-  profileInfoLabel: {
-    fontSize: 11,
-    fontWeight: '700',
-  },
-  profileInfoValue: {
-    fontSize: 14,
-    fontWeight: '800',
-  },
-  sectionWrap: {
-    gap: 8,
-  },
-  sectionLabel: {
-    fontSize: 12,
-    fontWeight: '800',
-    paddingHorizontal: 2,
-    textTransform: 'uppercase',
-  },
-  groupCard: {
-    borderRadius: 20,
-    borderWidth: 1,
-    overflow: 'hidden',
-  },
-  row: {
-    minHeight: 76,
-    paddingHorizontal: 14,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-    borderBottomWidth: 1,
-  },
-  rowLast: {
-    borderBottomWidth: 0,
-  },
-  rowIconWrap: {
-    width: 38,
-    height: 38,
-    borderRadius: 12,
-    borderWidth: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  rowBody: {
-    flex: 1,
-    gap: 2,
-  },
-  rowTitle: {
-    fontSize: 15,
-    fontWeight: '800',
-  },
-  rowSubtitle: {
-    fontSize: 12,
-    lineHeight: 18,
-  },
-  rowValue: {
-    maxWidth: 112,
-    fontSize: 12,
-    marginRight: 6,
-    textAlign: 'right',
-  },
-  logoutButton: {
-    minHeight: 50,
-    borderRadius: 16,
-    borderWidth: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 10,
-  },
-  logoutText: {
-    fontSize: 14,
-    fontWeight: '800',
-  },
+  safeArea: { flex: 1 },
+  content: { paddingHorizontal: 16, paddingTop: 12, paddingBottom: 36, gap: 12 },
+  header: { gap: 4, paddingHorizontal: 2 },
+  eyebrow: { fontSize: 12, fontWeight: '800', textTransform: 'uppercase' },
+  title: { fontSize: 32, fontWeight: '800' },
+  caption: { fontSize: 13, lineHeight: 20, maxWidth: 460 },
+  profileCard: { borderRadius: 24, borderWidth: 1, padding: 16, gap: 14 },
+  profileTop: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  avatar: { width: 58, height: 58, borderRadius: 20, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
+  profileMeta: { flex: 1, gap: 2 },
+  profileName: { fontSize: 20, fontWeight: '800' },
+  profileEmail: { fontSize: 12 },
+  editButton: { width: 38, height: 38, borderRadius: 19, alignItems: 'center', justifyContent: 'center' },
+  statsRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  metric: { flex: 1, minWidth: 96, minHeight: 58, borderRadius: 16, borderWidth: 1, paddingHorizontal: 10, justifyContent: 'center', gap: 2 },
+  metricLabel: { fontSize: 10, fontWeight: '800' },
+  metricValue: { fontSize: 13, fontWeight: '800' },
+  recommendCard: { borderRadius: 20, borderWidth: 1, padding: 14, flexDirection: 'row', gap: 12 },
+  recommendIcon: { width: 34, height: 34, borderRadius: 17, alignItems: 'center', justifyContent: 'center' },
+  recommendBody: { flex: 1, gap: 3 },
+  recommendTitle: { fontSize: 14, fontWeight: '800' },
+  recommendText: { fontSize: 12, lineHeight: 18 },
+  sectionTitle: { marginTop: 4, paddingHorizontal: 2, fontSize: 11, fontWeight: '800', textTransform: 'uppercase' },
+  row: { minHeight: 74, borderRadius: 18, borderWidth: 1, padding: 12, flexDirection: 'row', alignItems: 'center', gap: 12 },
+  rowIcon: { width: 38, height: 38, borderRadius: 14, alignItems: 'center', justifyContent: 'center' },
+  rowBody: { flex: 1, gap: 2 },
+  rowTitle: { fontSize: 15, fontWeight: '800' },
+  rowSubtitle: { fontSize: 12, lineHeight: 18 },
+  rowValue: { maxWidth: 104, fontSize: 11, fontWeight: '700', textAlign: 'right' },
+  logoutButton: { minHeight: 52, borderRadius: 18, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 9, marginTop: 4 },
+  logoutText: { fontSize: 14, fontWeight: '800' },
 });

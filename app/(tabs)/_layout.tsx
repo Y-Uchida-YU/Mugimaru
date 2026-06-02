@@ -5,25 +5,16 @@ import { HapticTab } from '@/components/haptic-tab';
 import { IconSymbol } from '@/components/ui/icon-symbol';
 import { useAuth } from '@/lib/auth-context';
 import { useAppTheme } from '@/lib/app-theme-context';
-import { getEventsText } from '@/lib/events-l10n';
 import { getAppText } from '@/lib/i18n';
-import { getSettingsText } from '@/lib/settings-l10n';
 
 export default function TabLayout() {
   const { activeTheme, typography } = useAppTheme();
   const { isHydrated, isAuthenticated } = useAuth();
   const text = getAppText();
-  const eventsText = getEventsText();
-  const settingsText = getSettingsText();
-  const boardTabTitle = text.localeGroup === 'japan' ? 'タイムライン' : 'Timeline';
+  const isJapan = text.localeGroup === 'japan';
 
-  if (!isHydrated) {
-    return null;
-  }
-
-  if (!isAuthenticated) {
-    return <Redirect href="/signup" />;
-  }
+  if (!isHydrated) return null;
+  if (!isAuthenticated) return <Redirect href="/signup" />;
 
   return (
     <Tabs
@@ -33,10 +24,13 @@ export default function TabLayout() {
         tabBarStyle: {
           backgroundColor: activeTheme.colors.surface,
           borderTopColor: activeTheme.colors.border,
+          minHeight: 64,
+          paddingTop: 6,
         },
         tabBarLabelStyle: {
           fontFamily: typography.fontFamily,
           fontSize: 12 * typography.scale,
+          fontWeight: '700',
         },
         headerShown: false,
         tabBarButton: HapticTab,
@@ -44,28 +38,28 @@ export default function TabLayout() {
       <Tabs.Screen
         name="index"
         options={{
-          title: boardTabTitle,
+          title: isJapan ? 'ホーム' : 'Home',
           tabBarIcon: ({ color }) => <IconSymbol size={28} name="text.bubble.fill" color={color} />,
         }}
       />
       <Tabs.Screen
         name="map"
         options={{
-          title: text.tabs.map,
+          title: isJapan ? 'マップ' : 'Map',
           tabBarIcon: ({ color }) => <IconSymbol size={28} name="map.fill" color={color} />,
         }}
       />
       <Tabs.Screen
         name="events"
         options={{
-          title: eventsText.tabLabel,
+          title: isJapan ? 'イベント' : 'Events',
           tabBarIcon: ({ color }) => <IconSymbol size={28} name="calendar" color={color} />,
         }}
       />
       <Tabs.Screen
         name="settings"
         options={{
-          title: settingsText.tabLabel,
+          title: isJapan ? '設定' : 'Settings',
           tabBarIcon: ({ color }) => <IconSymbol size={28} name="gearshape.fill" color={color} />,
         }}
       />

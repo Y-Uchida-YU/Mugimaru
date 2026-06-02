@@ -1,19 +1,21 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import {
-  Image,
+  Animated,
+  ImageBackground,
   KeyboardAvoidingView,
   Platform,
   Pressable,
+  ScrollView,
   StyleSheet,
-  useWindowDimensions,
   View,
 } from 'react-native';
-import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Redirect, useLocalSearchParams, useRouter } from 'expo-router';
 import { FontAwesome6 } from '@expo/vector-icons';
+import { Redirect, useLocalSearchParams, useRouter } from 'expo-router';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { ThemedText as Text, ThemedTextInput as TextInput } from '@/components/themed-typography';
 import { Fonts } from '@/constants/theme';
+import { APP_SCHEME, buildAuthCallbackDeepLink } from '@/lib/app-link';
 import { useAuth } from '@/lib/auth-context';
 import { sendEmailVerificationCode, verifyEmailCode } from '@/lib/email-auth';
 import { getAppText } from '@/lib/i18n';
@@ -24,116 +26,42 @@ import {
   authenticateWithX,
 } from '@/lib/social-auth';
 import { hasSupabaseEnv } from '@/lib/supabase';
-import { APP_SCHEME, buildAuthCallbackDeepLink } from '@/lib/app-link';
 
-type SignupStep = 'method' | 'emailInput' | 'emailCode';
+type SignupStep = 'method' | 'email' | 'code';
 type SocialProvider = 'line' | 'google' | 'apple' | 'x';
 
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-const LOGIN_HERO_IMAGE = require('../assets/images/login-hero.png');
+const HERO_IMAGE = require('../assets/images/login-hero.jpg');
 
-function clamp(value: number, min: number, max: number) {
-  return Math.min(max, Math.max(min, value));
-}
-
-type ProviderVisual = {
-  backgroundColor: string;
-  borderColor: string;
-  textColor: string;
-  iconColor: string;
-  iconCircleColor: string;
-};
-
-const PROVIDER_VISUALS: Record<'line' | 'google' | 'apple' | 'x' | 'email', ProviderVisual> = {
-  line: {
-    backgroundColor: '#06c755',
-    borderColor: '#06c755',
-    textColor: '#ffffff',
-    iconColor: '#06c755',
-    iconCircleColor: '#ffffff',
-  },
-  google: {
-    backgroundColor: '#ffffff',
-    borderColor: '#d6d6de',
-    textColor: '#1f1f1f',
-    iconColor: '#ea4335',
-    iconCircleColor: '#ffffff',
-  },
-  apple: {
-    backgroundColor: '#111111',
-    borderColor: '#111111',
-    textColor: '#ffffff',
-    iconColor: '#111111',
-    iconCircleColor: '#ffffff',
-  },
-  x: {
-    backgroundColor: '#0f0f0f',
-    borderColor: '#0f0f0f',
-    textColor: '#ffffff',
-    iconColor: '#0f0f0f',
-    iconCircleColor: '#ffffff',
-  },
-  email: {
-    backgroundColor: '#3b5ed8',
-    borderColor: '#3b5ed8',
-    textColor: '#ffffff',
-    iconColor: '#3b5ed8',
-    iconCircleColor: '#ffffff',
-  },
-};
-
-function ProviderIcon({
-  provider,
-  color,
-  size,
-}: {
-  provider: 'line' | 'google' | 'apple' | 'x' | 'email';
-  color: string;
-  size: number;
-}) {
-  if (provider === 'line') return <FontAwesome6 name="line" size={size} color={color} />;
-  if (provider === 'google') return <FontAwesome6 name="google" size={size} color={color} />;
-  if (provider === 'apple') return <FontAwesome6 name="apple" size={size} color={color} />;
-  if (provider === 'x') return <FontAwesome6 name="x-twitter" size={size - 1} color={color} />;
-  return <FontAwesome6 name="envelope" size={size - 1} color={color} />;
+function ProviderIcon({ provider, color }: { provider: SocialProvider | 'email' | 'guest'; color: string }) {
+  const icon =
+    provider === 'line'
+      ? 'line'
+      : provider === 'google'
+        ? 'google'
+        : provider === 'apple'
+          ? 'apple'
+          : provider === 'x'
+            ? 'x-twitter'
+            : provider === 'email'
+              ? 'envelope'
+              : 'user';
+  return <FontAwesome6 name={icon} size={16} color={color} />;
 }
 
 function formatSocialAuthError(provider: SocialProvider, error: unknown, localeGroup: string) {
   const raw = error instanceof Error ? error.message : 'Social login failed.';
-  const lowered = raw.toLowerCase();
-
-  if (provider !== 'line') {
-    return raw;
-  }
-
-  if (/(cancelled|canceled|cancel)/i.test(raw)) {
+  const redirect = process.env.EXPO_PUBLIC_OAUTH_REDIRECT_URI ?? `${APP_SCHEME}://auth/callback`;
+  if (provider === 'line' && raw.toLowerCase().includes('redirect_uri')) {
     return localeGroup === 'japan'
-      ? 'LINEログインをキャンセルしました。もう一度お試しください。'
-      : 'LINE login was cancelled. Please try again.';
+      ? `LINEのCallback URLを確認してください。現在の設定: ${redirect}`
+      : `Check the LINE callback URL. Current setting: ${redirect}`;
   }
-
-  if (lowered.includes('invalid oauth state')) {
-    return localeGroup === 'japan'
-      ? 'LINEログインの状態確認に失敗しました。アプリを再起動して再度お試しください。'
-      : 'LINE login state validation failed. Restart the app and try again.';
-  }
-
-  if (lowered.includes('redirect_uri')) {
-    const redirect = process.env.EXPO_PUBLIC_OAUTH_REDIRECT_URI ?? `${APP_SCHEME}://auth/callback`;
-    return localeGroup === 'japan'
-      ? `LINE認証のコールバックURLが一致していません。\nLINE DevelopersのCallback URLと .env の EXPO_PUBLIC_OAUTH_REDIRECT_URI を完全一致させてください。\n現在の設定: ${redirect}`
-      : `LINE callback URL mismatch. Ensure LINE Developers callback URL exactly matches EXPO_PUBLIC_OAUTH_REDIRECT_URI in .env.\nCurrent setting: ${redirect}`;
-  }
-
-  return localeGroup === 'japan'
-    ? `${raw}\n\nヒント: LINE DevelopersのCallback URL、Channel ID、.env設定を確認してください。`
-    : `${raw}\n\nHint: Check LINE Developers callback URL, Channel ID, and .env values.`;
+  return raw;
 }
 
 export default function SignupScreen() {
   const router = useRouter();
-  const { width: windowWidth, height: windowHeight } = useWindowDimensions();
-  const insets = useSafeAreaInsets();
   const params = useLocalSearchParams<{
     code?: string;
     state?: string;
@@ -142,6 +70,8 @@ export default function SignupScreen() {
   }>();
   const text = getAppText();
   const { isHydrated, isAuthenticated, loginAsGuest, loginWithEmail, loginWithSocial } = useAuth();
+  const fade = useRef(new Animated.Value(0)).current;
+  const scale = useRef(new Animated.Value(0.97)).current;
 
   const [step, setStep] = useState<SignupStep>('method');
   const [email, setEmail] = useState('');
@@ -156,195 +86,80 @@ export default function SignupScreen() {
   );
   const hasXOAuth = Boolean(process.env.EXPO_PUBLIC_X_CLIENT_ID);
   const emailIsValid = useMemo(() => EMAIL_PATTERN.test(email.trim()), [email]);
-  const layout = useMemo(() => {
-    const availableHeight = Math.max(560, windowHeight - insets.top - insets.bottom);
-    const horizontalPadding = clamp(windowWidth * 0.055, 16, 28);
-    const verticalPadding = clamp(availableHeight * 0.01, 8, 18);
-    const topSectionGap = clamp(availableHeight * 0.01, 7, 14);
-    const topSectionBottomPadding = clamp(availableHeight * 0.018, 10, 24);
-    const topSectionHeight = Math.round(availableHeight * 0.5);
-    const bottomSectionHeight = availableHeight - topSectionHeight;
-
-    const heroHeight = clamp(availableHeight * 0.295, 175, 340);
-    const brandSize = clamp(windowWidth * 0.098, 32, 44);
-    const brandLineHeight = Math.round(brandSize * 1.04);
-    const titleSize = clamp(windowWidth * 0.066, 22, 31);
-    const captionSize = clamp(windowWidth * 0.034, 11, 14);
-
-    const cardPadding = clamp(availableHeight * 0.013, 10, 18);
-    const cardGap = clamp(availableHeight * 0.0075, 6, 10);
-    const socialButtonHeight = clamp(availableHeight * 0.056, 40, 54);
-    const iconCircleSize = clamp(socialButtonHeight * 0.58, 24, 32);
-    const iconSize = clamp(iconCircleSize * 0.58, 14, 19);
-    const socialButtonTextSize = clamp(windowWidth * 0.043, 14, 18);
-
-    const guestTitleSize = clamp(windowWidth * 0.041, 14, 16);
-    const guestNoteSize = clamp(windowWidth * 0.029, 10, 12);
-    const loginTextSize = clamp(windowWidth * 0.032, 12, 14);
-    const linkGap = clamp(windowWidth * 0.012, 5, 9);
-
-    const inputFontSize = clamp(windowWidth * 0.036, 14, 16);
-    const inputVerticalPadding = clamp(availableHeight * 0.012, 10, 13);
-    const primaryButtonVerticalPadding = clamp(availableHeight * 0.013, 11, 14);
-
-    return {
-      availableHeight,
-      topSectionHeight,
-      bottomSectionHeight,
-      horizontalPadding,
-      verticalPadding,
-      topSectionGap,
-      topSectionBottomPadding,
-      heroHeight,
-      brandSize,
-      brandLineHeight,
-      titleSize,
-      captionSize,
-      cardPadding,
-      cardGap,
-      socialButtonHeight,
-      iconCircleSize,
-      iconSize,
-      socialButtonTextSize,
-      guestTitleSize,
-      guestNoteSize,
-      loginTextSize,
-      linkGap,
-      inputFontSize,
-      inputVerticalPadding,
-      primaryButtonVerticalPadding,
-    };
-  }, [insets.bottom, insets.top, windowHeight, windowWidth]);
-  const centerShift = useMemo(() => {
-    const topContentHeight =
-      layout.heroHeight +
-      layout.topSectionGap +
-      layout.brandLineHeight +
-      layout.titleSize +
-      layout.captionSize +
-      10;
-    const topOffset = Math.max(
-      0,
-      layout.topSectionHeight - layout.topSectionBottomPadding - topContentHeight
-    );
-
-    let bottomContentHeight = 0;
-    if (step === 'method') {
-      const guestHeight =
-        layout.inputVerticalPadding * 2 + layout.guestTitleSize + layout.guestNoteSize + 6;
-      const loginRowHeight = layout.loginTextSize + 10;
-      const methodItemCount = 7;
-      bottomContentHeight =
-        layout.cardPadding * 2 +
-        layout.socialButtonHeight * 5 +
-        guestHeight +
-        loginRowHeight +
-        layout.cardGap * (methodItemCount - 1);
-    } else {
-      const backHeight = layout.loginTextSize + 4;
-      const stepTitleHeight = layout.titleSize * 0.72;
-      const inputHeight = layout.inputVerticalPadding * 2 + layout.inputFontSize + 4;
-      const primaryHeight = layout.primaryButtonVerticalPadding * 2 + layout.socialButtonTextSize;
-      bottomContentHeight =
-        layout.cardPadding * 2 +
-        backHeight +
-        stepTitleHeight +
-        inputHeight +
-        primaryHeight +
-        layout.cardGap * 3;
-    }
-
-    const messageHeight = message ? layout.loginTextSize + 8 : 0;
-    const bottomTotalHeight = bottomContentHeight + messageHeight;
-    const bottomMargin = Math.max(0, (layout.bottomSectionHeight - bottomTotalHeight) / 2);
-
-    const occupiedTop = topOffset;
-    const occupiedBottom = layout.topSectionHeight + bottomMargin + bottomTotalHeight;
-    const occupiedCenter = (occupiedTop + occupiedBottom) / 2;
-    const targetCenter = layout.availableHeight / 2;
-
-    return clamp(targetCenter - occupiedCenter, -28, 28);
-  }, [layout, message, step]);
 
   const copy =
     text.localeGroup === 'japan'
       ? {
-          chooseTitle: '\u4f1a\u54e1\u767b\u9332\u65b9\u6cd5\u3092\u9078\u629e',
-          chooseCaption: '\u5229\u7528\u958b\u59cb\u306e\u65b9\u6cd5\u3092\u9078\u3093\u3067\u304f\u3060\u3055\u3044',
-          emailLabel: '\u30e1\u30fc\u30eb\u30a2\u30c9\u30ec\u30b9\u3067\u767b\u9332',
-          lineLabel: 'LINE\u3067\u767b\u9332',
-          googleLabel: 'Google\u3067\u767b\u9332',
-          appleLabel: 'Apple\u3067\u767b\u9332',
-          xLabel: 'X\u3067\u767b\u9332',
-          guestLabel: '\u4f1a\u54e1\u767b\u9332\u305b\u305a\u306b\u5229\u7528\u958b\u59cb',
-          guestNote:
-            '\u30b2\u30b9\u30c8\u306f\u4e00\u90e8\u6a5f\u80fd\u306b\u5236\u9650\u304c\u3042\u308a\u307e\u3059\u3002',
-          hasAccount: '\u3059\u3067\u306b\u30a2\u30ab\u30a6\u30f3\u30c8\u3092\u304a\u6301\u3061\u3067\u3059\u304b\uff1f',
-          loginLink: '\u30ed\u30b0\u30a4\u30f3',
-          emailInputTitle: '\u30e1\u30fc\u30eb\u8a8d\u8a3c',
-          emailCodeTitle: '\u8a8d\u8a3c\u30b3\u30fc\u30c9\u5165\u529b',
-          emailPlaceholder: '\u30e1\u30fc\u30eb\u30a2\u30c9\u30ec\u30b9',
-          codePlaceholder: '\u8a8d\u8a3c\u30b3\u30fc\u30c9',
-          sendCode: '\u8a8d\u8a3c\u30b3\u30fc\u30c9\u3092\u9001\u4fe1',
-          verifyCode: '\u8a8d\u8a3c\u3057\u3066\u7d9a\u884c',
-          back: '\u623b\u308b',
-          sentMessage: '\u8a8d\u8a3c\u30b3\u30fc\u30c9\u3092\u9001\u4fe1\u3057\u307e\u3057\u305f\u3002',
-          invalidEmail:
-            '\u6709\u52b9\u306a\u30e1\u30fc\u30eb\u30a2\u30c9\u30ec\u30b9\u3092\u5165\u529b\u3057\u3066\u304f\u3060\u3055\u3044\u3002',
-          missingCode:
-            '\u8a8d\u8a3c\u30b3\u30fc\u30c9\u3092\u5165\u529b\u3057\u3066\u304f\u3060\u3055\u3044\u3002',
-          missingSupabase:
-            '\u30e1\u30fc\u30eb\u8a8d\u8a3c\u306b\u306fSupabase\u306e\u8a2d\u5b9a\u304c\u5fc5\u8981\u3067\u3059\u3002',
-          lineMissing: 'EXPO_PUBLIC_LINE_CHANNEL_ID \u304c\u672a\u8a2d\u5b9a\u3067\u3059\u3002',
-          googleMissing: 'EXPO_PUBLIC_GOOGLE_CLIENT_ID \u304c\u672a\u8a2d\u5b9a\u3067\u3059\u3002',
-          appleMissing:
-            'EXPO_PUBLIC_APPLE_CLIENT_ID \u307e\u305f\u306f EXPO_PUBLIC_APPLE_CLIENT_SECRET \u304c\u672a\u8a2d\u5b9a\u3067\u3059\u3002',
-          xMissing: 'EXPO_PUBLIC_X_CLIENT_ID \u304c\u672a\u8a2d\u5b9a\u3067\u3059\u3002',
+          eyebrow: 'Start with Mugimaru',
+          title: '犬との毎日を、もっと軽やかに',
+          caption: 'おすすめスポット、イベント、コミュニティをあなた向けに整理します。',
+          line: 'LINEで続ける',
+          google: 'Googleで続ける',
+          apple: 'Appleで続ける',
+          x: 'Xで続ける',
+          email: 'メール認証で続ける',
+          guest: 'ゲストで試す',
+          guestNote: '一部機能はログイン後に利用できます',
+          hasAccount: 'すでにアカウントをお持ちですか？',
+          login: 'ログイン',
+          emailTitle: 'メールアドレスを入力',
+          codeTitle: '認証コードを入力',
+          emailPlaceholder: 'メールアドレス',
+          codePlaceholder: '認証コード',
+          sendCode: 'コードを送信',
+          verifyCode: '認証して開始',
+          back: '戻る',
+          sent: '認証コードを送信しました。',
+          invalidEmail: '有効なメールアドレスを入力してください。',
+          missingCode: '認証コードを入力してください。',
+          missingSupabase: 'メール認証にはSupabase設定が必要です。',
+          missing: (provider: string) => `${provider}ログインの環境変数が未設定です。`,
+          recommendTitle: 'おすすめ機能',
+          recommendBody: '登録後、近くのイベント・人気の投稿・保存スポットをホームで提案します。',
         }
       : {
-          chooseTitle: 'Choose a sign up method',
-          chooseCaption: 'Select how you want to start using Mugimaru',
-          emailLabel: 'Sign up with Email',
-          lineLabel: 'Sign up with LINE',
-          googleLabel: 'Sign up with Google',
-          appleLabel: 'Sign up with Apple',
-          xLabel: 'Sign up with X',
-          guestLabel: 'Continue as guest',
-          guestNote: 'Guest has limited features.',
+          eyebrow: 'Start with Mugimaru',
+          title: 'Make dog life easier',
+          caption: 'Personalized spots, events, and community updates in one place.',
+          line: 'Continue with LINE',
+          google: 'Continue with Google',
+          apple: 'Continue with Apple',
+          x: 'Continue with X',
+          email: 'Continue with email',
+          guest: 'Try as guest',
+          guestNote: 'Some features unlock after sign in',
           hasAccount: 'Already have an account?',
-          loginLink: 'Log in',
-          emailInputTitle: 'Email verification',
-          emailCodeTitle: 'Enter verification code',
+          login: 'Log in',
+          emailTitle: 'Enter your email',
+          codeTitle: 'Enter verification code',
           emailPlaceholder: 'Email address',
           codePlaceholder: 'Verification code',
-          sendCode: 'Send verification code',
-          verifyCode: 'Verify and continue',
+          sendCode: 'Send code',
+          verifyCode: 'Verify and start',
           back: 'Back',
-          sentMessage: 'Verification code sent.',
+          sent: 'Verification code sent.',
           invalidEmail: 'Please enter a valid email address.',
           missingCode: 'Please enter the verification code.',
-          missingSupabase: 'Supabase is not configured for email verification.',
-          lineMissing: 'EXPO_PUBLIC_LINE_CHANNEL_ID is missing.',
-          googleMissing: 'EXPO_PUBLIC_GOOGLE_CLIENT_ID is missing.',
-          appleMissing:
-            'EXPO_PUBLIC_APPLE_CLIENT_ID or EXPO_PUBLIC_APPLE_CLIENT_SECRET is missing.',
-          xMissing: 'EXPO_PUBLIC_X_CLIENT_ID is missing.',
+          missingSupabase: 'Supabase is required for email verification.',
+          missing: (provider: string) => `${provider} OAuth is not configured.`,
+          recommendTitle: 'Recommended for you',
+          recommendBody: 'After signup, the app suggests nearby events, trending posts, and saved spots.',
         };
 
-  const onBackToMethod = () => {
-    setStep('method');
-    setMessage('');
-  };
+  useEffect(() => {
+    Animated.parallel([
+      Animated.timing(fade, { toValue: 1, duration: 560, useNativeDriver: true }),
+      Animated.spring(scale, { toValue: 1, damping: 16, stiffness: 120, useNativeDriver: true }),
+    ]).start();
+  }, [fade, scale]);
 
   useEffect(() => {
     if (Platform.OS !== 'web') return;
-
     const code = typeof params.code === 'string' ? params.code : '';
     const state = typeof params.state === 'string' ? params.state : '';
     const error = typeof params.error === 'string' ? params.error : '';
     const errorDescription =
       typeof params.error_description === 'string' ? params.error_description : '';
-
     if (!code && !error) return;
 
     const query = new URLSearchParams();
@@ -352,20 +167,16 @@ export default function SignupScreen() {
     if (state) query.set('state', state);
     if (error) query.set('error', error);
     if (errorDescription) query.set('error_description', errorDescription);
-
-    const fallbackDeepLink = buildAuthCallbackDeepLink(query);
-    window.location.replace(fallbackDeepLink);
+    window.location.replace(buildAuthCallbackDeepLink(query));
   }, [params.code, params.error, params.error_description, params.state]);
 
   const handleSendEmailCode = async () => {
     if (isBusy) return;
-
     const normalizedEmail = email.trim().toLowerCase();
     if (!EMAIL_PATTERN.test(normalizedEmail)) {
       setMessage(copy.invalidEmail);
       return;
     }
-
     if (!hasSupabaseEnv) {
       setMessage(copy.missingSupabase);
       return;
@@ -375,8 +186,8 @@ export default function SignupScreen() {
     setMessage('');
     try {
       await sendEmailVerificationCode(normalizedEmail);
-      setStep('emailCode');
-      setMessage(copy.sentMessage);
+      setStep('code');
+      setMessage(copy.sent);
     } catch (error) {
       setMessage(error instanceof Error ? error.message : 'Failed to send verification code.');
     } finally {
@@ -386,13 +197,11 @@ export default function SignupScreen() {
 
   const handleVerifyEmailCode = async () => {
     if (isBusy) return;
-
     const normalizedEmail = email.trim().toLowerCase();
     if (!EMAIL_PATTERN.test(normalizedEmail)) {
       setMessage(copy.invalidEmail);
       return;
     }
-
     if (!emailCode.trim()) {
       setMessage(copy.missingCode);
       return;
@@ -416,26 +225,10 @@ export default function SignupScreen() {
 
   const handleSocial = async (provider: SocialProvider) => {
     if (isBusy) return;
-
-    if (provider === 'line' && !hasLineOAuth) {
-      setMessage(copy.lineMissing);
-      return;
-    }
-
-    if (provider === 'google' && !hasGoogleOAuth) {
-      setMessage(copy.googleMissing);
-      return;
-    }
-
-    if (provider === 'apple' && !hasAppleOAuth) {
-      setMessage(copy.appleMissing);
-      return;
-    }
-
-    if (provider === 'x' && !hasXOAuth) {
-      setMessage(copy.xMissing);
-      return;
-    }
+    if (provider === 'line' && !hasLineOAuth) return setMessage(copy.missing('LINE'));
+    if (provider === 'google' && !hasGoogleOAuth) return setMessage(copy.missing('Google'));
+    if (provider === 'apple' && !hasAppleOAuth) return setMessage(copy.missing('Apple'));
+    if (provider === 'x' && !hasXOAuth) return setMessage(copy.missing('X'));
 
     setBusy(true);
     setMessage('');
@@ -459,7 +252,6 @@ export default function SignupScreen() {
 
   const handleGuestLogin = async () => {
     if (isBusy) return;
-
     setBusy(true);
     setMessage('');
     try {
@@ -472,519 +264,232 @@ export default function SignupScreen() {
     }
   };
 
-  if (!isHydrated) {
-    return null;
-  }
-
-  if (isAuthenticated) {
-    return <Redirect href="/(tabs)" />;
-  }
+  if (!isHydrated) return null;
+  if (isAuthenticated) return <Redirect href="/(tabs)" />;
 
   return (
-    <SafeAreaView style={styles.safeArea}>
-      <KeyboardAvoidingView
-        style={styles.flex}
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-        <View
-          style={[
-            styles.content,
-            {
-              paddingHorizontal: layout.horizontalPadding,
-              paddingTop: layout.verticalPadding,
-              paddingBottom: layout.verticalPadding,
-              transform: [{ translateY: centerShift }],
-            },
-          ]}>
-          <View
-            style={[
-              styles.topSection,
-              {
-                height: layout.topSectionHeight,
-                paddingBottom: layout.topSectionBottomPadding,
-                gap: layout.topSectionGap,
-              },
-            ]}>
-            <Image
-              source={LOGIN_HERO_IMAGE}
-              style={[styles.heroImage, { height: layout.heroHeight }]}
-              resizeMode="contain"
-            />
+    <ImageBackground source={HERO_IMAGE} style={styles.background} resizeMode="cover">
+      <View style={styles.scrim} />
+      <SafeAreaView style={styles.safeArea}>
+        <KeyboardAvoidingView style={styles.flex} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+          <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
+            <Animated.View style={[styles.heroPanel, { opacity: fade, transform: [{ scale }] }]}>
+              <View style={styles.logoRow}>
+                <View style={styles.logoMark}>
+                  <FontAwesome6 name="paw" size={18} color="#0f172a" />
+                </View>
+                <Text style={styles.brand}>Mugimaru</Text>
+              </View>
+              <Text style={styles.eyebrow}>{copy.eyebrow}</Text>
+              <Text style={styles.title}>{copy.title}</Text>
+              <Text style={styles.caption}>{copy.caption}</Text>
+              <View style={styles.recommendCard}>
+                <FontAwesome6 name="wand-magic-sparkles" size={15} color="#2563eb" />
+                <View style={styles.recommendTextWrap}>
+                  <Text style={styles.recommendTitle}>{copy.recommendTitle}</Text>
+                  <Text style={styles.recommendBody}>{copy.recommendBody}</Text>
+                </View>
+              </View>
+            </Animated.View>
 
-            <View style={styles.logoBlock}>
-              <Text style={[styles.brand, { fontSize: layout.brandSize, lineHeight: layout.brandLineHeight }]}>
-                Mugimaru
-              </Text>
-              <Text style={[styles.heroTitle, { fontSize: layout.titleSize }]}>{copy.chooseTitle}</Text>
-              <Text style={[styles.heroCaption, { fontSize: layout.captionSize }]}>{copy.chooseCaption}</Text>
+            <View style={styles.methodPanel}>
+              {step === 'method' ? (
+                <>
+                  <ProviderButton label={copy.line} provider="line" onPress={() => void handleSocial('line')} disabled={isBusy} tone="line" />
+                  <ProviderButton label={copy.google} provider="google" onPress={() => void handleSocial('google')} disabled={isBusy} tone="light" />
+                  <ProviderButton label={copy.apple} provider="apple" onPress={() => void handleSocial('apple')} disabled={isBusy} tone="dark" />
+                  <ProviderButton label={copy.x} provider="x" onPress={() => void handleSocial('x')} disabled={isBusy} tone="dark" />
+                  <ProviderButton label={copy.email} provider="email" onPress={() => setStep('email')} disabled={isBusy} tone="blue" />
+                  <Pressable style={styles.guestButton} onPress={() => void handleGuestLogin()} disabled={isBusy}>
+                    <ProviderIcon provider="guest" color="#475569" />
+                    <View style={styles.guestTextWrap}>
+                      <Text style={styles.guestTitle}>{copy.guest}</Text>
+                      <Text style={styles.guestNote}>{copy.guestNote}</Text>
+                    </View>
+                  </Pressable>
+                  <View style={styles.loginRow}>
+                    <Text style={styles.loginPrompt}>{copy.hasAccount}</Text>
+                    <Pressable onPress={() => router.push('/login')} disabled={isBusy}>
+                      <Text style={styles.loginLink}>{copy.login}</Text>
+                    </Pressable>
+                  </View>
+                </>
+              ) : (
+                <>
+                  <Pressable
+                    style={styles.backButton}
+                    onPress={() => {
+                      setStep('method');
+                      setMessage('');
+                    }}>
+                    <FontAwesome6 name="arrow-left" size={13} color="#2563eb" />
+                    <Text style={styles.backText}>{copy.back}</Text>
+                  </Pressable>
+                  <Text style={styles.stepTitle}>{step === 'email' ? copy.emailTitle : copy.codeTitle}</Text>
+                  <TextInput
+                    style={styles.input}
+                    placeholder={step === 'email' ? copy.emailPlaceholder : copy.codePlaceholder}
+                    placeholderTextColor="#94a3b8"
+                    keyboardType={step === 'email' ? 'email-address' : 'number-pad'}
+                    autoCapitalize="none"
+                    autoCorrect={false}
+                    value={step === 'email' ? email : emailCode}
+                    onChangeText={step === 'email' ? setEmail : setEmailCode}
+                    editable={!isBusy}
+                  />
+                  <Pressable
+                    style={[styles.primaryButton, (step === 'email' && !emailIsValid) || isBusy ? styles.disabled : null]}
+                    onPress={() => (step === 'email' ? void handleSendEmailCode() : void handleVerifyEmailCode())}
+                    disabled={(step === 'email' && !emailIsValid) || isBusy}>
+                    <Text style={styles.primaryButtonText}>{step === 'email' ? copy.sendCode : copy.verifyCode}</Text>
+                  </Pressable>
+                </>
+              )}
+              {message ? <Text style={styles.message}>{message}</Text> : null}
             </View>
-          </View>
+          </ScrollView>
+        </KeyboardAvoidingView>
+      </SafeAreaView>
+    </ImageBackground>
+  );
+}
 
-          <View style={[styles.bottomSection, { height: layout.bottomSectionHeight }]}>
-            {step === 'method' ? (
-              <View style={[styles.methodCard, { padding: layout.cardPadding, gap: layout.cardGap }]}>
-              <Pressable
-                style={[
-                  styles.socialButton,
-                  {
-                    backgroundColor: PROVIDER_VISUALS.line.backgroundColor,
-                    borderColor: PROVIDER_VISUALS.line.borderColor,
-                    minHeight: layout.socialButtonHeight,
-                  },
-                ]}
-                onPress={() => void handleSocial('line')}
-                disabled={isBusy}>
-                <View
-                  style={[
-                    styles.socialIconCircle,
-                    {
-                      backgroundColor: PROVIDER_VISUALS.line.iconCircleColor,
-                      width: layout.iconCircleSize,
-                      height: layout.iconCircleSize,
-                      borderRadius: layout.iconCircleSize / 2,
-                      left: layout.cardPadding + 2,
-                    },
-                  ]}>
-                  <ProviderIcon
-                    provider="line"
-                    color={PROVIDER_VISUALS.line.iconColor}
-                    size={layout.iconSize}
-                  />
-                </View>
-                <Text
-                  style={[
-                    styles.socialButtonText,
-                    { color: PROVIDER_VISUALS.line.textColor, fontSize: layout.socialButtonTextSize },
-                  ]}>
-                  {copy.lineLabel}
-                </Text>
-              </Pressable>
-
-              <Pressable
-                style={[
-                  styles.socialButton,
-                  {
-                    backgroundColor: PROVIDER_VISUALS.google.backgroundColor,
-                    borderColor: PROVIDER_VISUALS.google.borderColor,
-                    minHeight: layout.socialButtonHeight,
-                  },
-                ]}
-                onPress={() => void handleSocial('google')}
-                disabled={isBusy}>
-                <View
-                  style={[
-                    styles.socialIconCircle,
-                    {
-                      backgroundColor: PROVIDER_VISUALS.google.iconCircleColor,
-                      width: layout.iconCircleSize,
-                      height: layout.iconCircleSize,
-                      borderRadius: layout.iconCircleSize / 2,
-                      left: layout.cardPadding + 2,
-                    },
-                  ]}>
-                  <ProviderIcon
-                    provider="google"
-                    color={PROVIDER_VISUALS.google.iconColor}
-                    size={layout.iconSize}
-                  />
-                </View>
-                <Text
-                  style={[
-                    styles.socialButtonText,
-                    { color: PROVIDER_VISUALS.google.textColor, fontSize: layout.socialButtonTextSize },
-                  ]}>
-                  {copy.googleLabel}
-                </Text>
-              </Pressable>
-
-              <Pressable
-                style={[
-                  styles.socialButton,
-                  {
-                    backgroundColor: PROVIDER_VISUALS.apple.backgroundColor,
-                    borderColor: PROVIDER_VISUALS.apple.borderColor,
-                    minHeight: layout.socialButtonHeight,
-                  },
-                ]}
-                onPress={() => void handleSocial('apple')}
-                disabled={isBusy}>
-                <View
-                  style={[
-                    styles.socialIconCircle,
-                    {
-                      backgroundColor: PROVIDER_VISUALS.apple.iconCircleColor,
-                      width: layout.iconCircleSize,
-                      height: layout.iconCircleSize,
-                      borderRadius: layout.iconCircleSize / 2,
-                      left: layout.cardPadding + 2,
-                    },
-                  ]}>
-                  <ProviderIcon
-                    provider="apple"
-                    color={PROVIDER_VISUALS.apple.iconColor}
-                    size={layout.iconSize}
-                  />
-                </View>
-                <Text
-                  style={[
-                    styles.socialButtonText,
-                    { color: PROVIDER_VISUALS.apple.textColor, fontSize: layout.socialButtonTextSize },
-                  ]}>
-                  {copy.appleLabel}
-                </Text>
-              </Pressable>
-
-              <Pressable
-                style={[
-                  styles.socialButton,
-                  {
-                    backgroundColor: PROVIDER_VISUALS.x.backgroundColor,
-                    borderColor: PROVIDER_VISUALS.x.borderColor,
-                    minHeight: layout.socialButtonHeight,
-                  },
-                ]}
-                onPress={() => void handleSocial('x')}
-                disabled={isBusy}>
-                <View
-                  style={[
-                    styles.socialIconCircle,
-                    {
-                      backgroundColor: PROVIDER_VISUALS.x.iconCircleColor,
-                      width: layout.iconCircleSize,
-                      height: layout.iconCircleSize,
-                      borderRadius: layout.iconCircleSize / 2,
-                      left: layout.cardPadding + 2,
-                    },
-                  ]}>
-                  <ProviderIcon provider="x" color={PROVIDER_VISUALS.x.iconColor} size={layout.iconSize} />
-                </View>
-                <Text
-                  style={[
-                    styles.socialButtonText,
-                    { color: PROVIDER_VISUALS.x.textColor, fontSize: layout.socialButtonTextSize },
-                  ]}>
-                  {copy.xLabel}
-                </Text>
-              </Pressable>
-
-              <Pressable
-                style={[
-                  styles.socialButton,
-                  {
-                    backgroundColor: PROVIDER_VISUALS.email.backgroundColor,
-                    borderColor: PROVIDER_VISUALS.email.borderColor,
-                    minHeight: layout.socialButtonHeight,
-                  },
-                ]}
-                onPress={() => setStep('emailInput')}
-                disabled={isBusy}>
-                <View
-                  style={[
-                    styles.socialIconCircle,
-                    {
-                      backgroundColor: PROVIDER_VISUALS.email.iconCircleColor,
-                      width: layout.iconCircleSize,
-                      height: layout.iconCircleSize,
-                      borderRadius: layout.iconCircleSize / 2,
-                      left: layout.cardPadding + 2,
-                    },
-                  ]}>
-                  <ProviderIcon
-                    provider="email"
-                    color={PROVIDER_VISUALS.email.iconColor}
-                    size={layout.iconSize}
-                  />
-                </View>
-                <Text
-                  style={[
-                    styles.socialButtonText,
-                    { color: PROVIDER_VISUALS.email.textColor, fontSize: layout.socialButtonTextSize },
-                  ]}>
-                  {copy.emailLabel}
-                </Text>
-              </Pressable>
-
-              <Pressable
-                style={[
-                  styles.methodButton,
-                  styles.guestButton,
-                  { paddingVertical: layout.inputVerticalPadding },
-                ]}
-                onPress={() => void handleGuestLogin()}
-                disabled={isBusy}>
-                <View style={styles.guestButtonBody}>
-                  <Text style={[styles.guestButtonText, { fontSize: layout.guestTitleSize }]}>
-                    {copy.guestLabel}
-                  </Text>
-                  <Text style={[styles.guestInlineNote, { fontSize: layout.guestNoteSize }]}>
-                    {copy.guestNote}
-                  </Text>
-                </View>
-              </Pressable>
-              <View style={[styles.loginRow, { gap: layout.linkGap }]}>
-                <Text style={[styles.loginPrompt, { fontSize: layout.loginTextSize }]}>{copy.hasAccount}</Text>
-                <Pressable onPress={() => router.push('/login')} disabled={isBusy}>
-                  <Text style={[styles.loginLink, { fontSize: layout.loginTextSize }]}>{copy.loginLink}</Text>
-                </Pressable>
-              </View>
-              </View>
-            ) : null}
-
-            {step === 'emailInput' ? (
-              <View style={[styles.stepCard, { padding: layout.cardPadding }]}>
-              <Pressable onPress={onBackToMethod}>
-                <Text style={[styles.backText, { fontSize: layout.loginTextSize }]}>{copy.back}</Text>
-              </Pressable>
-              <Text style={[styles.stepTitle, { fontSize: layout.titleSize * 0.72 }]}>
-                {copy.emailInputTitle}
-              </Text>
-              <TextInput
-                style={[
-                  styles.input,
-                  { fontSize: layout.inputFontSize, paddingVertical: layout.inputVerticalPadding },
-                ]}
-                placeholder={copy.emailPlaceholder}
-                keyboardType="email-address"
-                autoCapitalize="none"
-                autoCorrect={false}
-                autoComplete="email"
-                value={email}
-                onChangeText={setEmail}
-                editable={!isBusy}
-              />
-              <Pressable
-                style={[styles.primaryButton, !emailIsValid || isBusy ? styles.buttonDisabled : null]}
-                onPress={() => void handleSendEmailCode()}
-                disabled={!emailIsValid || isBusy}>
-                <Text
-                  style={[
-                    styles.primaryButtonText,
-                    { fontSize: layout.socialButtonTextSize - 1, paddingVertical: layout.primaryButtonVerticalPadding },
-                  ]}>
-                  {copy.sendCode}
-                </Text>
-              </Pressable>
-              </View>
-            ) : null}
-
-            {step === 'emailCode' ? (
-              <View style={[styles.stepCard, { padding: layout.cardPadding }]}>
-              <Pressable onPress={onBackToMethod}>
-                <Text style={[styles.backText, { fontSize: layout.loginTextSize }]}>{copy.back}</Text>
-              </Pressable>
-              <Text style={[styles.stepTitle, { fontSize: layout.titleSize * 0.72 }]}>{copy.emailCodeTitle}</Text>
-              <TextInput
-                style={[
-                  styles.input,
-                  { fontSize: layout.inputFontSize, paddingVertical: layout.inputVerticalPadding },
-                ]}
-                placeholder={copy.codePlaceholder}
-                keyboardType="number-pad"
-                autoCapitalize="none"
-                autoCorrect={false}
-                value={emailCode}
-                onChangeText={setEmailCode}
-                editable={!isBusy}
-              />
-              <Pressable
-                style={[styles.primaryButton, isBusy ? styles.buttonDisabled : null]}
-                onPress={() => void handleVerifyEmailCode()}
-                disabled={isBusy}>
-                <Text
-                  style={[
-                    styles.primaryButtonText,
-                    { fontSize: layout.socialButtonTextSize - 1, paddingVertical: layout.primaryButtonVerticalPadding },
-                  ]}>
-                  {copy.verifyCode}
-                </Text>
-              </Pressable>
-              </View>
-            ) : null}
-
-            {message ? <Text style={[styles.message, { fontSize: layout.loginTextSize }]}>{message}</Text> : null}
-          </View>
-        </View>
-      </KeyboardAvoidingView>
-    </SafeAreaView>
+function ProviderButton({
+  label,
+  provider,
+  tone,
+  onPress,
+  disabled,
+}: {
+  label: string;
+  provider: SocialProvider | 'email';
+  tone: 'line' | 'light' | 'dark' | 'blue';
+  onPress: () => void;
+  disabled: boolean;
+}) {
+  const isLight = tone === 'light';
+  const backgroundColor =
+    tone === 'line' ? '#06c755' : tone === 'dark' ? '#0f172a' : tone === 'blue' ? '#2563eb' : '#ffffff';
+  const color = isLight ? '#0f172a' : '#ffffff';
+  return (
+    <Pressable
+      style={[styles.providerButton, { backgroundColor, borderColor: isLight ? '#cbd5e1' : backgroundColor }, disabled ? styles.disabled : null]}
+      onPress={onPress}
+      disabled={disabled}>
+      <ProviderIcon provider={provider} color={color} />
+      <Text style={[styles.providerButtonText, { color }]}>{label}</Text>
+    </Pressable>
   );
 }
 
 const styles = StyleSheet.create({
-  safeArea: {
-    flex: 1,
-    backgroundColor: '#f8f2e8',
-  },
-  flex: {
-    flex: 1,
-  },
-  content: {
-    flex: 1,
-    paddingHorizontal: 20,
-    paddingVertical: 10,
-  },
-  topSection: {
-    justifyContent: 'flex-end',
-    alignItems: 'center',
-  },
-  bottomSection: {
-    justifyContent: 'center',
-    gap: 6,
-  },
-  logoBlock: {
-    alignItems: 'center',
-    paddingTop: 2,
-    gap: 4,
-  },
-  brand: {
-    color: '#5a3f27',
-    fontFamily: Fonts.rounded,
-    fontSize: 34,
-    fontWeight: '700',
-    letterSpacing: 0.3,
-    lineHeight: 36,
-    marginBottom: 0,
-    textShadowColor: 'rgba(255, 255, 255, 0.55)',
-    textShadowOffset: { width: 0, height: 1 },
-    textShadowRadius: 1,
-  },
-  heroTitle: {
-    fontFamily: Fonts.rounded,
-    color: '#4b3a2a',
-    fontSize: 24,
-    fontWeight: '700',
-    textAlign: 'center',
-  },
-  heroCaption: {
-    color: '#7f694f',
-    fontSize: 12,
-    textAlign: 'center',
-  },
-  heroImage: {
+  background: { flex: 1, backgroundColor: '#eef2ff' },
+  scrim: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(248, 250, 252, 0.72)' },
+  safeArea: { flex: 1 },
+  flex: { flex: 1 },
+  content: { flexGrow: 1, justifyContent: 'flex-end', padding: 18, gap: 12 },
+  heroPanel: {
     width: '100%',
-    height: 125,
+    maxWidth: 540,
     alignSelf: 'center',
+    borderRadius: 28,
+    padding: 20,
+    gap: 10,
+    backgroundColor: 'rgba(255, 255, 255, 0.84)',
+    borderWidth: 1,
+    borderColor: 'rgba(148, 163, 184, 0.32)',
   },
-  methodCard: {
-    backgroundColor: '#fffaf2',
+  logoRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  logoMark: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#dbeafe',
+  },
+  brand: { color: '#0f172a', fontFamily: Fonts.rounded, fontSize: 22, fontWeight: '800' },
+  eyebrow: { color: '#2563eb', fontSize: 12, fontWeight: '800', textTransform: 'uppercase' },
+  title: { color: '#0f172a', fontFamily: Fonts.rounded, fontSize: 33, fontWeight: '800', lineHeight: 39 },
+  caption: { color: '#475569', fontSize: 14, lineHeight: 21 },
+  recommendCard: {
+    marginTop: 2,
     borderRadius: 18,
     borderWidth: 1,
-    borderColor: '#ddccb5',
-    padding: 10,
-    gap: 7,
-  },
-  socialButton: {
-    borderRadius: 999,
-    borderWidth: 1,
-    minHeight: 42,
-    paddingHorizontal: 18,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    position: 'relative',
-  },
-  socialIconCircle: {
-    width: 24,
-    height: 24,
-    borderRadius: 12,
-    alignItems: 'center',
-    justifyContent: 'center',
-    position: 'absolute',
-    left: 12,
-  },
-  socialButtonText: {
-    fontSize: 14,
-    fontWeight: '800',
-  },
-  methodButton: {
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: '#dccab2',
-    backgroundColor: '#ffffff',
-    paddingVertical: 10,
-    alignItems: 'center',
-  },
-  methodButtonText: {
-    color: '#4d3b2b',
-    fontSize: 15,
-    fontWeight: '700',
-  },
-  guestButton: {
-    backgroundColor: '#f4eadb',
-  },
-  guestButtonText: {
-    color: '#6a543c',
-    fontSize: 14,
-    fontWeight: '700',
-  },
-  guestButtonBody: {
-    alignItems: 'center',
-    gap: 2,
-  },
-  guestInlineNote: {
-    color: '#8a7459',
-    fontSize: 10,
-  },
-  loginRow: {
-    marginTop: 4,
-    flexDirection: 'row',
-    justifyContent: 'center',
-    alignItems: 'center',
-    gap: 6,
-  },
-  loginPrompt: {
-    color: '#8a7459',
-    fontSize: 12,
-  },
-  loginLink: {
-    color: '#5a3f27',
-    fontSize: 12,
-    fontWeight: '800',
-    textDecorationLine: 'underline',
-  },
-  stepCard: {
-    backgroundColor: '#fffaf2',
-    borderRadius: 18,
-    borderWidth: 1,
-    borderColor: '#ddccb5',
+    borderColor: '#bfdbfe',
+    backgroundColor: '#eff6ff',
     padding: 12,
+    flexDirection: 'row',
     gap: 10,
   },
-  backText: {
-    color: '#8a7459',
-    fontSize: 13,
-    fontWeight: '700',
-  },
-  stepTitle: {
-    color: '#4d3b2b',
-    fontSize: 18,
-    fontWeight: '700',
-  },
-  input: {
+  recommendTextWrap: { flex: 1, gap: 2 },
+  recommendTitle: { color: '#1e3a8a', fontSize: 12, fontWeight: '800' },
+  recommendBody: { color: '#334155', fontSize: 12, lineHeight: 18 },
+  methodPanel: {
+    width: '100%',
+    maxWidth: 540,
+    alignSelf: 'center',
+    borderRadius: 28,
+    padding: 14,
+    gap: 9,
+    backgroundColor: 'rgba(255, 255, 255, 0.94)',
     borderWidth: 1,
-    borderColor: '#ddccb5',
-    borderRadius: 10,
-    backgroundColor: '#fffdf8',
-    paddingHorizontal: 11,
-    paddingVertical: 10,
-    fontSize: 14,
-    color: '#4f3b29',
+    borderColor: 'rgba(148, 163, 184, 0.34)',
+    shadowColor: '#0f172a',
+    shadowOpacity: 0.14,
+    shadowRadius: 24,
+    shadowOffset: { width: 0, height: 16 },
+    elevation: 9,
+  },
+  providerButton: {
+    minHeight: 50,
+    borderRadius: 17,
+    borderWidth: 1,
+    paddingHorizontal: 16,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 10,
+  },
+  providerButtonText: { fontSize: 14, fontWeight: '800' },
+  guestButton: {
+    minHeight: 56,
+    borderRadius: 17,
+    borderWidth: 1,
+    borderColor: '#cbd5e1',
+    backgroundColor: '#f8fafc',
+    paddingHorizontal: 16,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  guestTextWrap: { flex: 1, gap: 1 },
+  guestTitle: { color: '#0f172a', fontSize: 14, fontWeight: '800' },
+  guestNote: { color: '#64748b', fontSize: 11 },
+  loginRow: { minHeight: 34, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 7 },
+  loginPrompt: { color: '#64748b', fontSize: 12, fontWeight: '700' },
+  loginLink: { color: '#2563eb', fontSize: 12, fontWeight: '800' },
+  backButton: { alignSelf: 'flex-start', minHeight: 32, flexDirection: 'row', alignItems: 'center', gap: 7 },
+  backText: { color: '#2563eb', fontSize: 13, fontWeight: '800' },
+  stepTitle: { color: '#0f172a', fontSize: 20, fontWeight: '800' },
+  input: {
+    minHeight: 50,
+    borderWidth: 1,
+    borderColor: '#cbd5e1',
+    borderRadius: 16,
+    backgroundColor: '#ffffff',
+    paddingHorizontal: 14,
+    color: '#0f172a',
+    fontSize: 15,
   },
   primaryButton: {
-    borderRadius: 10,
-    backgroundColor: '#b89062',
+    minHeight: 50,
+    borderRadius: 17,
+    backgroundColor: '#2563eb',
     alignItems: 'center',
-    paddingVertical: 11,
+    justifyContent: 'center',
   },
-  primaryButtonText: {
-    color: '#ffffff',
-    fontWeight: '700',
-    fontSize: 14,
-  },
-  buttonDisabled: {
-    opacity: 0.6,
-  },
-  message: {
-    color: '#6f583f',
-    fontSize: 12,
-    textAlign: 'center',
-  },
+  primaryButtonText: { color: '#ffffff', fontSize: 14, fontWeight: '800' },
+  disabled: { opacity: 0.58 },
+  message: { color: '#b42318', fontSize: 12, lineHeight: 18, textAlign: 'center' },
 });

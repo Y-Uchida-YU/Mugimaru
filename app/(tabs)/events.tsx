@@ -229,6 +229,20 @@ export default function EventsScreen() {
   );
 
   const featuredEvent = upcomingEvents[0] ?? filteredEvents[0];
+  const recommendedEvents = useMemo(() => {
+    const preferredTypes: EventType[] = ['festival', 'run', 'market'];
+    return EVENT_ITEMS.filter((event) => daysUntil(event.dateISO) >= 0)
+      .sort((a, b) => {
+        const aTypeIndex = preferredTypes.indexOf(a.type);
+        const bTypeIndex = preferredTypes.indexOf(b.type);
+        const typeScore =
+          (aTypeIndex === -1 ? preferredTypes.length : aTypeIndex) -
+          (bTypeIndex === -1 ? preferredTypes.length : bTypeIndex);
+        if (typeScore !== 0) return typeScore;
+        return a.dateISO.localeCompare(b.dateISO);
+      })
+      .slice(0, 3);
+  }, []);
 
   const openLink = async (url: string) => {
     try {
@@ -247,7 +261,7 @@ export default function EventsScreen() {
             <View style={styles.heroTextWrap}>
               <Text style={[styles.heroTitle, { color: colors.text }]}>Dog Events</Text>
               <Text style={[styles.heroCaption, { color: colors.mutedText }]}>
-                Find dog-friendly events by region and type, then jump to the organizer site.
+                Find events by region and type, with recommendations surfaced first.
               </Text>
             </View>
             <View style={[styles.heroCountPill, { backgroundColor: colors.surface, borderColor: colors.border }]}>
@@ -265,6 +279,28 @@ export default function EventsScreen() {
               <Text style={[styles.featuredDate, { color: colors.accent }]}>{eventTimingLabel(featuredEvent.dateISO)}</Text>
             </View>
           ) : null}
+        </View>
+
+        <View style={[styles.recommendCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+          <View style={styles.recommendHeader}>
+            <View>
+              <Text style={[styles.recommendEyebrow, { color: colors.accent }]}>Recommended</Text>
+              <Text style={[styles.recommendTitle, { color: colors.text }]}>Best matches this week</Text>
+            </View>
+            <FontAwesome6 name="star" size={16} color={colors.accent} />
+          </View>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.recommendRow}>
+            {recommendedEvents.map((event) => (
+              <Pressable
+                key={`recommended:${event.id}`}
+                style={[styles.recommendItem, { backgroundColor: colors.background, borderColor: colors.border }]}
+                onPress={() => void openLink(event.url)}>
+                <Text style={[styles.recommendDate, { color: colors.accent }]}>{eventTimingLabel(event.dateISO)}</Text>
+                <Text style={[styles.recommendItemTitle, { color: colors.text }]} numberOfLines={2}>{event.title}</Text>
+                <Text style={[styles.recommendMeta, { color: colors.mutedText }]}>{regionLabel(event.region)} / {typeLabel(event.type)}</Text>
+              </Pressable>
+            ))}
+          </ScrollView>
         </View>
 
         <View style={[styles.controlCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
@@ -412,6 +448,15 @@ const styles = StyleSheet.create({
   portalGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   portalButton: { minHeight: 40, borderRadius: 12, borderWidth: 1, paddingHorizontal: 12, flexDirection: 'row', alignItems: 'center', gap: 8 },
   portalButtonText: { fontSize: 13, fontWeight: '700' },
+  recommendCard: { borderRadius: 18, borderWidth: 1, padding: 12, gap: 10 },
+  recommendHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  recommendEyebrow: { fontSize: 11, fontWeight: '800', textTransform: 'uppercase' },
+  recommendTitle: { fontSize: 16, fontWeight: '800' },
+  recommendRow: { gap: 10, paddingRight: 6 },
+  recommendItem: { width: 210, minHeight: 116, borderRadius: 16, borderWidth: 1, padding: 12, gap: 6 },
+  recommendDate: { fontSize: 12, fontWeight: '800' },
+  recommendItemTitle: { fontSize: 14, fontWeight: '800', lineHeight: 19 },
+  recommendMeta: { fontSize: 11, fontWeight: '700' },
   listCard: { borderRadius: 16, borderWidth: 1, padding: 12, gap: 10 },
   listHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   listTitle: { fontSize: 17, fontWeight: '800' },

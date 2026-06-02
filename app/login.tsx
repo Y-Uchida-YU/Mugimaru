@@ -1,6 +1,7 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import {
-  Image,
+  Animated,
+  ImageBackground,
   KeyboardAvoidingView,
   Platform,
   Pressable,
@@ -8,6 +9,7 @@ import {
   StyleSheet,
   View,
 } from 'react-native';
+import { FontAwesome6 } from '@expo/vector-icons';
 import { Redirect, useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -17,12 +19,14 @@ import { useAuth } from '@/lib/auth-context';
 import { getAppText } from '@/lib/i18n';
 import { authenticateWithApple } from '@/lib/social-auth';
 
-const LOGIN_HERO_IMAGE = require('../assets/images/login-hero.png');
+const HERO_IMAGE = require('../assets/images/login-hero.jpg');
 
 export default function LoginScreen() {
   const router = useRouter();
   const text = getAppText();
   const { isHydrated, isAuthenticated, loginWithPassword, loginWithSocial } = useAuth();
+  const fade = useRef(new Animated.Value(0)).current;
+  const lift = useRef(new Animated.Value(16)).current;
 
   const [credential, setCredential] = useState('');
   const [password, setPassword] = useState('');
@@ -35,39 +39,47 @@ export default function LoginScreen() {
   const copy =
     text.localeGroup === 'japan'
       ? {
-          title: '\u30ed\u30b0\u30a4\u30f3',
-          caption:
-            '\u30a2\u30ab\u30a6\u30f3\u30c8\u3092\u304a\u6301\u3061\u306e\u65b9\u306fID\u3068\u30d1\u30b9\u30ef\u30fc\u30c9\u3067\u30ed\u30b0\u30a4\u30f3',
-          idLabel: 'ID / \u30e1\u30fc\u30eb\u30a2\u30c9\u30ec\u30b9',
-          idPlaceholder: 'ID \u307e\u305f\u306f \u30e1\u30fc\u30eb\u30a2\u30c9\u30ec\u30b9',
-          passwordLabel: '\u30d1\u30b9\u30ef\u30fc\u30c9',
-          passwordPlaceholder: '\u30d1\u30b9\u30ef\u30fc\u30c9',
-          loginAction: '\u30ed\u30b0\u30a4\u30f3',
-          appleLoginAction: 'Apple\u3067\u30ed\u30b0\u30a4\u30f3',
-          backSignup: '\u767b\u9332\u65b9\u6cd5\u9078\u629e\u306b\u623b\u308b',
-          missingId: 'ID\u307e\u305f\u306f\u30e1\u30fc\u30eb\u30a2\u30c9\u30ec\u30b9\u3092\u5165\u529b\u3057\u3066\u304f\u3060\u3055\u3044\u3002',
-          missingPassword: '\u30d1\u30b9\u30ef\u30fc\u30c9\u3092\u5165\u529b\u3057\u3066\u304f\u3060\u3055\u3044\u3002',
-          appleMissing:
-            'EXPO_PUBLIC_APPLE_CLIENT_ID \u307e\u305f\u306f EXPO_PUBLIC_APPLE_CLIENT_SECRET \u304c\u672a\u8a2d\u5b9a\u3067\u3059\u3002',
+          eyebrow: 'Mugimaru Account',
+          title: 'おかえりなさい',
+          caption: '散歩、スポット、犬友の近況を今日もすばやくチェック。',
+          idLabel: 'ID / メール',
+          idPlaceholder: 'ID またはメールアドレス',
+          passwordLabel: 'パスワード',
+          passwordPlaceholder: 'パスワード',
+          loginAction: 'ログイン',
+          appleLoginAction: 'Appleで続ける',
+          signup: '新しく始める',
+          missingId: 'IDまたはメールアドレスを入力してください。',
+          missingPassword: 'パスワードを入力してください。',
+          appleMissing: 'Appleログインの環境変数が未設定です。',
+          insight: 'おすすめ: 近くのイベントと人気スポットをログイン後に表示します',
         }
       : {
-          title: 'Log In',
-          caption: 'If you already have an account, sign in with your ID and password.',
+          eyebrow: 'Mugimaru Account',
+          title: 'Welcome back',
+          caption: 'Check walks, spots, and community updates in one calm place.',
           idLabel: 'ID / Email',
-          idPlaceholder: 'ID or Email',
+          idPlaceholder: 'ID or email address',
           passwordLabel: 'Password',
           passwordPlaceholder: 'Password',
-          loginAction: 'Log In',
-          appleLoginAction: 'Log In with Apple',
-          backSignup: 'Back to sign up options',
+          loginAction: 'Log in',
+          appleLoginAction: 'Continue with Apple',
+          signup: 'Start fresh',
           missingId: 'Please enter your ID or email.',
           missingPassword: 'Please enter your password.',
-          appleMissing: 'EXPO_PUBLIC_APPLE_CLIENT_ID or EXPO_PUBLIC_APPLE_CLIENT_SECRET is missing.',
+          appleMissing: 'Apple OAuth environment variables are missing.',
+          insight: 'Recommended: nearby events and popular spots appear after login',
         };
+
+  useEffect(() => {
+    Animated.parallel([
+      Animated.timing(fade, { toValue: 1, duration: 520, useNativeDriver: true }),
+      Animated.spring(lift, { toValue: 0, damping: 18, stiffness: 110, useNativeDriver: true }),
+    ]).start();
+  }, [fade, lift]);
 
   const handleLogin = async () => {
     if (isBusy) return;
-
     const normalizedCredential = credential.trim();
     const normalizedPassword = password.trim();
     if (!normalizedCredential) {
@@ -111,174 +123,175 @@ export default function LoginScreen() {
     }
   };
 
-  if (!isHydrated) {
-    return null;
-  }
-  if (isAuthenticated) {
-    return <Redirect href="/(tabs)" />;
-  }
+  if (!isHydrated) return null;
+  if (isAuthenticated) return <Redirect href="/(tabs)" />;
 
   return (
-    <SafeAreaView style={styles.safeArea}>
-      <KeyboardAvoidingView
-        style={styles.flex}
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-        <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
-          <Image source={LOGIN_HERO_IMAGE} style={styles.heroImage} resizeMode="contain" />
+    <ImageBackground source={HERO_IMAGE} style={styles.background} resizeMode="cover">
+      <View style={styles.scrim} />
+      <SafeAreaView style={styles.safeArea}>
+        <KeyboardAvoidingView style={styles.flex} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+          <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
+            <Animated.View style={[styles.panel, { opacity: fade, transform: [{ translateY: lift }] }]}>
+              <View style={styles.brandRow}>
+                <View style={styles.logoMark}>
+                  <FontAwesome6 name="paw" size={18} color="#0f172a" />
+                </View>
+                <Text style={styles.brand}>Mugimaru</Text>
+              </View>
 
-          <View style={styles.header}>
-            <Text style={styles.brand}>Mugimaru</Text>
-            <Text style={styles.title}>{copy.title}</Text>
-            <Text style={styles.caption}>{copy.caption}</Text>
-          </View>
+              <Text style={styles.eyebrow}>{copy.eyebrow}</Text>
+              <Text style={styles.title}>{copy.title}</Text>
+              <Text style={styles.caption}>{copy.caption}</Text>
 
-          <View style={styles.formCard}>
-            <Text style={styles.label}>{copy.idLabel}</Text>
-            <TextInput
-              style={styles.input}
-              value={credential}
-              onChangeText={setCredential}
-              placeholder={copy.idPlaceholder}
-              autoCapitalize="none"
-              autoCorrect={false}
-            />
+              <View style={styles.recommendation}>
+                <FontAwesome6 name="sparkles" size={14} color="#2563eb" />
+                <Text style={styles.recommendationText}>{copy.insight}</Text>
+              </View>
 
-            <Text style={styles.label}>{copy.passwordLabel}</Text>
-            <TextInput
-              style={styles.input}
-              value={password}
-              onChangeText={setPassword}
-              placeholder={copy.passwordPlaceholder}
-              secureTextEntry
-              autoCapitalize="none"
-              autoCorrect={false}
-            />
+              <View style={styles.form}>
+                <Text style={styles.label}>{copy.idLabel}</Text>
+                <TextInput
+                  style={styles.input}
+                  value={credential}
+                  onChangeText={setCredential}
+                  placeholder={copy.idPlaceholder}
+                  placeholderTextColor="#94a3b8"
+                  autoCapitalize="none"
+                  autoCorrect={false}
+                />
+                <Text style={styles.label}>{copy.passwordLabel}</Text>
+                <TextInput
+                  style={styles.input}
+                  value={password}
+                  onChangeText={setPassword}
+                  placeholder={copy.passwordPlaceholder}
+                  placeholderTextColor="#94a3b8"
+                  secureTextEntry
+                  autoCapitalize="none"
+                  autoCorrect={false}
+                />
+              </View>
 
-            <Pressable
-              style={[styles.loginButton, isBusy ? styles.loginButtonDisabled : null]}
-              onPress={() => void handleLogin()}
-              disabled={isBusy}>
-              <Text style={styles.loginButtonText}>{copy.loginAction}</Text>
-            </Pressable>
+              <Pressable
+                style={[styles.primaryButton, isBusy ? styles.disabled : null]}
+                onPress={() => void handleLogin()}
+                disabled={isBusy}>
+                <Text style={styles.primaryButtonText}>{copy.loginAction}</Text>
+                <FontAwesome6 name="arrow-right" size={14} color="#ffffff" />
+              </Pressable>
 
-            <Pressable
-              style={[styles.appleButton, isBusy ? styles.loginButtonDisabled : null]}
-              onPress={() => void handleAppleLogin()}
-              disabled={isBusy}>
-              <Text style={styles.appleButtonText}>{copy.appleLoginAction}</Text>
-            </Pressable>
+              <Pressable
+                style={[styles.appleButton, isBusy ? styles.disabled : null]}
+                onPress={() => void handleAppleLogin()}
+                disabled={isBusy}>
+                <FontAwesome6 name="apple" size={16} color="#0f172a" />
+                <Text style={styles.appleButtonText}>{copy.appleLoginAction}</Text>
+              </Pressable>
 
-            <Pressable onPress={() => router.replace('/signup')} disabled={isBusy}>
-              <Text style={styles.backLink}>{copy.backSignup}</Text>
-            </Pressable>
+              <Pressable style={styles.signupLink} onPress={() => router.replace('/signup')} disabled={isBusy}>
+                <Text style={styles.signupLinkText}>{copy.signup}</Text>
+              </Pressable>
 
-            {message ? <Text style={styles.message}>{message}</Text> : null}
-          </View>
-        </ScrollView>
-      </KeyboardAvoidingView>
-    </SafeAreaView>
+              {message ? <Text style={styles.message}>{message}</Text> : null}
+            </Animated.View>
+          </ScrollView>
+        </KeyboardAvoidingView>
+      </SafeAreaView>
+    </ImageBackground>
   );
 }
 
 const styles = StyleSheet.create({
-  safeArea: {
-    flex: 1,
-    backgroundColor: '#f8f2e8',
+  background: { flex: 1, backgroundColor: '#eaf2ff' },
+  scrim: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(248, 250, 252, 0.76)',
   },
-  flex: {
-    flex: 1,
-  },
+  safeArea: { flex: 1 },
+  flex: { flex: 1 },
   content: {
-    paddingHorizontal: 20,
-    paddingVertical: 24,
-    gap: 14,
+    flexGrow: 1,
+    justifyContent: 'flex-end',
+    padding: 18,
   },
-  heroImage: {
+  panel: {
     width: '100%',
-    height: 220,
+    maxWidth: 520,
     alignSelf: 'center',
-  },
-  header: {
-    alignItems: 'center',
-    gap: 8,
-  },
-  brand: {
-    color: '#5a3f27',
-    fontFamily: Fonts.rounded,
-    fontSize: 38,
-    fontWeight: '700',
-    letterSpacing: 0.4,
-    lineHeight: 42,
-  },
-  title: {
-    color: '#4b3a2a',
-    fontSize: 28,
-    fontFamily: Fonts.rounded,
-    fontWeight: '700',
-  },
-  caption: {
-    color: '#7f694f',
-    fontSize: 13,
-    textAlign: 'center',
-  },
-  formCard: {
-    backgroundColor: '#fffaf2',
-    borderRadius: 18,
+    borderRadius: 28,
+    backgroundColor: 'rgba(255, 255, 255, 0.92)',
     borderWidth: 1,
-    borderColor: '#ddccb5',
-    padding: 14,
-    gap: 10,
+    borderColor: 'rgba(148, 163, 184, 0.34)',
+    padding: 20,
+    gap: 12,
+    shadowColor: '#0f172a',
+    shadowOpacity: 0.18,
+    shadowRadius: 28,
+    shadowOffset: { width: 0, height: 18 },
+    elevation: 10,
   },
-  label: {
-    color: '#6a543c',
-    fontSize: 13,
-    fontWeight: '700',
+  brandRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  logoMark: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#dbeafe',
   },
+  brand: { color: '#0f172a', fontFamily: Fonts.rounded, fontSize: 22, fontWeight: '800' },
+  eyebrow: { color: '#2563eb', fontSize: 12, fontWeight: '800', textTransform: 'uppercase' },
+  title: { color: '#0f172a', fontFamily: Fonts.rounded, fontSize: 34, fontWeight: '800' },
+  caption: { color: '#475569', fontSize: 14, lineHeight: 21 },
+  recommendation: {
+    minHeight: 46,
+    borderRadius: 16,
+    backgroundColor: '#eff6ff',
+    borderWidth: 1,
+    borderColor: '#bfdbfe',
+    paddingHorizontal: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 9,
+  },
+  recommendationText: { flex: 1, color: '#1e3a8a', fontSize: 12, fontWeight: '700' },
+  form: { gap: 8, marginTop: 2 },
+  label: { color: '#334155', fontSize: 12, fontWeight: '800' },
   input: {
+    minHeight: 50,
     borderWidth: 1,
-    borderColor: '#ddccb5',
-    borderRadius: 10,
-    backgroundColor: '#fffdf8',
-    paddingHorizontal: 11,
-    paddingVertical: 10,
-    fontSize: 14,
-    color: '#4f3b29',
+    borderColor: '#cbd5e1',
+    borderRadius: 16,
+    backgroundColor: '#ffffff',
+    paddingHorizontal: 14,
+    color: '#0f172a',
+    fontSize: 15,
   },
-  loginButton: {
-    marginTop: 6,
-    borderRadius: 10,
-    backgroundColor: '#b89062',
+  primaryButton: {
+    minHeight: 52,
+    borderRadius: 18,
+    backgroundColor: '#2563eb',
+    flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: 11,
+    justifyContent: 'center',
+    gap: 9,
   },
-  loginButtonDisabled: {
-    opacity: 0.6,
-  },
-  loginButtonText: {
-    color: '#ffffff',
-    fontWeight: '700',
-    fontSize: 14,
-  },
+  disabled: { opacity: 0.58 },
+  primaryButtonText: { color: '#ffffff', fontSize: 15, fontWeight: '800' },
   appleButton: {
-    borderRadius: 10,
-    backgroundColor: '#111111',
+    minHeight: 50,
+    borderRadius: 18,
+    backgroundColor: '#f8fafc',
+    borderWidth: 1,
+    borderColor: '#cbd5e1',
+    flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: 11,
+    justifyContent: 'center',
+    gap: 9,
   },
-  appleButtonText: {
-    color: '#ffffff',
-    fontWeight: '700',
-    fontSize: 14,
-  },
-  backLink: {
-    marginTop: 2,
-    color: '#8a7459',
-    fontWeight: '700',
-    fontSize: 13,
-    textAlign: 'center',
-  },
-  message: {
-    color: '#6f583f',
-    fontSize: 12,
-  },
+  appleButtonText: { color: '#0f172a', fontSize: 14, fontWeight: '800' },
+  signupLink: { minHeight: 34, alignItems: 'center', justifyContent: 'center' },
+  signupLinkText: { color: '#2563eb', fontSize: 13, fontWeight: '800' },
+  message: { color: '#b42318', fontSize: 12, lineHeight: 18 },
 });
