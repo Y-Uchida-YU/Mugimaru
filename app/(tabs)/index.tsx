@@ -557,18 +557,6 @@ export default function BoardScreen() {
         post.tags.some((tag) => tag.toLowerCase().includes(q))
     );
   }, [posts, query]);
-  const recommendedPosts = useMemo(
-    () =>
-      posts
-        .slice()
-        .sort((a, b) => {
-          const aScore = a.replies + (likesCountByPost[a.id] ?? 0);
-          const bScore = b.replies + (likesCountByPost[b.id] ?? 0);
-          return bScore - aScore;
-        })
-        .slice(0, 3),
-    [likesCountByPost, posts]
-  );
 
   const rootComments = useMemo(
     () => comments.filter((comment) => !comment.parentCommentId),
@@ -1121,34 +1109,6 @@ export default function BoardScreen() {
               onPress={() => setSearchModalOpen(true)}>
               <FontAwesome6 name="magnifying-glass" size={15} color={themeColors.text} />
             </Pressable>
-          </View>
-
-          <View style={[styles.recommendStrip, { backgroundColor: themeColors.surface, borderColor: themeColors.border }]}>
-            <View style={styles.recommendStripHeader}>
-              <View>
-                <Text style={[styles.recommendStripEyebrow, { color: themeColors.accent }]}>
-                  {text.localeGroup === 'japan' ? 'おすすめ' : 'Recommended'}
-                </Text>
-                <Text style={[styles.recommendStripTitle, { color: themeColors.text }]}>
-                  {text.localeGroup === 'japan' ? 'いま見たい投稿' : 'Posts to catch up on'}
-                </Text>
-              </View>
-              <FontAwesome6 name="star" size={15} color={themeColors.accent} />
-            </View>
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.recommendStripRow}>
-              {recommendedPosts.map((post) => (
-                <Pressable
-                  key={`recommend:${post.id}`}
-                  style={[styles.recommendPost, { backgroundColor: themeColors.background, borderColor: themeColors.border }]}
-                  onPress={() => void openComments(post)}>
-                  <Text style={[styles.recommendPostCategory, { color: themeColors.accent }]}>{post.category}</Text>
-                  <Text style={[styles.recommendPostTitle, { color: themeColors.text }]} numberOfLines={2}>{post.title}</Text>
-                  <Text style={[styles.recommendPostMeta, { color: themeColors.mutedText }]}>
-                    {post.replies} replies / {likesCountByPost[post.id] ?? 0} likes
-                  </Text>
-                </Pressable>
-              ))}
-            </ScrollView>
           </View>
 
           <View style={styles.timelineFeed}>
@@ -1895,52 +1855,6 @@ const styles = StyleSheet.create({
   timelineEmptyBody: {
     fontSize: 13,
     lineHeight: 19,
-  },
-  recommendStrip: {
-    borderRadius: 22,
-    borderWidth: 1,
-    padding: 14,
-    gap: 10,
-    marginBottom: 12,
-  },
-  recommendStripHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-  },
-  recommendStripEyebrow: {
-    fontSize: 11,
-    fontWeight: '800',
-    textTransform: 'uppercase',
-  },
-  recommendStripTitle: {
-    fontSize: 16,
-    fontWeight: '800',
-  },
-  recommendStripRow: {
-    gap: 10,
-    paddingRight: 6,
-  },
-  recommendPost: {
-    width: 214,
-    minHeight: 112,
-    borderRadius: 16,
-    borderWidth: 1,
-    padding: 12,
-    gap: 6,
-  },
-  recommendPostCategory: {
-    fontSize: 11,
-    fontWeight: '800',
-  },
-  recommendPostTitle: {
-    fontSize: 14,
-    fontWeight: '800',
-    lineHeight: 19,
-  },
-  recommendPostMeta: {
-    fontSize: 11,
-    fontWeight: '700',
   },
   timelinePost: {
     borderRadius: 22,

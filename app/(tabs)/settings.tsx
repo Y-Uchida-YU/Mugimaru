@@ -51,7 +51,7 @@ export default function SettingsScreen() {
         caption: 'アカウント、プロフィール、見た目をまとめて管理できます。',
         account: 'アカウント',
         appearance: '表示とテーマ',
-        recommendations: 'おすすめ',
+        support: 'サポート',
         personal: '個人設定',
         personalSub: '通知、メール、利用環境の設定',
         profile: 'プロフィール',
@@ -64,18 +64,16 @@ export default function SettingsScreen() {
         fontSub: 'システム、丸み、セリフ、等幅から選択',
         help: 'ヘルプ',
         helpSub: '使い方とよくある質問',
-        recommendTitle: '今日のおすすめ設定',
-        recommendBody: 'テーマを「Ocean Tide」か「Mint Breeze」にすると、地図やイベント画面がより見やすくなります。',
         guestMail: 'メール未設定',
         loginMethod: 'ログイン',
         logout: 'ログアウト',
       }
     : {
         title: 'Settings',
-        caption: 'Manage account, profile, appearance, and recommendation preferences.',
+        caption: 'Manage account, profile, appearance, and support.',
         account: 'Account',
         appearance: 'Appearance',
-        recommendations: 'Recommendations',
+        support: 'Support',
         personal: 'Personal settings',
         personalSub: 'Notifications, email, and account environment',
         profile: 'Profile',
@@ -88,8 +86,6 @@ export default function SettingsScreen() {
         fontSub: 'System, rounded, serif, or mono',
         help: 'Help',
         helpSub: 'How to use Mugimaru and FAQ',
-        recommendTitle: 'Recommended setting',
-        recommendBody: 'Try Ocean Tide or Mint Breeze for clearer map and event screens.',
         guestMail: 'No email set',
         loginMethod: 'Login',
         logout: 'Log out',
@@ -133,16 +129,6 @@ export default function SettingsScreen() {
           </View>
         </View>
 
-        <View style={[styles.recommendCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-          <View style={[styles.recommendIcon, { backgroundColor: colors.chip }]}>
-            <FontAwesome6 name="star" size={15} color={colors.chipText} />
-          </View>
-          <View style={styles.recommendBody}>
-            <Text style={[styles.recommendTitle, { color: colors.text }]}>{copy.recommendTitle}</Text>
-            <Text style={[styles.recommendText, { color: colors.mutedText }]}>{copy.recommendBody}</Text>
-          </View>
-        </View>
-
         <SectionTitle title={copy.account} />
         <SettingsRow icon="user-gear" title={copy.personal} subtitle={copy.personalSub} onPress={() => open('/settings/personal')} />
         <SettingsRow icon="id-card" title={copy.profile} subtitle={copy.profileSub} onPress={() => open('/settings/profile')} />
@@ -152,7 +138,7 @@ export default function SettingsScreen() {
         <SettingsRow icon="text-height" title={copy.textSize} subtitle={copy.textSizeSub} value={textScale} onPress={() => open('/settings/text')} />
         <SettingsRow icon="font" title={copy.font} subtitle={copy.fontSub} value={fontStyle} onPress={() => open('/settings/font')} />
 
-        <SectionTitle title={copy.recommendations} />
+        <SectionTitle title={copy.support} />
         <SettingsRow icon="circle-question" title={copy.help} subtitle={copy.helpSub} onPress={() => open('/settings/help')} />
 
         <Pressable style={[styles.logoutButton, { backgroundColor: colors.accent }]} onPress={handleLogout}>
@@ -195,11 +181,6 @@ const styles = StyleSheet.create({
   metric: { flex: 1, minWidth: 96, minHeight: 58, borderRadius: 16, borderWidth: 1, paddingHorizontal: 10, justifyContent: 'center', gap: 2 },
   metricLabel: { fontSize: 10, fontWeight: '800' },
   metricValue: { fontSize: 13, fontWeight: '800' },
-  recommendCard: { borderRadius: 20, borderWidth: 1, padding: 14, flexDirection: 'row', gap: 12 },
-  recommendIcon: { width: 34, height: 34, borderRadius: 17, alignItems: 'center', justifyContent: 'center' },
-  recommendBody: { flex: 1, gap: 3 },
-  recommendTitle: { fontSize: 14, fontWeight: '800' },
-  recommendText: { fontSize: 12, lineHeight: 18 },
   sectionTitle: { marginTop: 4, paddingHorizontal: 2, fontSize: 11, fontWeight: '800', textTransform: 'uppercase' },
   row: { minHeight: 74, borderRadius: 18, borderWidth: 1, padding: 12, flexDirection: 'row', alignItems: 'center', gap: 12 },
   rowIcon: { width: 38, height: 38, borderRadius: 14, alignItems: 'center', justifyContent: 'center' },
