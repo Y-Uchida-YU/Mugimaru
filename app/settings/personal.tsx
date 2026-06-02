@@ -14,11 +14,11 @@ import {
 
 function providerLabel(provider: string | undefined) {
   if (!provider) return '-';
-  if (provider === 'email') return 'Email';
+  if (provider === 'email') return 'メール';
   if (provider === 'line') return 'LINE';
   if (provider === 'google') return 'Google';
   if (provider === 'apple') return 'Apple';
-  if (provider === 'guest') return 'Guest';
+  if (provider === 'guest') return 'ゲスト';
   return 'X';
 }
 
@@ -54,7 +54,7 @@ export default function PersonalSettingsScreen() {
 
   const languageLabel = useMemo(() => {
     if (prefs.language === 'ja') return '日本語';
-    if (prefs.language === 'en') return 'English';
+    if (prefs.language === 'en') return '英語';
     return '自動';
   }, [prefs.language]);
 
@@ -64,7 +64,7 @@ export default function PersonalSettingsScreen() {
     if (trimmedEmail) {
       const validEmail = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmedEmail);
       if (!validEmail) {
-        setMessage('メール形式が正しくありません。');
+        setMessage('メールアドレスの形式が正しくありません。');
         return;
       }
     }
@@ -78,6 +78,8 @@ export default function PersonalSettingsScreen() {
         bio: profile.bio,
         dogName: profile.dogName,
         dogBreed: profile.dogBreed,
+        prefecture: profile.prefecture,
+        city: profile.city,
       });
       await savePersonalPreferences(prefs);
       setMessage('個人設定を保存しました。');
@@ -91,7 +93,7 @@ export default function PersonalSettingsScreen() {
   return (
     <SettingsPageScaffold
       title="個人設定"
-      subtitle="通知、連絡先、言語の基本設定"
+      subtitle="メール、通知、表示言語を設定します。"
       theme={activeTheme}
       typography={typography}
       onBack={() => router.back()}
@@ -127,7 +129,7 @@ export default function PersonalSettingsScreen() {
         </View>
       </SettingsSection>
 
-      <SettingsSection theme={activeTheme} typography={typography} title="通知 / 利用体験">
+      <SettingsSection theme={activeTheme} typography={typography} title="通知と表示">
         <View style={styles.switchRow}>
           <Text style={[styles.switchLabel, { color: colors.text, fontFamily, fontSize: 14 * scale }]}>プッシュ通知</Text>
           <Switch
@@ -149,7 +151,7 @@ export default function PersonalSettingsScreen() {
         </View>
 
         <View style={styles.switchRow}>
-          <Text style={[styles.switchLabel, { color: colors.text, fontFamily, fontSize: 14 * scale }]}>マップヒント表示</Text>
+          <Text style={[styles.switchLabel, { color: colors.text, fontFamily, fontSize: 14 * scale }]}>マップのヒント表示</Text>
           <Switch
             value={prefs.mapHintEnabled}
             onValueChange={(value) => setPrefs((prev) => ({ ...prev, mapHintEnabled: value }))}
@@ -164,7 +166,7 @@ export default function PersonalSettingsScreen() {
             {[
               { id: 'auto', label: '自動' },
               { id: 'ja', label: '日本語' },
-              { id: 'en', label: 'English' },
+              { id: 'en', label: '英語' },
             ].map((item) => {
               const selected = prefs.language === item.id;
               return (
@@ -280,4 +282,3 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
 });
-

@@ -113,7 +113,7 @@ export default function SettingsScreen() {
               <FontAwesome6 name="paw" size={22} color={colors.accent} />
             </View>
             <View style={styles.profileMeta}>
-              <Text style={[styles.profileName, { color: colors.text }]}>{profile?.name ?? 'Guest'}</Text>
+              <Text style={[styles.profileName, { color: colors.text }]}>{profile?.name ?? 'ゲスト'}</Text>
               <Text style={[styles.profileEmail, { color: colors.mutedText }]}>
                 {profile?.email?.trim() ? profile.email : copy.guestMail}
               </Text>
@@ -123,7 +123,7 @@ export default function SettingsScreen() {
             </Pressable>
           </View>
           <View style={styles.statsRow}>
-            <Metric label={copy.loginMethod} value={profile?.provider ?? 'guest'} />
+            <Metric label={copy.loginMethod} value={providerLabel(profile?.provider)} />
             <Metric label={copy.theme} value={activeTheme.name} />
             <Metric label={copy.textSize} value={textScale} />
           </View>
@@ -160,6 +160,15 @@ export default function SettingsScreen() {
         <Text style={[styles.metricValue, { color: colors.text }]} numberOfLines={1}>{value}</Text>
       </View>
     );
+  }
+
+  function providerLabel(provider?: string) {
+    if (provider === 'line') return 'LINE';
+    if (provider === 'google') return 'Google';
+    if (provider === 'apple') return 'Apple';
+    if (provider === 'x') return 'X';
+    if (provider === 'email') return 'メール';
+    return 'ゲスト';
   }
 }
 

@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { FontAwesome6 } from '@expo/vector-icons';
+import { useRouter } from 'expo-router';
 import {
   Image,
   KeyboardAvoidingView,
@@ -20,11 +21,9 @@ import {
   createBoardChatMessage,
   createBoardComment,
   createBoardPost,
-  listBoardComments,
   listBoardPostLikes,
   listBoardPostStamps,
   listBoardPosts,
-  listBoardPostsByAuthor,
   removeBoardPostLike,
   removeBoardPostStamp,
   updateBoardPostRepliesCount,
@@ -42,9 +41,6 @@ import { getAvatarIconGlyph, parseAvatarValue } from '@/lib/profile-avatar';
 import { hasSupabaseEnv } from '@/lib/supabase';
 import {
   followUser,
-  getAppUserByExternalId,
-  getFollowCounts,
-  isFollowingUser,
   unfollowUser,
 } from '@/lib/user-data';
 
@@ -243,19 +239,19 @@ function buildLocalChatSeed(): BoardChatMessage[] {
     {
       id: makeLocalId('chat'),
       authorExternalId: 'seed:moderator',
-      author: 'Mugimaru Team',
+      author: 'Mugimaru運営',
       authorAvatarUrl: '',
-      body: 'Welcome to Lemon Lounge. Share moments and tips.',
-      sticker: '豪',
+      body: 'ラウンジへようこそ。日々の出来事やちょっとした相談を書き込めます。',
+      sticker: '🐕',
       imageUrl: '',
       createdAt: new Date(Date.now() - 1000 * 60 * 12).toISOString(),
     },
     {
       id: makeLocalId('chat'),
       authorExternalId: 'seed:walker',
-      author: 'Morning Walker',
+      author: '朝さんぽ',
       authorAvatarUrl: '',
-      body: 'Any good sunset routes today?',
+      body: '夕方に歩きやすい散歩コースを知っている方はいますか？',
       sticker: '',
       imageUrl: '',
       createdAt: new Date(Date.now() - 1000 * 60 * 6).toISOString(),
@@ -352,6 +348,7 @@ function Avatar({ uri, label, size = 32 }: { uri: string; label: string; size?: 
 }
 
 export default function BoardScreen() {
+  const router = useRouter();
   const text = getAppText();
   const { activeTheme } = useAppTheme();
   const themeColors = activeTheme.colors;
@@ -366,7 +363,7 @@ export default function BoardScreen() {
             title: 'タイムライン',
             caption: '犬友の近況や新着ポストを流し読みできます。',
             compose: 'ポスト',
-            room: 'Room',
+            room: '交流',
             prompt: 'いま何をシェアしますか？',
             feedCount: 'ポスト',
             search: '投稿を検索',
@@ -380,21 +377,21 @@ export default function BoardScreen() {
             loading: '読み込み中...',
           }
         : {
-            title: 'Timeline',
-            caption: 'Scan fresh posts from your dog community.',
-            compose: 'Post',
-            room: 'Room',
-            prompt: 'What do you want to share?',
-            feedCount: 'posts',
-            search: 'Search posts',
-            pullHint: 'Pull down to fetch new posts',
-            emptyTitle: 'No posts to show',
-            emptyBody: 'Change your search or pull down to fetch fresh posts.',
-            refreshed: (count: number) => (count > 0 ? `${count} new posts loaded.` : 'No new posts.'),
-            localRefresh: 'No delta refresh in local mode.',
-            synced: 'Timeline synced.',
-            syncedLocal: 'Running in local mode.',
-            loading: 'Loading...',
+            title: 'タイムライン',
+            caption: '犬好き同士の新着投稿を確認できます。',
+            compose: '投稿',
+            room: 'ルーム',
+            prompt: '共有したいことはありますか？',
+            feedCount: '件',
+            search: '投稿を検索',
+            pullHint: '下にスワイプして新着を取得',
+            emptyTitle: '表示できるポストがありません',
+            emptyBody: '検索条件を変えるか、下にスワイプして新着を取得してください。',
+            refreshed: (count: number) => (count > 0 ? `${count}件の新着を取得しました。` : '新着はありません。'),
+            localRefresh: 'ローカルモードでは新着更新はありません。',
+            synced: 'タイムラインを同期しました。',
+            syncedLocal: 'ローカルモードで表示中です。',
+            loading: '読み込み中...',
           },
     [text.localeGroup]
   );
@@ -608,81 +605,22 @@ export default function BoardScreen() {
       setImageUrl(picked.dataUrl);
       setFormError('');
     } catch (error) {
-      setFormError(error instanceof Error ? error.message : 'Failed to pick image.');
+      setFormError(error instanceof Error ? error.message : '画像の選択に失敗しました。');
     }
   };
 
-  const openUserProfile = async (externalId: string, name: string, avatarUrl: string) => {
+  const openPostPage = (postId: string) => {
+    router.push(`/post/${encodeURIComponent(postId)}` as never);
+  };
+
+  const openProfilePage = (externalId: string) => {
     const targetId = externalId.trim();
     if (!targetId) return;
+    router.push(`/user/${encodeURIComponent(targetId)}` as never);
+  };
 
-    setProfileModalOpen(true);
-    setProfileModal({
-      externalId: targetId,
-      name,
-      avatarUrl,
-      bio: '',
-      dogName: '',
-      dogBreed: '',
-      followers: 0,
-      following: 0,
-      isFollowing: false,
-      posts: [],
-      loading: true,
-      message: '',
-    });
-
-    if (!hasSupabaseEnv) {
-      const localPosts = posts.filter((post) => post.authorExternalId === targetId);
-      setProfileModal((prev) => {
-        if (!prev || prev.externalId !== targetId) return prev;
-        return {
-          ...prev,
-          posts: localPosts,
-          loading: false,
-          message: 'Local profile mode.',
-        };
-      });
-      return;
-    }
-
-    const canFollow = Boolean(profile && profile.provider !== 'guest' && profile.externalId !== targetId);
-
-    try {
-      const [user, authoredRows, counts, following] = await Promise.all([
-        getAppUserByExternalId(targetId),
-        listBoardPostsByAuthor(targetId, 50),
-        getFollowCounts(targetId),
-        canFollow ? isFollowingUser(profile!.externalId, targetId) : Promise.resolve(false),
-      ]);
-
-      setProfileModal((prev) => {
-        if (!prev || prev.externalId !== targetId) return prev;
-        return {
-          ...prev,
-          name: user?.name ?? prev.name,
-          avatarUrl: user?.avatar_url ?? prev.avatarUrl,
-          bio: user?.bio ?? '',
-          dogName: user?.dog_name ?? '',
-          dogBreed: user?.dog_breed ?? '',
-          followers: counts.followers,
-          following: counts.following,
-          isFollowing: following,
-          posts: authoredRows.map(mapRowToPost),
-          loading: false,
-          message: '',
-        };
-      });
-    } catch (error) {
-      setProfileModal((prev) => {
-        if (!prev || prev.externalId !== targetId) return prev;
-        return {
-          ...prev,
-          loading: false,
-          message: error instanceof Error ? error.message : 'Failed to load profile.',
-        };
-      });
-    }
+  const openUserProfile = async (externalId: string, _name: string, _avatarUrl: string) => {
+    openProfilePage(externalId);
   };
 
   const handleToggleFollow = async () => {
@@ -699,7 +637,7 @@ export default function BoardScreen() {
         if (!prev) return prev;
         return {
           ...prev,
-          message: 'Follow is available when Supabase is connected.',
+          message: 'フォロー機能はサーバー接続時に利用できます。',
         };
       });
       return;
@@ -730,7 +668,7 @@ export default function BoardScreen() {
         if (!prev) return prev;
         return {
           ...prev,
-          message: error instanceof Error ? error.message : 'Failed to update follow state.',
+          message: error instanceof Error ? error.message : 'フォロー状態の更新に失敗しました。',
         };
       });
     } finally {
@@ -740,7 +678,7 @@ export default function BoardScreen() {
 
   const handleCreatePost = async () => {
     if (isGuest) {
-      setFormError('Guest users cannot create posts.');
+      setFormError('ゲストユーザーは投稿できません。');
       return;
     }
 
@@ -755,7 +693,7 @@ export default function BoardScreen() {
     }
 
     if (imageUrl.trim() && !isImageValue(imageUrl)) {
-      setFormError('Image must be selected from photos or be a valid URL.');
+      setFormError('画像は写真から選択してください。');
       return;
     }
 
@@ -817,33 +755,14 @@ export default function BoardScreen() {
       setSelectedCategory(categories[0] ?? 'General');
       setFormError('');
       setComposerOpen(false);
-      setMessage('Post saved to Supabase.');
+      setMessage('投稿を保存しました。');
     } catch (error) {
-      setFormError(error instanceof Error ? error.message : 'Failed to save post.');
+      setFormError(error instanceof Error ? error.message : '投稿の保存に失敗しました。');
     }
   };
 
   const openComments = async (post: BoardPost) => {
-    setSelectedPost(post);
-    setCommentBody('');
-    setReplyToCommentId(null);
-    setCommentError('');
-
-    if (!hasSupabaseEnv) {
-      setComments(localCommentsByPost[post.id] ?? []);
-      return;
-    }
-
-    try {
-      setCommentsLoading(true);
-      const rows = await listBoardComments(post.id);
-      setComments(rows.map(mapRowToComment));
-    } catch (error) {
-      setComments([]);
-      setCommentError(error instanceof Error ? error.message : 'Failed to load comments.');
-    } finally {
-      setCommentsLoading(false);
-    }
+    openPostPage(post.id);
   };
 
   const incrementReplies = (postId: string) => {
@@ -854,7 +773,7 @@ export default function BoardScreen() {
     if (!selectedPost) return;
 
     if (isGuest) {
-      setCommentError('Guest users cannot post comments.');
+      setCommentError('ゲストユーザーは返信できません。');
       return;
     }
 
@@ -921,7 +840,7 @@ export default function BoardScreen() {
 
   const handleToggleLike = async (postId: string) => {
     if (!profile || isGuest) {
-      setMessage('Please sign in to like posts.');
+      setMessage('いいねするにはログインしてください。');
       return;
     }
 
@@ -963,7 +882,7 @@ export default function BoardScreen() {
 
   const handleToggleStamp = async (postId: string, stamp: StampKey) => {
     if (!profile || isGuest) {
-      setMessage('Please sign in to stamp posts.');
+      setMessage('リアクションするにはログインしてください。');
       return;
     }
 
@@ -1026,7 +945,7 @@ export default function BoardScreen() {
 
   const handleSendChatMessage = async () => {
     if (!profile || isGuest) {
-      setChatError('Please sign in to use chat.');
+      setChatError('チャットを使うにはログインしてください。');
       return;
     }
 
@@ -1121,8 +1040,9 @@ export default function BoardScreen() {
               </View>
             ) : null}
             {visiblePosts.map((post) => (
-              <View
+              <Pressable
                 key={post.id}
+                onPress={() => openPostPage(post.id)}
                 style={[
                   styles.timelinePost,
                   {
@@ -1213,14 +1133,14 @@ export default function BoardScreen() {
                     </View>
                   </View>
                 </View>
-              </View>
+              </Pressable>
             ))}
           </View>
         </ScrollView>
 
         <Pressable
           style={[styles.fab, { backgroundColor: themeColors.accent }, isGuest ? styles.fabDisabled : null]}
-          onPress={() => (isGuest ? setMessage('Guest users cannot create posts.') : setComposerOpen(true))}>
+          onPress={() => (isGuest ? setMessage('ゲストユーザーは投稿できません。') : setComposerOpen(true))}>
           <Text style={[styles.fabText, { color: themeColors.accentContrast }]}>+</Text>
         </Pressable>
 
@@ -1232,7 +1152,7 @@ export default function BoardScreen() {
               <View style={styles.searchModalHeader}>
                 <Text style={[styles.searchModalTitle, { color: themeColors.text }]}>Search & Filter</Text>
                 <Pressable onPress={() => setSearchModalOpen(false)}>
-                  <Text style={[styles.closeText, { color: themeColors.mutedText }]}>Close</Text>
+                  <Text style={[styles.closeText, { color: themeColors.mutedText }]}>閉じる</Text>
                 </Pressable>
               </View>
 
@@ -1294,7 +1214,7 @@ export default function BoardScreen() {
             behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
             <View style={[styles.modalCard, { backgroundColor: themeColors.surface, borderColor: themeColors.border }]}>
               <Text style={[styles.modalTitle, { color: themeColors.text }]}>{text.board.composerTitle}</Text>
-              <Text style={[styles.metaText, { color: themeColors.mutedText }]}>Author: {profile?.name || text.board.anonymous}</Text>
+              <Text style={[styles.metaText, { color: themeColors.mutedText }]}>投稿者: {profile?.name || text.board.anonymous}</Text>
 
               <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.modalChips}>
                 {categories.map((category) => {
@@ -1363,19 +1283,19 @@ export default function BoardScreen() {
                 ]}
                 value={tagsInput}
                 onChangeText={setTagsInput}
-                placeholder="Tags (e.g. dogrun puppy meetup)"
+                placeholder="タグ（例: ドッグラン 子犬 交流）"
                 placeholderTextColor={themeColors.mutedText}
                 autoCapitalize="none"
               />
 
               <View style={styles.mediaActionRow}>
                 <Pressable style={[styles.mediaButton, { backgroundColor: themeColors.accent }]} onPress={() => void handlePickPostImage()}>
-                  <Text style={[styles.mediaButtonText, { color: themeColors.accentContrast }]}>Select Photo</Text>
+                  <Text style={[styles.mediaButtonText, { color: themeColors.accentContrast }]}>写真を選択</Text>
                 </Pressable>
                 <Pressable
                   style={[styles.mediaGhostButton, { borderColor: themeColors.border, backgroundColor: themeColors.chip }]}
                   onPress={() => setImageUrl('')}>
-                  <Text style={[styles.mediaGhostButtonText, { color: themeColors.chipText }]}>Remove</Text>
+                  <Text style={[styles.mediaGhostButtonText, { color: themeColors.chipText }]}>削除</Text>
                 </Pressable>
               </View>
 
@@ -1411,9 +1331,9 @@ export default function BoardScreen() {
             behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
             <View style={[styles.commentModalCard, { backgroundColor: themeColors.surface, borderColor: themeColors.border }]}>
               <View style={styles.commentModalHeader}>
-                <Text style={[styles.modalTitle, { color: themeColors.text }]}>Comments</Text>
+                <Text style={[styles.modalTitle, { color: themeColors.text }]}>返信</Text>
                 <Pressable onPress={closeCommentModal}>
-                  <Text style={[styles.closeText, { color: themeColors.mutedText }]}>Close</Text>
+                  <Text style={[styles.closeText, { color: themeColors.mutedText }]}>閉じる</Text>
                 </Pressable>
               </View>
 
@@ -1432,9 +1352,9 @@ export default function BoardScreen() {
               ) : null}
 
               <ScrollView style={styles.commentList} contentContainerStyle={styles.commentListContent}>
-                {isCommentsLoading ? <Text style={[styles.commentHint, { color: themeColors.mutedText }]}>Loading comments...</Text> : null}
+                {isCommentsLoading ? <Text style={[styles.commentHint, { color: themeColors.mutedText }]}>返信を読み込み中...</Text> : null}
                 {!isCommentsLoading && rootComments.length === 0 ? (
-                  <Text style={[styles.commentHint, { color: themeColors.mutedText }]}>No comments yet.</Text>
+                  <Text style={[styles.commentHint, { color: themeColors.mutedText }]}>まだ返信はありません。</Text>
                 ) : null}
 
                 {rootComments.map((comment) => (
@@ -1463,7 +1383,7 @@ export default function BoardScreen() {
                         </Pressable>
                       </View>
                       <Pressable onPress={() => setReplyToCommentId(comment.id)}>
-                        <Text style={[styles.replyAction, { color: themeColors.accent }]}>Reply</Text>
+                        <Text style={[styles.replyAction, { color: themeColors.accent }]}>返信</Text>
                       </Pressable>
                     </View>
                     <Text style={[styles.commentBodyText, { color: themeColors.mutedText }]}>{comment.body}</Text>
@@ -1494,14 +1414,14 @@ export default function BoardScreen() {
               </ScrollView>
 
               {isGuest ? (
-                <Text style={[styles.commentHint, { color: themeColors.mutedText }]}>Guest users cannot post comments.</Text>
+                <Text style={[styles.commentHint, { color: themeColors.mutedText }]}>返信するにはログインしてください。</Text>
               ) : (
                 <View style={styles.commentComposer}>
                   {replyToCommentId ? (
                     <View style={[styles.replyingBar, { backgroundColor: themeColors.chip, borderColor: themeColors.border }]}>
-                      <Text style={[styles.replyingText, { color: themeColors.chipText }]}>Replying to {replyingTo}</Text>
+                      <Text style={[styles.replyingText, { color: themeColors.chipText }]}>{replyingTo} さんに返信中</Text>
                       <Pressable onPress={() => setReplyToCommentId(null)}>
-                        <Text style={[styles.replyingCancel, { color: themeColors.accent }]}>Cancel</Text>
+                        <Text style={[styles.replyingCancel, { color: themeColors.accent }]}>キャンセル</Text>
                       </Pressable>
                     </View>
                   ) : null}
@@ -1517,14 +1437,14 @@ export default function BoardScreen() {
                     ]}
                     value={commentBody}
                     onChangeText={setCommentBody}
-                    placeholder="Write a comment"
+                    placeholder="返信を入力"
                     placeholderTextColor={themeColors.mutedText}
                     multiline
                   />
                   <Pressable
                     style={[styles.commentSubmitButton, { backgroundColor: themeColors.accent }]}
                     onPress={() => void handleSubmitComment()}>
-                    <Text style={[styles.commentSubmitText, { color: themeColors.accentContrast }]}>Post</Text>
+                    <Text style={[styles.commentSubmitText, { color: themeColors.accentContrast }]}>返信する</Text>
                   </Pressable>
                 </View>
               )}
@@ -1544,16 +1464,16 @@ export default function BoardScreen() {
             behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
             <View style={[styles.chatModalCard, { backgroundColor: themeColors.surface, borderColor: themeColors.border }]}>
               <View style={styles.commentModalHeader}>
-                <Text style={[styles.modalTitle, { color: themeColors.text }]}>Community Chat</Text>
+                <Text style={[styles.modalTitle, { color: themeColors.text }]}>コミュニティチャット</Text>
                 <Pressable onPress={closeChatModal}>
-                  <Text style={[styles.closeText, { color: themeColors.mutedText }]}>Close</Text>
+                  <Text style={[styles.closeText, { color: themeColors.mutedText }]}>閉じる</Text>
                 </Pressable>
               </View>
 
               <ScrollView style={styles.chatList} contentContainerStyle={styles.chatListContent}>
-                {isChatLoading ? <Text style={[styles.commentHint, { color: themeColors.mutedText }]}>Loading chat...</Text> : null}
+                {isChatLoading ? <Text style={[styles.commentHint, { color: themeColors.mutedText }]}>チャットを読み込み中...</Text> : null}
                 {!isChatLoading && chatMessages.length === 0 ? (
-                  <Text style={[styles.commentHint, { color: themeColors.mutedText }]}>No messages yet.</Text>
+                  <Text style={[styles.commentHint, { color: themeColors.mutedText }]}>まだメッセージはありません。</Text>
                 ) : null}
 
                 {chatMessages.map((chatMessage) => {
@@ -1610,13 +1530,13 @@ export default function BoardScreen() {
                   ]}
                   value={chatBody}
                   onChangeText={setChatBody}
-                  placeholder="Write a message"
+                  placeholder="メッセージを入力"
                   placeholderTextColor={themeColors.mutedText}
                 />
                 <Pressable
                   style={[styles.chatSendButton, { backgroundColor: themeColors.accent }]}
                   onPress={() => void handleSendChatMessage()}>
-                  <Text style={[styles.chatSendText, { color: themeColors.accentContrast }]}>Send</Text>
+                  <Text style={[styles.chatSendText, { color: themeColors.accentContrast }]}>送信</Text>
                 </Pressable>
               </View>
 
@@ -1635,9 +1555,9 @@ export default function BoardScreen() {
             behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
             <View style={[styles.profileModalCard, { backgroundColor: themeColors.surface, borderColor: themeColors.border }]}>
               <View style={styles.commentModalHeader}>
-                <Text style={[styles.modalTitle, { color: themeColors.text }]}>Profile</Text>
+                <Text style={[styles.modalTitle, { color: themeColors.text }]}>プロフィール</Text>
                 <Pressable onPress={closeProfileModal}>
-                  <Text style={[styles.closeText, { color: themeColors.mutedText }]}>Close</Text>
+                  <Text style={[styles.closeText, { color: themeColors.mutedText }]}>閉じる</Text>
                 </Pressable>
               </View>
 
@@ -1650,7 +1570,7 @@ export default function BoardScreen() {
                       {profileModal.bio ? <Text style={[styles.profileBio, { color: themeColors.mutedText }]}>{profileModal.bio}</Text> : null}
                       {profileModal.dogName || profileModal.dogBreed ? (
                         <Text style={[styles.profileDogInfo, { color: themeColors.mutedText }]}>
-                          Dog: {profileModal.dogName || '-'} / {profileModal.dogBreed || '-'}
+                          愛犬: {profileModal.dogName || '-'} / {profileModal.dogBreed || '-'}
                         </Text>
                       ) : null}
                     </View>
@@ -1659,11 +1579,11 @@ export default function BoardScreen() {
                   <View style={styles.followCountRow}>
                     <View style={[styles.followCountItem, { borderColor: themeColors.border, backgroundColor: themeColors.background }]}>
                       <Text style={[styles.followCountValue, { color: themeColors.text }]}>{profileModal.followers}</Text>
-                      <Text style={[styles.followCountLabel, { color: themeColors.mutedText }]}>Followers</Text>
+                      <Text style={[styles.followCountLabel, { color: themeColors.mutedText }]}>フォロワー</Text>
                     </View>
                     <View style={[styles.followCountItem, { borderColor: themeColors.border, backgroundColor: themeColors.background }]}>
                       <Text style={[styles.followCountValue, { color: themeColors.text }]}>{profileModal.following}</Text>
-                      <Text style={[styles.followCountLabel, { color: themeColors.mutedText }]}>Following</Text>
+                      <Text style={[styles.followCountLabel, { color: themeColors.mutedText }]}>フォロー中</Text>
                     </View>
                   </View>
 
@@ -1677,18 +1597,18 @@ export default function BoardScreen() {
                       onPress={() => void handleToggleFollow()}
                       disabled={isFollowBusy || profileModal.loading}>
                       <Text style={[styles.followButtonText, { color: themeColors.accentContrast }]}>
-                        {profileModal.isFollowing ? 'Following' : 'Follow'}
+                        {profileModal.isFollowing ? 'フォロー中' : 'フォローする'}
                       </Text>
                     </Pressable>
                   ) : null}
 
                   {profileModal.message ? <Text style={[styles.commentHint, { color: themeColors.mutedText }]}>{profileModal.message}</Text> : null}
 
-                  <Text style={[styles.profilePostsTitle, { color: themeColors.text }]}>Posts</Text>
+                  <Text style={[styles.profilePostsTitle, { color: themeColors.text }]}>投稿</Text>
                   <ScrollView style={styles.profilePostList} contentContainerStyle={styles.profilePostListContent}>
-                    {profileModal.loading ? <Text style={[styles.commentHint, { color: themeColors.mutedText }]}>Loading profile...</Text> : null}
+                    {profileModal.loading ? <Text style={[styles.commentHint, { color: themeColors.mutedText }]}>プロフィールを読み込み中...</Text> : null}
                     {!profileModal.loading && profileModal.posts.length === 0 ? (
-                      <Text style={[styles.commentHint, { color: themeColors.mutedText }]}>No posts yet.</Text>
+                      <Text style={[styles.commentHint, { color: themeColors.mutedText }]}>投稿はまだありません。</Text>
                     ) : null}
 
                     {profileModal.posts.map((post) => (

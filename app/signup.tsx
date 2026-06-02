@@ -50,7 +50,7 @@ function ProviderIcon({ provider, color }: { provider: SocialProvider | 'email' 
 }
 
 function formatSocialAuthError(provider: SocialProvider, error: unknown, localeGroup: string) {
-  const raw = error instanceof Error ? error.message : 'Social login failed.';
+  const raw = error instanceof Error ? error.message : 'SNSログインに失敗しました。';
   const redirect = process.env.EXPO_PUBLIC_OAUTH_REDIRECT_URI ?? `${APP_SCHEME}://auth/callback`;
   if (provider === 'line' && raw.toLowerCase().includes('redirect_uri')) {
     return localeGroup === 'japan'
@@ -90,7 +90,7 @@ export default function SignupScreen() {
   const copy =
     text.localeGroup === 'japan'
       ? {
-          eyebrow: 'Start with Mugimaru',
+          eyebrow: 'Mugimaruを始める',
           title: '犬との毎日を、もっと軽やかに',
           caption: 'おすすめスポット、イベント、コミュニティをあなた向けに整理します。',
           line: 'LINEで続ける',
@@ -114,8 +114,8 @@ export default function SignupScreen() {
           missingCode: '認証コードを入力してください。',
           missingSupabase: 'メール認証にはSupabase設定が必要です。',
           missing: (provider: string) => `${provider}ログインの環境変数が未設定です。`,
-          recommendTitle: 'おすすめ機能',
-          recommendBody: '登録後、近くのイベント・人気の投稿・保存スポットをホームで提案します。',
+          recommendTitle: '利用開始後にできること',
+          recommendBody: '登録後、近くのイベント、人気の投稿、保存したスポットをホームで確認できます。',
         }
       : {
           eyebrow: 'Start with Mugimaru',
@@ -189,7 +189,7 @@ export default function SignupScreen() {
       setStep('code');
       setMessage(copy.sent);
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : 'Failed to send verification code.');
+      setMessage(error instanceof Error ? error.message : '認証コードの送信に失敗しました。');
     } finally {
       setBusy(false);
     }
@@ -217,7 +217,7 @@ export default function SignupScreen() {
       });
       router.replace('/(tabs)');
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : 'Email verification failed.');
+      setMessage(error instanceof Error ? error.message : 'メール認証に失敗しました。');
     } finally {
       setBusy(false);
     }
@@ -258,7 +258,7 @@ export default function SignupScreen() {
       await loginAsGuest();
       router.replace('/(tabs)');
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : 'Failed to start as guest.');
+      setMessage(error instanceof Error ? error.message : 'ゲスト利用の開始に失敗しました。');
     } finally {
       setBusy(false);
     }

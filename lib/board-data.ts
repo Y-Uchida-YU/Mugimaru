@@ -21,6 +21,14 @@ export async function listBoardPosts(limit = 100) {
   );
 }
 
+export async function getBoardPost(postId: string) {
+  const encoded = encodeURIComponent(postId);
+  const rows = await supabaseSelect<BoardPostRow[]>(
+    `board_posts?select=id,author_external_id,author_name,author_avatar_url,category,title,body,image_url,tags,replies_count,created_at,updated_at&id=eq.${encoded}&limit=1`
+  );
+  return rows[0] ?? null;
+}
+
 type CreateBoardPostInput = {
   author_external_id: string;
   author_name: string;

@@ -23,144 +23,144 @@ type EventItem = {
 };
 
 const REGION_FILTERS: { id: EventRegion; label: string }[] = [
-  { id: 'all', label: 'All' },
-  { id: 'hokkaido', label: 'Hokkaido' },
-  { id: 'tohoku', label: 'Tohoku' },
-  { id: 'kanto', label: 'Kanto' },
-  { id: 'chubu', label: 'Chubu' },
-  { id: 'kansai', label: 'Kansai' },
-  { id: 'chugoku-shikoku', label: 'Chugoku/Shikoku' },
-  { id: 'kyushu-okinawa', label: 'Kyushu/Okinawa' },
+  { id: 'all', label: 'すべて' },
+  { id: 'hokkaido', label: '北海道' },
+  { id: 'tohoku', label: '東北' },
+  { id: 'kanto', label: '関東' },
+  { id: 'chubu', label: '中部' },
+  { id: 'kansai', label: '関西' },
+  { id: 'chugoku-shikoku', label: '中国・四国' },
+  { id: 'kyushu-okinawa', label: '九州・沖縄' },
 ];
 
 const TYPE_FILTERS: { id: EventType; label: string; icon: keyof typeof FontAwesome6.glyphMap }[] = [
-  { id: 'all', label: 'All', icon: 'calendar' },
-  { id: 'festival', label: 'Festival', icon: 'party-horn' },
-  { id: 'adoption', label: 'Adoption', icon: 'house' },
-  { id: 'training', label: 'Training', icon: 'graduation-cap' },
-  { id: 'run', label: 'Dog Run', icon: 'dog' },
-  { id: 'market', label: 'Market', icon: 'bag-shopping' },
-  { id: 'charity', label: 'Charity', icon: 'hand-holding-heart' },
+  { id: 'all', label: 'すべて', icon: 'calendar' },
+  { id: 'festival', label: 'フェス', icon: 'party-horn' },
+  { id: 'adoption', label: '譲渡会', icon: 'house' },
+  { id: 'training', label: 'しつけ', icon: 'graduation-cap' },
+  { id: 'run', label: 'ドッグラン', icon: 'dog' },
+  { id: 'market', label: 'マーケット', icon: 'bag-shopping' },
+  { id: 'charity', label: 'チャリティ', icon: 'hand-holding-heart' },
 ];
 
 const EVENT_ITEMS: EventItem[] = [
   {
     id: 'evt-kanto-festival-1',
-    title: 'Tokyo Dog Life Festival 2026',
+    title: '東京ドッグライフフェス 2026',
     region: 'kanto',
     type: 'festival',
     dateISO: '2026-04-19',
-    dateLabel: 'Apr 19, 2026',
-    venue: 'Yoyogi Park, Tokyo',
-    description: 'Food, grooming booths, vet talks, and stage events for dog owners.',
+    dateLabel: '2026年4月19日',
+    venue: '東京都 代々木公園',
+    description: 'フード、グルーミング、獣医師相談、ステージ企画を楽しめる犬向けイベントです。',
     url: 'https://peatix.com/',
     source: 'Peatix',
   },
   {
     id: 'evt-kansai-run-1',
-    title: 'Osaka Night Dog Run Meetup',
+    title: '大阪ナイトドッグラン交流会',
     region: 'kansai',
     type: 'run',
     dateISO: '2026-04-26',
-    dateLabel: 'Apr 26, 2026',
-    venue: 'Expo Commemoration Park, Osaka',
-    description: 'Evening meetup focused on safe social runs and leash etiquette.',
+    dateLabel: '2026年4月26日',
+    venue: '大阪府 万博記念公園',
+    description: '夕方以降に安全な交流とリードマナーを学べる少人数の集まりです。',
     url: 'https://www.eventbrite.com/',
     source: 'Eventbrite',
   },
   {
     id: 'evt-chubu-market-1',
-    title: 'Nagoya Dog Goods Market',
+    title: '名古屋ドッググッズマーケット',
     region: 'chubu',
     type: 'market',
     dateISO: '2026-05-03',
-    dateLabel: 'May 3, 2026',
-    venue: 'Hisaya-odori Park, Nagoya',
-    description: 'Curated vendors for premium dog food, apparel, and accessories.',
+    dateLabel: '2026年5月3日',
+    venue: '愛知県 久屋大通公園',
+    description: 'ドッグフード、ウェア、ケア用品を扱うショップが集まるマーケットです。',
     url: 'https://www.street-academy.com/',
     source: 'Street Academy',
   },
   {
     id: 'evt-kyushu-adoption-1',
-    title: 'Fukuoka Rescue Adoption Day',
+    title: '福岡レスキュー譲渡会',
     region: 'kyushu-okinawa',
     type: 'adoption',
     dateISO: '2026-05-10',
-    dateLabel: 'May 10, 2026',
-    venue: 'Maizuru Park, Fukuoka',
-    description: 'Shelters and foster groups host meetups for adoption and counseling.',
+    dateLabel: '2026年5月10日',
+    venue: '福岡県 舞鶴公園',
+    description: '保護団体と里親希望者が相談できる譲渡会です。',
     url: 'https://www.pet-home.jp/',
     source: 'Pet-home',
   },
   {
     id: 'evt-hokkaido-training-1',
-    title: 'Sapporo Puppy Starter Class',
+    title: '札幌パピースターター教室',
     region: 'hokkaido',
     type: 'training',
     dateISO: '2026-05-17',
-    dateLabel: 'May 17, 2026',
-    venue: 'Sapporo Community Center',
-    description: 'Beginner training class for socialization, recall, and house rules.',
+    dateLabel: '2026年5月17日',
+    venue: '北海道 札幌市コミュニティセンター',
+    description: '社会化、呼び戻し、家庭内ルールを学ぶ初心者向け教室です。',
     url: 'https://www.doorkeeper.jp/',
     source: 'Doorkeeper',
   },
   {
     id: 'evt-tohoku-charity-1',
-    title: 'Sendai Dog Charity Walk',
+    title: '仙台ドッグチャリティウォーク',
     region: 'tohoku',
     type: 'charity',
     dateISO: '2026-05-24',
-    dateLabel: 'May 24, 2026',
-    venue: 'Nishi Park, Sendai',
-    description: 'Charity walk to support regional rescue and treatment funds.',
+    dateLabel: '2026年5月24日',
+    venue: '宮城県 西公園',
+    description: '地域の保護活動と治療費支援につながるチャリティウォークです。',
     url: 'https://moshicom.com/',
     source: 'Moshicom',
   },
   {
     id: 'evt-kanto-training-2',
-    title: 'Yokohama Recall Bootcamp',
+    title: '横浜 呼び戻し実践教室',
     region: 'kanto',
     type: 'training',
     dateISO: '2026-05-31',
-    dateLabel: 'May 31, 2026',
-    venue: 'Yamashita Park, Yokohama',
-    description: 'Practical outdoor recall and distraction control workshop.',
+    dateLabel: '2026年5月31日',
+    venue: '神奈川県 山下公園',
+    description: '屋外での呼び戻しと集中力づくりを実践するワークショップです。',
     url: 'https://www.coubic.com/',
     source: 'Coubic',
   },
   {
     id: 'evt-kansai-festival-2',
-    title: 'Kobe Waterfront Dog Festival',
+    title: '神戸ウォーターフロントドッグフェス',
     region: 'kansai',
     type: 'festival',
     dateISO: '2026-06-07',
-    dateLabel: 'Jun 7, 2026',
-    venue: 'Meriken Park, Kobe',
-    description: 'Photo booths, mini games, and seasonal pet travel information.',
+    dateLabel: '2026年6月7日',
+    venue: '兵庫県 メリケンパーク',
+    description: 'フォトブース、ミニゲーム、季節の犬連れ旅行情報を楽しめます。',
     url: 'https://passmarket.yahoo.co.jp/',
     source: 'PassMarket',
   },
   {
     id: 'evt-chugoku-run-1',
-    title: 'Hiroshima Morning Dog Run',
+    title: '広島モーニングドッグラン',
     region: 'chugoku-shikoku',
     type: 'run',
     dateISO: '2026-06-14',
-    dateLabel: 'Jun 14, 2026',
-    venue: 'Peace Boulevard, Hiroshima',
-    description: 'Small-group run and behavior sharing session by local owners.',
+    dateLabel: '2026年6月14日',
+    venue: '広島県 平和大通り',
+    description: '地域の飼い主同士で走り方や行動の悩みを共有する会です。',
     url: 'https://www.meetup.com/',
     source: 'Meetup',
   },
   {
     id: 'evt-kyushu-market-2',
-    title: 'Okinawa Pet Weekend Market',
+    title: '沖縄ペット週末マーケット',
     region: 'kyushu-okinawa',
     type: 'market',
     dateISO: '2026-06-21',
-    dateLabel: 'Jun 21, 2026',
-    venue: 'Ginowan Seaside Park, Okinawa',
-    description: 'Weekend market for tropical-safe pet products and treats.',
+    dateLabel: '2026年6月21日',
+    venue: '沖縄県 宜野湾海浜公園',
+    description: '暑さ対策グッズやおやつを探せる週末マーケットです。',
     url: 'https://www.instagram.com/',
     source: 'Instagram',
   },
@@ -195,10 +195,10 @@ function daysUntil(dateISO: string) {
 
 function eventTimingLabel(dateISO: string) {
   const diff = daysUntil(dateISO);
-  if (diff < 0) return 'Past';
-  if (diff === 0) return 'Today';
-  if (diff === 1) return 'Tomorrow';
-  return `${diff} days`;
+  if (diff < 0) return '終了';
+  if (diff === 0) return '今日';
+  if (diff === 1) return '明日';
+  return `${diff}日後`;
 }
 
 export default function EventsScreen() {
@@ -249,7 +249,7 @@ export default function EventsScreen() {
       await Linking.openURL(url);
       setMessage('');
     } catch {
-      setMessage('Failed to open external site.');
+      setMessage('外部サイトを開けませんでした。');
     }
   };
 
@@ -259,21 +259,21 @@ export default function EventsScreen() {
         <View style={[styles.heroCard, { backgroundColor: colors.elevated, borderColor: colors.border }]}>
           <View style={styles.heroTopRow}>
             <View style={styles.heroTextWrap}>
-              <Text style={[styles.heroTitle, { color: colors.text }]}>Dog Events</Text>
+              <Text style={[styles.heroTitle, { color: colors.text }]}>犬向けイベント</Text>
               <Text style={[styles.heroCaption, { color: colors.mutedText }]}>
-                Find events by region and type, with recommendations surfaced first.
+                地域や種類でイベントを探せます。気になるイベントは主催サイトで確認してください。
               </Text>
             </View>
             <View style={[styles.heroCountPill, { backgroundColor: colors.surface, borderColor: colors.border }]}>
               <Text style={[styles.heroCountValue, { color: colors.text }]}>{upcomingEvents.length}</Text>
-              <Text style={[styles.heroCountLabel, { color: colors.mutedText }]}>upcoming</Text>
+              <Text style={[styles.heroCountLabel, { color: colors.mutedText }]}>開催予定</Text>
             </View>
           </View>
           {featuredEvent ? (
             <View style={[styles.featuredStrip, { backgroundColor: colors.surface, borderColor: colors.border }]}>
               <FontAwesome6 name="calendar-check" size={14} color={colors.accent} />
               <View style={styles.featuredTextWrap}>
-                <Text style={[styles.featuredLabel, { color: colors.mutedText }]}>Next event</Text>
+                <Text style={[styles.featuredLabel, { color: colors.mutedText }]}>次のイベント</Text>
                 <Text style={[styles.featuredTitle, { color: colors.text }]}>{featuredEvent.title}</Text>
               </View>
               <Text style={[styles.featuredDate, { color: colors.accent }]}>{eventTimingLabel(featuredEvent.dateISO)}</Text>
@@ -284,8 +284,8 @@ export default function EventsScreen() {
         <View style={[styles.recommendCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
           <View style={styles.recommendHeader}>
             <View>
-              <Text style={[styles.recommendEyebrow, { color: colors.accent }]}>Recommended</Text>
-              <Text style={[styles.recommendTitle, { color: colors.text }]}>Best matches this week</Text>
+              <Text style={[styles.recommendEyebrow, { color: colors.accent }]}>注目イベント</Text>
+              <Text style={[styles.recommendTitle, { color: colors.text }]}>今週参加しやすいイベント</Text>
             </View>
             <FontAwesome6 name="star" size={16} color={colors.accent} />
           </View>
@@ -310,12 +310,12 @@ export default function EventsScreen() {
               style={[styles.searchInput, { color: colors.text }]}
               value={query}
               onChangeText={setQuery}
-              placeholder="Search by keyword, venue, or event name"
+              placeholder="キーワード、会場、イベント名で検索"
               placeholderTextColor={colors.mutedText}
             />
           </View>
 
-          <Text style={[styles.sectionLabel, { color: colors.mutedText }]}>Region</Text>
+          <Text style={[styles.sectionLabel, { color: colors.mutedText }]}>地域</Text>
           <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chipRow}>
             {REGION_FILTERS.map((item) => {
               const active = item.id === region;
@@ -330,7 +330,7 @@ export default function EventsScreen() {
             })}
           </ScrollView>
 
-          <Text style={[styles.sectionLabel, { color: colors.mutedText }]}>Type</Text>
+          <Text style={[styles.sectionLabel, { color: colors.mutedText }]}>種類</Text>
           <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chipRow}>
             {TYPE_FILTERS.map((item) => {
               const active = item.id === eventType;
@@ -348,7 +348,7 @@ export default function EventsScreen() {
         </View>
 
         <View style={[styles.portalCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-          <Text style={[styles.portalTitle, { color: colors.text }]}>Event Portals</Text>
+          <Text style={[styles.portalTitle, { color: colors.text }]}>イベント掲載サイト</Text>
           <View style={styles.portalGrid}>
             {PORTAL_LINKS.map((portal) => (
               <Pressable
@@ -365,16 +365,16 @@ export default function EventsScreen() {
         <View style={[styles.listCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
           <View style={styles.listHeader}>
             <View>
-              <Text style={[styles.listTitle, { color: colors.text }]}>Event List</Text>
+              <Text style={[styles.listTitle, { color: colors.text }]}>イベント一覧</Text>
               <Text style={[styles.listSubMeta, { color: colors.mutedText }]}>
-                {upcomingEvents.length} upcoming / {filteredEvents.length} total
+                開催予定 {upcomingEvents.length}件 / 全体 {filteredEvents.length}件
               </Text>
             </View>
-            <Text style={[styles.listMeta, { color: colors.mutedText }]}>{filteredEvents.length} results</Text>
+            <Text style={[styles.listMeta, { color: colors.mutedText }]}>{filteredEvents.length}件</Text>
           </View>
 
           {filteredEvents.length === 0 ? (
-            <Text style={[styles.emptyText, { color: colors.mutedText }]}>No events match your current filter.</Text>
+            <Text style={[styles.emptyText, { color: colors.mutedText }]}>条件に一致するイベントはありません。</Text>
           ) : (
             filteredEvents.map((event) => {
               const past = daysUntil(event.dateISO) < 0;
@@ -405,7 +405,7 @@ export default function EventsScreen() {
                 </View>
                 <Text style={[styles.eventDescription, { color: colors.text }]}>{event.description}</Text>
                 <Pressable style={[styles.linkButton, { backgroundColor: colors.accent }]} onPress={() => void openLink(event.url)}>
-                  <Text style={[styles.linkButtonText, { color: colors.accentContrast }]}>Open External Site</Text>
+                  <Text style={[styles.linkButtonText, { color: colors.accentContrast }]}>主催サイトを開く</Text>
                 </Pressable>
               </View>
             );

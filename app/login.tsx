@@ -52,7 +52,7 @@ export default function LoginScreen() {
           missingId: 'IDまたはメールアドレスを入力してください。',
           missingPassword: 'パスワードを入力してください。',
           appleMissing: 'Appleログインの環境変数が未設定です。',
-          insight: 'おすすめ: 近くのイベントと人気スポットをログイン後に表示します',
+          insight: 'ログインすると、近くのイベントや人気スポットを表示できます。',
         }
       : {
           eyebrow: 'Mugimaru Account',
@@ -97,7 +97,7 @@ export default function LoginScreen() {
       await loginWithPassword(normalizedCredential, normalizedPassword);
       router.replace('/(tabs)');
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : 'Login failed.');
+      setMessage(error instanceof Error ? error.message : 'ログインに失敗しました。');
     } finally {
       setBusy(false);
     }
@@ -117,7 +117,7 @@ export default function LoginScreen() {
       await loginWithSocial('apple', socialProfile);
       router.replace('/(tabs)');
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : 'Apple login failed.');
+      setMessage(error instanceof Error ? error.message : 'Appleログインに失敗しました。');
     } finally {
       setBusy(false);
     }

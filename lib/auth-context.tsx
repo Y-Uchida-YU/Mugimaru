@@ -21,6 +21,8 @@ export type UserProfile = {
   bio: string;
   dogName: string;
   dogBreed: string;
+  prefecture: string;
+  city: string;
   provider: AuthProvider;
 };
 
@@ -35,7 +37,9 @@ type AuthContextValue = {
   loginWithEmail: (email: string, options?: { externalId?: string; name?: string }) => Promise<void>;
   loginWithPassword: (credential: string, password: string) => Promise<void>;
   loginAsGuest: () => Promise<void>;
-  updateProfile: (patch: Pick<UserProfile, 'name' | 'email' | 'avatarUrl' | 'bio' | 'dogName' | 'dogBreed'>) => Promise<void>;
+  updateProfile: (
+    patch: Pick<UserProfile, 'name' | 'email' | 'avatarUrl' | 'bio' | 'dogName' | 'dogBreed' | 'prefecture' | 'city'>
+  ) => Promise<void>;
   logout: () => void;
 };
 
@@ -69,6 +73,8 @@ export function AuthProviderRoot({ children }: PropsWithChildren) {
             bio: typeof parsed.bio === 'string' ? parsed.bio : '',
             dogName: typeof parsed.dogName === 'string' ? parsed.dogName : '',
             dogBreed: typeof parsed.dogBreed === 'string' ? parsed.dogBreed : '',
+            prefecture: typeof parsed.prefecture === 'string' ? parsed.prefecture : '',
+            city: typeof parsed.city === 'string' ? parsed.city : '',
           });
         }
       } catch {
@@ -107,10 +113,10 @@ export function AuthProviderRoot({ children }: PropsWithChildren) {
   const loginWithSocial = useCallback(
     async (provider: 'line' | 'google' | 'apple' | 'x', socialProfile: SocialLoginProfile) => {
       const defaultNameByProvider: Record<'line' | 'google' | 'apple' | 'x', string> = {
-        line: 'LINE User',
-        google: 'Google User',
-        apple: 'Apple User',
-        x: 'X User',
+        line: 'LINEユーザー',
+        google: 'Googleユーザー',
+        apple: 'Appleユーザー',
+        x: 'Xユーザー',
       };
       const nextProfile: UserProfile = {
         externalId: socialProfile.externalId || createLocalExternalId(provider),
@@ -120,6 +126,8 @@ export function AuthProviderRoot({ children }: PropsWithChildren) {
         bio: '',
         dogName: '',
         dogBreed: '',
+        prefecture: '',
+        city: '',
         provider,
       };
 
@@ -144,7 +152,7 @@ export function AuthProviderRoot({ children }: PropsWithChildren) {
   const loginWithEmailVerified = useCallback(
     async (email: string, options?: { externalId?: string; name?: string }) => {
       const normalizedEmail = email.trim().toLowerCase();
-      const fallbackName = normalizedEmail.split('@')[0] || 'User';
+      const fallbackName = normalizedEmail.split('@')[0] || 'ユーザー';
       const nextProfile: UserProfile = {
         externalId: options?.externalId?.trim() || `email:${normalizedEmail}`,
         name: options?.name?.trim() || fallbackName,
@@ -153,6 +161,8 @@ export function AuthProviderRoot({ children }: PropsWithChildren) {
         bio: '',
         dogName: '',
         dogBreed: '',
+        prefecture: '',
+        city: '',
         provider: 'email',
       };
 
@@ -179,13 +189,13 @@ export function AuthProviderRoot({ children }: PropsWithChildren) {
     const normalizedPassword = password.trim();
 
     if (!normalizedCredential) {
-      throw new Error('Login ID is required.');
+        throw new Error('ログインIDを入力してください。');
     }
     if (!normalizedPassword) {
-      throw new Error('Password is required.');
+        throw new Error('パスワードを入力してください。');
     }
     if (!hasSupabaseEnv) {
-      throw new Error('Supabase auth env is missing.');
+        throw new Error('認証設定が未設定です。');
     }
 
     let resolvedEmail = normalizedCredential.toLowerCase();
@@ -193,7 +203,7 @@ export function AuthProviderRoot({ children }: PropsWithChildren) {
       const matchedUser = await getAppUserByExternalId(normalizedCredential);
       const matchedEmail = matchedUser?.email?.trim().toLowerCase();
       if (!matchedEmail) {
-        throw new Error('Login ID was not found. Use your email address.');
+        throw new Error('ログインIDが見つかりません。メールアドレスでお試しください。');
       }
       resolvedEmail = matchedEmail;
     }
@@ -209,6 +219,8 @@ export function AuthProviderRoot({ children }: PropsWithChildren) {
       bio: existingUser?.bio?.trim() || '',
       dogName: existingUser?.dog_name?.trim() || '',
       dogBreed: existingUser?.dog_breed?.trim() || '',
+      prefecture: '',
+      city: '',
       provider: 'email',
     };
 
@@ -229,12 +241,14 @@ export function AuthProviderRoot({ children }: PropsWithChildren) {
   const loginAsGuest = useCallback(async () => {
     const nextProfile: UserProfile = {
       externalId: createLocalExternalId('guest'),
-      name: 'Guest',
+      name: 'ゲスト',
       email: '',
       avatarUrl: '',
       bio: '',
       dogName: '',
       dogBreed: '',
+      prefecture: '',
+      city: '',
       provider: 'guest',
     };
 
@@ -242,7 +256,9 @@ export function AuthProviderRoot({ children }: PropsWithChildren) {
   }, []);
 
   const updateProfile = useCallback(
-    async (patch: Pick<UserProfile, 'name' | 'email' | 'avatarUrl' | 'bio' | 'dogName' | 'dogBreed'>) => {
+    async (
+      patch: Pick<UserProfile, 'name' | 'email' | 'avatarUrl' | 'bio' | 'dogName' | 'dogBreed' | 'prefecture' | 'city'>
+    ) => {
       const current = profile;
       if (!current) return;
 
@@ -251,6 +267,8 @@ export function AuthProviderRoot({ children }: PropsWithChildren) {
       const normalizedBio = patch.bio.trim();
       const normalizedDogName = patch.dogName.trim();
       const normalizedDogBreed = patch.dogBreed.trim();
+      const normalizedPrefecture = patch.prefecture.trim();
+      const normalizedCity = patch.city.trim();
       const nextProfile: UserProfile = {
         ...current,
         name: patch.name,
@@ -259,6 +277,8 @@ export function AuthProviderRoot({ children }: PropsWithChildren) {
         bio: normalizedBio,
         dogName: normalizedDogName,
         dogBreed: normalizedDogBreed,
+        prefecture: normalizedPrefecture,
+        city: normalizedCity,
       };
 
       if (hasSupabaseEnv && current.provider !== 'guest') {

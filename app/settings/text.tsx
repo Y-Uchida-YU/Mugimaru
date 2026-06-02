@@ -42,7 +42,7 @@ export default function TextSettingsScreen() {
                 fontFamily: typography.fontFamily,
               },
             ]}>
-            今日のおすすめ散歩スポット
+            散歩メモのプレビュー
           </Text>
           <Text
             style={[
@@ -53,7 +53,7 @@ export default function TextSettingsScreen() {
                 fontFamily: typography.fontFamily,
               },
             ]}>
-            夕方は風が気持ち良いので、芝生の広場ルートがおすすめです。文字サイズを変更しながら、読みやすさを確認できます。
+            夕方は風が気持ち良いので、芝生の広場ルートを歩く予定です。文字サイズを変更しながら、読みやすさを確認できます。
           </Text>
         </View>
       </SettingsSection>
@@ -76,4 +76,3 @@ const styles = StyleSheet.create({
     fontWeight: '500',
   },
 });
-

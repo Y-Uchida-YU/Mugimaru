@@ -734,7 +734,7 @@ const japanText: AppText = {
     seedPosts: [
       {
         id: '1',
-        title: '今週おすすめのドッグランを教えてください',
+        title: '日陰のあるドッグランを探しています',
         body: '日陰と水場がある清潔な場所を探しています。',
         author: 'mugi_talk',
         category: '雑談',
@@ -753,7 +753,7 @@ const japanText: AppText = {
       {
         id: '3',
         title: '20時以降に診てもらえる動物病院ありますか？',
-        body: '都内中心部でおすすめがあれば教えてください。',
+        body: '都内中心部で利用しやすい場所があれば教えてください。',
         author: 'dev_ayaka',
         category: '質問',
         replies: 9,
@@ -849,7 +849,7 @@ const safeJapanText: AppText = {
     seedPosts: [
       {
         id: '1',
-        title: '今週おすすめのドッグランを教えてください',
+        title: '日陰のあるドッグランを探しています',
         body: '日陰と水場がある、清潔な場所を探しています。',
         author: 'mugi_talk',
         category: '雑談',
@@ -868,7 +868,7 @@ const safeJapanText: AppText = {
       {
         id: '3',
         title: '20時以降に診てもらえる動物病院はありますか？',
-        body: '都内中心部でおすすめがあれば教えてください。',
+        body: '都内中心部で利用しやすい場所があれば教えてください。',
         author: 'dev_ayaka',
         category: '質問',
         replies: 9,
@@ -943,7 +943,7 @@ const texts: Record<LocaleGroup, AppText> = {
 };
 
 const detectedLocale = readSystemLocale();
-const currentLocaleGroup = detectLocaleGroupFromLocale(detectedLocale);
+const currentLocaleGroup: LocaleGroup = 'japan';
 
 export function getAppText() {
   return texts[currentLocaleGroup];
