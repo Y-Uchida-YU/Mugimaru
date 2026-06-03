@@ -1061,7 +1061,6 @@ export default function BoardScreen() {
             />
           }>
           <View style={styles.timelineTopBar}>
-            <Text style={[styles.timelineTopBarTitle, { color: themeColors.text }]}>{timelineCopy.title}</Text>
             <Pressable
               style={[styles.searchIconButton, { borderColor: themeColors.border, backgroundColor: themeColors.surface }]}
               onPress={() => setSearchModalOpen(true)}>
@@ -1697,27 +1696,21 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   content: {
-    paddingHorizontal: 16,
+    paddingHorizontal: 10,
     paddingBottom: 110,
-    paddingTop: 12,
-    gap: 12,
+    paddingTop: 4,
+    gap: 8,
   },
   timelineTopBar: {
-    minHeight: 52,
+    minHeight: 36,
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
-    gap: 12,
-  },
-  timelineTopBarTitle: {
-    fontSize: 26,
-    fontWeight: '800',
-    flex: 1,
+    justifyContent: 'flex-end',
   },
   searchIconButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
+    width: 36,
+    height: 36,
+    borderRadius: 18,
     borderWidth: 1,
     alignItems: 'center',
     justifyContent: 'center',
@@ -1813,7 +1806,7 @@ const styles = StyleSheet.create({
     fontSize: 12,
   },
   timelineFeed: {
-    gap: 10,
+    gap: 8,
   },
   timelineEmptyState: {
     borderRadius: 20,
@@ -1830,11 +1823,11 @@ const styles = StyleSheet.create({
     lineHeight: 19,
   },
   timelinePost: {
-    borderRadius: 22,
+    borderRadius: 16,
     borderWidth: 1,
-    padding: 14,
+    padding: 10,
     flexDirection: 'row',
-    gap: 12,
+    gap: 10,
   },
   timelinePostBodyWrap: {
     flex: 1,

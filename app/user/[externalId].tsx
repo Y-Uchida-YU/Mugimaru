@@ -179,14 +179,26 @@ export default function UserProfileScreen() {
             </View>
           </View>
           {canFollow ? (
-            <Pressable
-              style={[styles.followButton, { backgroundColor: colors.accent }, followBusy ? styles.disabled : null]}
-              onPress={() => void handleToggleFollow()}
-              disabled={followBusy}>
-              <Text style={[styles.followText, { color: colors.accentContrast }]}>
-                {profileView.isFollowing ? 'フォロー中' : 'フォローする'}
-              </Text>
-            </Pressable>
+            <View style={styles.actionRow}>
+              <Pressable
+                style={[styles.followButton, { backgroundColor: colors.accent }, followBusy ? styles.disabled : null]}
+                onPress={() => void handleToggleFollow()}
+                disabled={followBusy}>
+                <Text style={[styles.followText, { color: colors.accentContrast }]}>
+                  {profileView.isFollowing ? 'フォロー中' : 'フォローする'}
+                </Text>
+              </Pressable>
+              <Pressable
+                style={[styles.messageButton, { backgroundColor: colors.background, borderColor: colors.border }]}
+                onPress={() =>
+                  router.push(
+                    `/dm/${encodeURIComponent(profileView.externalId)}?name=${encodeURIComponent(displayTitle)}&avatarUrl=${encodeURIComponent(profileView.avatarUrl)}` as never
+                  )
+                }>
+                <FontAwesome6 name="envelope" size={13} color={colors.text} />
+                <Text style={[styles.messageButtonText, { color: colors.text }]}>DM</Text>
+              </Pressable>
+            </View>
           ) : null}
         </View>
 
@@ -234,6 +246,9 @@ const styles = StyleSheet.create({
   statLabel: { fontSize: 12, fontWeight: '700' },
   followButton: { minHeight: 44, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
   followText: { fontSize: 14, fontWeight: '800' },
+  actionRow: { flexDirection: 'row', gap: 8 },
+  messageButton: { minHeight: 44, borderRadius: 12, borderWidth: 1, paddingHorizontal: 16, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 7 },
+  messageButtonText: { fontSize: 14, fontWeight: '800' },
   disabled: { opacity: 0.6 },
   postsCard: { borderRadius: 18, borderWidth: 1, padding: 14, gap: 10 },
   sectionTitle: { fontSize: 17, fontWeight: '800' },

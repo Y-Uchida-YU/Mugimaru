@@ -11,18 +11,18 @@ import { hasSupabaseEnv } from '@/lib/supabase';
 type FilterType = 'all' | SpotType;
 
 const FILTERS: { id: FilterType; label: string; icon: keyof typeof FontAwesome6.glyphMap }[] = [
-  { id: 'all', label: 'All', icon: 'paw' },
-  { id: 'dogrun', label: 'Dogrun', icon: 'dog' },
-  { id: 'vet', label: 'Vet', icon: 'stethoscope' },
-  { id: 'cafe', label: 'Cafe', icon: 'mug-hot' },
-  { id: 'shop', label: 'Shop', icon: 'bag-shopping' },
+  { id: 'all', label: 'すべて', icon: 'paw' },
+  { id: 'dogrun', label: 'ドッグラン', icon: 'dog' },
+  { id: 'vet', label: '動物病院', icon: 'stethoscope' },
+  { id: 'cafe', label: 'カフェ', icon: 'mug-hot' },
+  { id: 'shop', label: 'ショップ', icon: 'bag-shopping' },
 ];
 
 const TYPE_META: Record<SpotType, { label: string; icon: keyof typeof FontAwesome6.glyphMap; tint: string; tone: string }> = {
-  dogrun: { label: 'Dogrun', icon: 'dog', tint: '#e66b52', tone: '#fff1ea' },
-  vet: { label: 'Vet', icon: 'stethoscope', tint: '#2d89d3', tone: '#edf6ff' },
-  cafe: { label: 'Cafe', icon: 'mug-hot', tint: '#2fa878', tone: '#ebfbf4' },
-  shop: { label: 'Shop', icon: 'bag-shopping', tint: '#9560d4', tone: '#f5efff' },
+  dogrun: { label: 'ドッグラン', icon: 'dog', tint: '#e66b52', tone: '#fff1ea' },
+  vet: { label: '動物病院', icon: 'stethoscope', tint: '#2d89d3', tone: '#edf6ff' },
+  cafe: { label: 'カフェ', icon: 'mug-hot', tint: '#2fa878', tone: '#ebfbf4' },
+  shop: { label: 'ショップ', icon: 'bag-shopping', tint: '#9560d4', tone: '#f5efff' },
 };
 
 function googleUrl(spot: Spot) {
@@ -43,7 +43,7 @@ export default function MapWebScreen() {
     let active = true;
     const load = async () => {
       if (!hasSupabaseEnv) {
-        setMessage('Supabase env is missing. Seed map data is not loaded.');
+        setMessage('Supabase設定が未設定のため、スポットを読み込めません。');
         return;
       }
       try {
@@ -51,10 +51,10 @@ export default function MapWebScreen() {
         const rows = await listSpots();
         if (!active) return;
         setSpots(rows);
-        setMessage(rows.length ? 'Spots loaded.' : 'No spots yet.');
+        setMessage(rows.length ? 'スポットを読み込みました。' : 'スポットはまだありません。');
       } catch (error) {
         if (!active) return;
-        setMessage(error instanceof Error ? error.message : 'Failed to load spots.');
+        setMessage(error instanceof Error ? error.message : 'スポットの読み込みに失敗しました。');
       } finally {
         if (active) setLoading(false);
       }
@@ -82,7 +82,7 @@ export default function MapWebScreen() {
       await Linking.openURL(googleUrl(spot));
       setMessage('');
     } catch {
-      setMessage('Failed to open Google Maps.');
+      setMessage('Googleマップを開けませんでした。');
     }
   };
 
@@ -91,15 +91,15 @@ export default function MapWebScreen() {
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
         <View style={[styles.heroCard, { backgroundColor: colors.elevated, borderColor: colors.border }]}>
           <View style={styles.heroTextWrap}>
-            <Text style={[styles.heroEyebrow, { color: colors.mutedText }]}>Dog Map</Text>
-            <Text style={[styles.heroTitle, { color: colors.text }]}>Nearby Dog Spots</Text>
+            <Text style={[styles.heroEyebrow, { color: colors.mutedText }]}>マップ</Text>
+            <Text style={[styles.heroTitle, { color: colors.text }]}>近くの犬向けスポット</Text>
             <Text style={[styles.heroCaption, { color: colors.mutedText }]}>
-              Browse dog runs, vets, cafes, and shops. Open the exact location in Google Maps when you are ready to go.
+              ドッグラン、動物病院、カフェ、ショップを探せます。気になる場所はGoogleマップで確認できます。
             </Text>
           </View>
           <View style={[styles.heroCountPill, { backgroundColor: colors.surface, borderColor: colors.border }]}>
             <Text style={[styles.heroCountValue, { color: colors.text }]}>{filteredSpots.length}</Text>
-            <Text style={[styles.heroCountLabel, { color: colors.mutedText }]}>visible</Text>
+            <Text style={[styles.heroCountLabel, { color: colors.mutedText }]}>表示中</Text>
           </View>
         </View>
 
@@ -110,7 +110,7 @@ export default function MapWebScreen() {
               style={[styles.searchInput, { color: colors.text }]}
               value={query}
               onChangeText={setQuery}
-              placeholder="Search spots, type, area"
+              placeholder="スポット、種類、エリアで検索"
               placeholderTextColor={colors.mutedText}
             />
           </View>
@@ -145,12 +145,12 @@ export default function MapWebScreen() {
 
         <View style={[styles.listCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
           <View style={styles.listHeader}>
-            <Text style={[styles.listTitle, { color: colors.text }]}>Spot List</Text>
-            <Text style={[styles.listMeta, { color: colors.mutedText }]}>{filteredSpots.length} results</Text>
+            <Text style={[styles.listTitle, { color: colors.text }]}>スポット一覧</Text>
+            <Text style={[styles.listMeta, { color: colors.mutedText }]}>{filteredSpots.length}件</Text>
           </View>
 
           {!filteredSpots.length && !loading ? (
-            <Text style={[styles.emptyText, { color: colors.mutedText }]}>No spot matches your current filter.</Text>
+            <Text style={[styles.emptyText, { color: colors.mutedText }]}>条件に一致するスポットはありません。</Text>
           ) : null}
 
           {filteredSpots.map((spot) => {
@@ -184,7 +184,7 @@ export default function MapWebScreen() {
 
 const styles = StyleSheet.create({
   safeArea: { flex: 1 },
-  content: { paddingHorizontal: 16, paddingTop: 14, paddingBottom: 30, gap: 12 },
+  content: { paddingHorizontal: 16, paddingTop: 8, paddingBottom: 30, gap: 12 },
   heroCard: { borderRadius: 18, borderWidth: 1, padding: 16, flexDirection: 'row', gap: 12, alignItems: 'flex-start' },
   heroTextWrap: { flex: 1, gap: 4 },
   heroEyebrow: { fontSize: 12, fontWeight: '800', textTransform: 'uppercase' },

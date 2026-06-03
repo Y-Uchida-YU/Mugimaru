@@ -145,6 +145,9 @@ export default function MeScreen() {
             <FontAwesome6 name="arrow-left" size={14} color={colors.text} />
           </Pressable>
           <Text style={[styles.headerTitle, { color: colors.text }]}>マイプロフィール</Text>
+          <Pressable style={[styles.editButton, { backgroundColor: colors.surface, borderColor: colors.border }]} onPress={() => router.push('/dm' as never)}>
+            <FontAwesome6 name="envelope" size={13} color={colors.text} />
+          </Pressable>
           <Pressable style={[styles.editButton, { backgroundColor: colors.surface, borderColor: colors.border }]} onPress={() => router.push('/settings/profile' as never)}>
             <FontAwesome6 name="pen" size={13} color={colors.text} />
           </Pressable>
@@ -156,8 +159,9 @@ export default function MeScreen() {
           </View>
           <View style={styles.profileBody}>
             <Avatar uri={profile.avatarUrl} label={label} />
+            <Text style={[styles.ownerName, { color: colors.mutedText }]}>{profile.name}</Text>
             {displayDog ? <Text style={[styles.dogName, { color: colors.text }]}>{displayDog}</Text> : null}
-            {profile.bio ? <Text style={[styles.bio, { color: colors.text }]}>{profile.bio}</Text> : null}
+            <Text style={[styles.bio, { color: colors.text }]}>{profile.bio || '自己紹介はまだありません。'}</Text>
             {profile.prefecture || profile.city ? (
               <Text style={[styles.subText, { color: colors.mutedText }]}>
                 {[profile.prefecture, profile.city].filter(Boolean).join(' ')}
@@ -226,6 +230,7 @@ const styles = StyleSheet.create({
   },
   avatarIcon: { fontSize: 40 },
   avatarInitial: { color: '#6b4f2f', fontSize: 28, fontWeight: '900' },
+  ownerName: { fontSize: 13, fontWeight: '800' },
   dogName: { fontSize: 22, fontWeight: '900' },
   bio: { fontSize: 14, lineHeight: 21 },
   subText: { fontSize: 12, fontWeight: '700' },

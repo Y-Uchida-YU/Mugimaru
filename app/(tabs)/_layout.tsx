@@ -35,17 +35,25 @@ export default function TabLayout() {
         },
         headerShown: true,
         headerTitle: '',
+        headerTitleAlign: 'left',
         headerShadowVisible: false,
         headerStyle: {
           backgroundColor: activeTheme.colors.background,
         },
-        headerLeft: () => <SelfAvatarButton />,
+        headerTitleStyle: {
+          color: activeTheme.colors.text,
+          fontFamily: typography.fontFamily,
+          fontSize: 20 * typography.scale,
+          fontWeight: '900',
+        },
         tabBarButton: HapticTab,
       }}>
       <Tabs.Screen
         name="index"
         options={{
           title: isJapan ? 'ホーム' : 'Home',
+          headerLeft: () => <SelfAvatarButton />,
+          headerTitle: isJapan ? 'タイムライン' : 'Timeline',
           tabBarIcon: ({ color }) => <IconSymbol size={28} name="text.bubble.fill" color={color} />,
         }}
       />
@@ -53,6 +61,8 @@ export default function TabLayout() {
         name="map"
         options={{
           title: isJapan ? 'マップ' : 'Map',
+          headerLeft: () => <SelfAvatarButton />,
+          headerTitle: '',
           tabBarIcon: ({ color }) => <IconSymbol size={28} name="map.fill" color={color} />,
         }}
       />
@@ -60,6 +70,8 @@ export default function TabLayout() {
         name="events"
         options={{
           title: isJapan ? 'イベント' : 'Events',
+          headerLeft: () => <SelfAvatarButton />,
+          headerTitle: isJapan ? 'イベント' : 'Events',
           tabBarIcon: ({ color }) => <IconSymbol size={28} name="calendar" color={color} />,
         }}
       />
@@ -67,6 +79,7 @@ export default function TabLayout() {
         name="settings"
         options={{
           title: isJapan ? '設定' : 'Settings',
+          headerShown: false,
           tabBarIcon: ({ color }) => <IconSymbol size={28} name="gearshape.fill" color={color} />,
         }}
       />

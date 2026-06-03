@@ -259,7 +259,6 @@ export default function EventsScreen() {
         <View style={[styles.heroCard, { backgroundColor: colors.elevated, borderColor: colors.border }]}>
           <View style={styles.heroTopRow}>
             <View style={styles.heroTextWrap}>
-              <Text style={[styles.heroTitle, { color: colors.text }]}>犬向けイベント</Text>
               <Text style={[styles.heroCaption, { color: colors.mutedText }]}>
                 地域や種類でイベントを探せます。気になるイベントは主催サイトで確認してください。
               </Text>
@@ -421,7 +420,7 @@ export default function EventsScreen() {
 
 const styles = StyleSheet.create({
   safeArea: { flex: 1 },
-  content: { paddingHorizontal: 16, paddingTop: 14, paddingBottom: 30, gap: 12 },
+  content: { paddingHorizontal: 16, paddingTop: 8, paddingBottom: 30, gap: 12 },
   heroCard: { borderRadius: 18, borderWidth: 1, paddingHorizontal: 16, paddingVertical: 14, gap: 12 },
   heroTopRow: { flexDirection: 'row', gap: 12, alignItems: 'flex-start' },
   heroTextWrap: { flex: 1, gap: 4 },

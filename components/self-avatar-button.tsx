@@ -39,27 +39,27 @@ export function SelfAvatarButton() {
 
 const styles = StyleSheet.create({
   button: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    marginLeft: 16,
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    marginLeft: 12,
     overflow: 'hidden',
   },
   image: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
+    width: 36,
+    height: 36,
+    borderRadius: 18,
   },
   fallback: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
+    width: 36,
+    height: 36,
+    borderRadius: 18,
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: '#eadfce',
   },
   iconGlyph: {
-    fontSize: 22,
+    fontSize: 20,
   },
   initial: {
     color: '#6b4f2f',
