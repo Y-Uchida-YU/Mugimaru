@@ -76,6 +76,23 @@ jobs:
             exit 1
           fi
 
+      - name: Connect EAS project to App Store Connect
+        env:
+          ASC_APP_ID: ${{ secrets.ASC_APP_ID }}
+          ASC_API_KEY_ID: ${{ secrets.ASC_API_KEY_ID }}
+        run: |
+          set -euo pipefail
+          if [ -z "${ASC_APP_ID:-}" ]; then
+            echo "::error::Missing required secret: ASC_APP_ID"
+            exit 1
+          fi
+          eas integrations:asc:connect \
+            --api-key-id "$ASC_API_KEY_ID" \
+            --asc-app-id "$ASC_APP_ID" \
+            --bundle-id "com.yutauchida.mugimaru" \
+            --non-interactive
+          eas integrations:asc:status --non-interactive
+
       - name: Inject App Store Connect settings into submit profile
         env:
           ASC_APP_ID: ${{ secrets.ASC_APP_ID }}
