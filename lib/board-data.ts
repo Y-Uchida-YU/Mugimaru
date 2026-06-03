@@ -52,6 +52,12 @@ export async function listBoardPostsByAuthor(authorExternalId: string, limit = 1
   );
 }
 
+export async function deleteBoardPost(postId: string, authorExternalId: string) {
+  const encodedPost = encodeURIComponent(postId);
+  const encodedAuthor = encodeURIComponent(authorExternalId);
+  await supabaseDelete<BoardPostRow[]>(`board_posts?id=eq.${encodedPost}&author_external_id=eq.${encodedAuthor}`);
+}
+
 export async function updateBoardPostRepliesCount(postId: string, repliesCount: number) {
   const rows = await supabasePatch<BoardPostRow[]>(
     `board_posts?id=eq.${postId}`,

@@ -55,7 +55,7 @@ export default function SettingsScreen() {
         personal: '個人設定',
         personalSub: '通知、メール、利用環境の設定',
         profile: 'プロフィール',
-        profileSub: '掲示板に表示する名前、自己紹介、愛犬情報',
+        profileSub: 'アイコン、ヘッダー、愛犬情報、自己紹介',
         theme: 'テーマカラー',
         themeSub: 'アプリ全体の色味を変更',
         textSize: '文字サイズ',
@@ -113,7 +113,7 @@ export default function SettingsScreen() {
               <FontAwesome6 name="paw" size={22} color={colors.accent} />
             </View>
             <View style={styles.profileMeta}>
-              <Text style={[styles.profileName, { color: colors.text }]}>{profile?.name ?? 'ゲスト'}</Text>
+              <Text style={[styles.profileName, { color: colors.text }]}>{profile?.dogName || profile?.name || 'ゲスト'}</Text>
               <Text style={[styles.profileEmail, { color: colors.mutedText }]}>
                 {profile?.email?.trim() ? profile.email : copy.guestMail}
               </Text>

@@ -38,6 +38,7 @@ import { useAppTheme } from '@/lib/app-theme-context';
 import { getAppText } from '@/lib/i18n';
 import { pickImageFromLibrary } from '@/lib/mobile-image-picker';
 import { getAvatarIconGlyph, parseAvatarValue } from '@/lib/profile-avatar';
+import { listSavedPosts, removeSavedPost, savePost } from '@/lib/saved-posts';
 import { hasSupabaseEnv } from '@/lib/supabase';
 import {
   followUser,
@@ -403,6 +404,7 @@ export default function BoardScreen() {
   const [message, setMessage] = useState('');
   const [likesCountByPost, setLikesCountByPost] = useState<Record<string, number>>({});
   const [likedByPost, setLikedByPost] = useState<Record<string, boolean>>({});
+  const [savedByPost, setSavedByPost] = useState<Record<string, boolean>>({});
   const [stampCountsByPost, setStampCountsByPost] = useState<Record<string, StampBucket>>({});
   const [myStampsByPost, setMyStampsByPost] = useState<Record<string, StampKey[]>>({});
   const [isSearchModalOpen, setSearchModalOpen] = useState(false);
@@ -455,6 +457,12 @@ export default function BoardScreen() {
         postsRef.current = localPosts;
         setLikesCountByPost(localLikes);
         setLikedByPost({});
+        if (profile?.externalId) {
+          const savedRecords = await listSavedPosts(profile.externalId);
+          setSavedByPost(Object.fromEntries(savedRecords.map((record) => [record.post.id, true])));
+        } else {
+          setSavedByPost({});
+        }
         setStampCountsByPost(localStampCounts);
         setMyStampsByPost({});
         setMessage(mode === 'refresh' ? timelineCopy.localRefresh : timelineCopy.syncedLocal);
@@ -486,6 +494,12 @@ export default function BoardScreen() {
           const engagement = computeEngagement(loadedPosts, likesRows, stampRows, profile?.externalId);
           setLikesCountByPost(engagement.likesCountByPost);
           setLikedByPost(engagement.likedByPost);
+          if (profile?.externalId) {
+            const savedRecords = await listSavedPosts(profile.externalId);
+            setSavedByPost(Object.fromEntries(savedRecords.map((record) => [record.post.id, true])));
+          } else {
+            setSavedByPost({});
+          }
           setStampCountsByPost(engagement.stampCountsByPost);
           setMyStampsByPost(engagement.myStampsByPost);
         } else {
@@ -515,6 +529,12 @@ export default function BoardScreen() {
           postsRef.current = localPosts;
           setLikesCountByPost(localLikes);
           setLikedByPost({});
+          if (profile?.externalId) {
+            const savedRecords = await listSavedPosts(profile.externalId);
+            setSavedByPost(Object.fromEntries(savedRecords.map((record) => [record.post.id, true])));
+          } else {
+            setSavedByPost({});
+          }
           setStampCountsByPost(localStampCounts);
           setMyStampsByPost({});
         }
@@ -697,7 +717,7 @@ export default function BoardScreen() {
       return;
     }
 
-    const authorName = profile?.name?.trim() || text.board.anonymous;
+    const authorName = profile?.dogName?.trim() || profile?.name?.trim() || text.board.anonymous;
     const authorAvatarUrl = profile?.avatarUrl?.trim() || '';
     const authorExternalId = profile?.externalId ?? makeLocalId('user');
     const tags = parseTags(tagsInput);
@@ -783,7 +803,7 @@ export default function BoardScreen() {
     }
 
     const parentId = replyToCommentId;
-    const authorName = profile?.name?.trim() || text.board.anonymous;
+    const authorName = profile?.dogName?.trim() || profile?.name?.trim() || text.board.anonymous;
     const authorAvatarUrl = profile?.avatarUrl?.trim() || '';
     const authorExternalId = profile?.externalId ?? makeLocalId('user');
     const currentReplies = posts.find((post) => post.id === selectedPost.id)?.replies ?? 0;
@@ -880,6 +900,25 @@ export default function BoardScreen() {
     }
   };
 
+  const handleToggleSave = async (post: BoardPost) => {
+    if (!profile || isGuest) {
+      setMessage('保存するにはログインが必要です。');
+      return;
+    }
+    const currentlySaved = Boolean(savedByPost[post.id]);
+    try {
+      if (currentlySaved) {
+        await removeSavedPost(profile.externalId, post.id);
+      } else {
+        await savePost(profile.externalId, post);
+      }
+      setSavedByPost((prev) => ({ ...prev, [post.id]: !currentlySaved }));
+      setMessage(currentlySaved ? '保存を解除しました。' : '投稿を保存しました。');
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : '保存状態の更新に失敗しました。');
+    }
+  };
+
   const handleToggleStamp = async (postId: string, stamp: StampKey) => {
     if (!profile || isGuest) {
       setMessage('リアクションするにはログインしてください。');
@@ -958,7 +997,7 @@ export default function BoardScreen() {
     const payload: BoardChatMessage = {
       id: makeLocalId('chat'),
       authorExternalId: profile.externalId,
-      author: profile.name || text.board.anonymous,
+      author: profile.dogName || profile.name || text.board.anonymous,
       authorAvatarUrl: profile.avatarUrl || '',
       body: trimmedBody,
       sticker: chatSticker ?? '',
@@ -1131,6 +1170,20 @@ export default function BoardScreen() {
                         );
                       })}
                     </View>
+                    <Pressable style={styles.timelineActionButton} onPress={() => void handleToggleSave(post)}>
+                      <FontAwesome6
+                        name="bookmark"
+                        size={14}
+                        color={savedByPost[post.id] ? themeColors.accent : themeColors.mutedText}
+                      />
+                      <Text
+                        style={[
+                          styles.timelineActionText,
+                          { color: savedByPost[post.id] ? themeColors.accent : themeColors.mutedText },
+                        ]}>
+                        保存
+                      </Text>
+                    </Pressable>
                   </View>
                 </View>
               </Pressable>
@@ -1214,7 +1267,7 @@ export default function BoardScreen() {
             behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
             <View style={[styles.modalCard, { backgroundColor: themeColors.surface, borderColor: themeColors.border }]}>
               <Text style={[styles.modalTitle, { color: themeColors.text }]}>{text.board.composerTitle}</Text>
-              <Text style={[styles.metaText, { color: themeColors.mutedText }]}>投稿者: {profile?.name || text.board.anonymous}</Text>
+              <Text style={[styles.metaText, { color: themeColors.mutedText }]}>投稿者: {profile?.dogName || profile?.name || text.board.anonymous}</Text>
 
               <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.modalChips}>
                 {categories.map((category) => {

@@ -75,6 +75,7 @@ export default function PersonalSettingsScreen() {
         name: profile.name,
         email: trimmedEmail,
         avatarUrl: profile.avatarUrl,
+        headerUrl: profile.headerUrl,
         bio: profile.bio,
         dogName: profile.dogName,
         dogBreed: profile.dogBreed,

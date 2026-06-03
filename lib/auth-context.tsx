@@ -18,6 +18,7 @@ export type UserProfile = {
   name: string;
   email: string;
   avatarUrl: string;
+  headerUrl: string;
   bio: string;
   dogName: string;
   dogBreed: string;
@@ -38,7 +39,7 @@ type AuthContextValue = {
   loginWithPassword: (credential: string, password: string) => Promise<void>;
   loginAsGuest: () => Promise<void>;
   updateProfile: (
-    patch: Pick<UserProfile, 'name' | 'email' | 'avatarUrl' | 'bio' | 'dogName' | 'dogBreed' | 'prefecture' | 'city'>
+    patch: Pick<UserProfile, 'name' | 'email' | 'avatarUrl' | 'headerUrl' | 'bio' | 'dogName' | 'dogBreed' | 'prefecture' | 'city'>
   ) => Promise<void>;
   logout: () => void;
 };
@@ -70,6 +71,7 @@ export function AuthProviderRoot({ children }: PropsWithChildren) {
                 ? parsed.externalId
                 : createLocalExternalId(parsed.provider ?? 'email'),
             avatarUrl: typeof parsed.avatarUrl === 'string' ? parsed.avatarUrl : '',
+            headerUrl: typeof parsed.headerUrl === 'string' ? parsed.headerUrl : '',
             bio: typeof parsed.bio === 'string' ? parsed.bio : '',
             dogName: typeof parsed.dogName === 'string' ? parsed.dogName : '',
             dogBreed: typeof parsed.dogBreed === 'string' ? parsed.dogBreed : '',
@@ -123,6 +125,7 @@ export function AuthProviderRoot({ children }: PropsWithChildren) {
         name: socialProfile.name || defaultNameByProvider[provider],
         email: socialProfile.email?.trim().toLowerCase() ?? '',
         avatarUrl: socialProfile.avatarUrl?.trim() ?? '',
+        headerUrl: '',
         bio: '',
         dogName: '',
         dogBreed: '',
@@ -158,6 +161,7 @@ export function AuthProviderRoot({ children }: PropsWithChildren) {
         name: options?.name?.trim() || fallbackName,
         email: normalizedEmail,
         avatarUrl: '',
+        headerUrl: '',
         bio: '',
         dogName: '',
         dogBreed: '',
@@ -216,6 +220,7 @@ export function AuthProviderRoot({ children }: PropsWithChildren) {
       name: existingUser?.name?.trim() || signedIn.name,
       email: signedIn.email,
       avatarUrl: existingUser?.avatar_url?.trim() || signedIn.avatarUrl || '',
+      headerUrl: '',
       bio: existingUser?.bio?.trim() || '',
       dogName: existingUser?.dog_name?.trim() || '',
       dogBreed: existingUser?.dog_breed?.trim() || '',
@@ -244,6 +249,7 @@ export function AuthProviderRoot({ children }: PropsWithChildren) {
       name: 'ゲスト',
       email: '',
       avatarUrl: '',
+      headerUrl: '',
       bio: '',
       dogName: '',
       dogBreed: '',
@@ -257,13 +263,14 @@ export function AuthProviderRoot({ children }: PropsWithChildren) {
 
   const updateProfile = useCallback(
     async (
-      patch: Pick<UserProfile, 'name' | 'email' | 'avatarUrl' | 'bio' | 'dogName' | 'dogBreed' | 'prefecture' | 'city'>
+      patch: Pick<UserProfile, 'name' | 'email' | 'avatarUrl' | 'headerUrl' | 'bio' | 'dogName' | 'dogBreed' | 'prefecture' | 'city'>
     ) => {
       const current = profile;
       if (!current) return;
 
       const normalizedEmail = patch.email.trim().toLowerCase();
       const normalizedAvatarUrl = patch.avatarUrl.trim();
+      const normalizedHeaderUrl = patch.headerUrl.trim();
       const normalizedBio = patch.bio.trim();
       const normalizedDogName = patch.dogName.trim();
       const normalizedDogBreed = patch.dogBreed.trim();
@@ -274,6 +281,7 @@ export function AuthProviderRoot({ children }: PropsWithChildren) {
         name: patch.name,
         email: normalizedEmail,
         avatarUrl: normalizedAvatarUrl,
+        headerUrl: normalizedHeaderUrl,
         bio: normalizedBio,
         dogName: normalizedDogName,
         dogBreed: normalizedDogBreed,

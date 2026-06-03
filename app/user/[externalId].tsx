@@ -73,6 +73,8 @@ export default function UserProfileScreen() {
   const [message, setMessage] = useState('');
 
   const canFollow = Boolean(profile && profile.provider !== 'guest' && profile.externalId !== externalId);
+  const displayTitle = profileView.dogName || profileView.name;
+  const dogInfo = [profileView.dogName, profileView.dogBreed].filter(Boolean).join(' / ');
 
   const loadProfile = useCallback(async () => {
     setLoading(true);
@@ -160,16 +162,12 @@ export default function UserProfileScreen() {
           <View style={styles.profileTop}>
             <Avatar uri={profileView.avatarUrl} label={profileView.name} />
             <View style={styles.profileText}>
-              <Text style={[styles.name, { color: colors.text }]}>{profileView.name}</Text>
+              <Text style={[styles.name, { color: colors.text }]}>{displayTitle}</Text>
               <Text style={[styles.subText, { color: colors.mutedText }]}>@{profileView.externalId}</Text>
             </View>
           </View>
+          {dogInfo ? <Text style={[styles.subText, { color: colors.mutedText }]}>愛犬: {dogInfo}</Text> : null}
           {profileView.bio ? <Text style={[styles.bio, { color: colors.text }]}>{profileView.bio}</Text> : null}
-          {profileView.dogName || profileView.dogBreed ? (
-            <Text style={[styles.subText, { color: colors.mutedText }]}>
-              愛犬: {profileView.dogName || '-'} / {profileView.dogBreed || '-'}
-            </Text>
-          ) : null}
           <View style={styles.statsRow}>
             <View style={[styles.statBox, { backgroundColor: colors.background, borderColor: colors.border }]}>
               <Text style={[styles.statValue, { color: colors.text }]}>{profileView.followers}</Text>

@@ -119,6 +119,18 @@ function AvatarPreview({ avatarValue, fallbackLetter }: { avatarValue: string; f
   );
 }
 
+function HeaderPreview({ headerValue }: { headerValue: string }) {
+  const trimmed = headerValue.trim();
+  if (trimmed) {
+    return <Image source={{ uri: trimmed }} style={styles.headerImage} />;
+  }
+  return (
+    <View style={styles.headerFallback}>
+      <Text style={styles.headerFallbackText}>Mugimaru</Text>
+    </View>
+  );
+}
+
 export default function ProfileSettingsScreen() {
   const router = useRouter();
   const { profile, updateProfile } = useAuth();
@@ -127,14 +139,15 @@ export default function ProfileSettingsScreen() {
   const fontFamily = typography.fontFamily;
   const scale = typography.scale;
 
-  const [name, setName] = useState(profile?.name ?? '');
   const [bio, setBio] = useState(profile?.bio ?? '');
   const [dogName, setDogName] = useState(profile?.dogName ?? '');
   const [dogBreed, setDogBreed] = useState(profile?.dogBreed ?? '');
   const [prefecture, setPrefecture] = useState(profile?.prefecture ?? '');
   const [city, setCity] = useState(profile?.city ?? '');
   const [avatarValue, setAvatarValue] = useState(profile?.avatarUrl ?? '');
+  const [headerValue, setHeaderValue] = useState(profile?.headerUrl ?? '');
   const [isActionModalOpen, setActionModalOpen] = useState(false);
+  const [isHeaderModalOpen, setHeaderModalOpen] = useState(false);
   const [isIconModalOpen, setIconModalOpen] = useState(false);
   const [isPrefectureModalOpen, setPrefectureModalOpen] = useState(false);
   const [isCityModalOpen, setCityModalOpen] = useState(false);
@@ -146,18 +159,18 @@ export default function ProfileSettingsScreen() {
     [prefecture]
   );
   const previewLetter = useMemo(
-    () => (name.trim().charAt(0) || profile?.name?.trim().charAt(0) || '?').toUpperCase(),
-    [name, profile?.name]
+    () => (dogName.trim().charAt(0) || profile?.name?.trim().charAt(0) || '?').toUpperCase(),
+    [dogName, profile?.name]
   );
 
   useEffect(() => {
-    setName(profile?.name ?? '');
     setBio(profile?.bio ?? '');
     setDogName(profile?.dogName ?? '');
     setDogBreed(profile?.dogBreed ?? '');
     setPrefecture(profile?.prefecture ?? '');
     setCity(profile?.city ?? '');
     setAvatarValue(profile?.avatarUrl ?? '');
+    setHeaderValue(profile?.headerUrl ?? '');
   }, [profile]);
 
   const handleUploadPhoto = async () => {
@@ -171,20 +184,28 @@ export default function ProfileSettingsScreen() {
     }
   };
 
+  const handleUploadHeader = async () => {
+    try {
+      const picked = await pickImageFromLibrary();
+      if (!picked) return;
+      setHeaderValue(picked.dataUrl);
+      setMessage('ヘッダーを選択しました。保存するとプロフィールに反映されます。');
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : 'ヘッダーの選択に失敗しました。');
+    }
+  };
+
   const handleSave = async () => {
     if (!profile) return;
-    const trimmedName = name.trim();
-    if (!trimmedName) {
-      setMessage('表示名を入力してください。');
-      return;
-    }
+    const nextName = dogName.trim() || profile.name || 'ユーザー';
 
     try {
       setSaving(true);
       await updateProfile({
-        name: trimmedName,
+        name: nextName,
         email: profile.email,
         avatarUrl: avatarValue.trim(),
+        headerUrl: headerValue.trim(),
         bio: bio.trim(),
         dogName: dogName.trim(),
         dogBreed: dogBreed.trim(),
@@ -213,68 +234,22 @@ export default function ProfileSettingsScreen() {
       typography={typography}
       onBack={() => router.back()}
     >
-      <SettingsSection theme={activeTheme} typography={typography} title="アイコン">
+      <SettingsSection theme={activeTheme} typography={typography} title="画像">
+        <Pressable
+          style={[styles.headerTapArea, { borderColor: colors.border, backgroundColor: colors.background }]}
+          onPress={() => setHeaderModalOpen(true)}>
+          <HeaderPreview headerValue={headerValue} />
+        </Pressable>
         <View style={styles.avatarRow}>
           <Pressable
             style={[styles.avatarTapArea, { borderColor: colors.border, backgroundColor: colors.background }]}
             onPress={() => setActionModalOpen(true)}>
             <AvatarPreview avatarValue={avatarValue} fallbackLetter={previewLetter} />
           </Pressable>
-          <View style={styles.avatarHintWrap}>
-            <Text style={[styles.avatarHintTitle, { color: colors.text, fontFamily, fontSize: 14 * scale }]}>
-              アイコンを変更
-            </Text>
-            <Text style={[styles.avatarHintBody, { color: colors.mutedText, fontFamily, fontSize: 12 * scale }]}>
-              用意されたアイコンを選ぶか、写真をアップロードできます。
-            </Text>
-          </View>
         </View>
       </SettingsSection>
 
       <SettingsSection theme={activeTheme} typography={typography} title="公開プロフィール">
-        <View style={styles.fieldWrap}>
-          <Text style={[styles.label, { color: colors.mutedText, fontFamily, fontSize: 12 * scale }]}>表示名</Text>
-          <TextInput
-            style={[
-              styles.input,
-              {
-                borderColor: colors.border,
-                backgroundColor: colors.background,
-                color: colors.text,
-                fontFamily,
-                fontSize: 15 * scale,
-              },
-            ]}
-            value={name}
-            onChangeText={setName}
-            placeholder="表示名を入力"
-            placeholderTextColor={colors.mutedText}
-          />
-        </View>
-
-        <View style={styles.fieldWrap}>
-          <Text style={[styles.label, { color: colors.mutedText, fontFamily, fontSize: 12 * scale }]}>自己紹介</Text>
-          <TextInput
-            style={[
-              styles.input,
-              styles.textArea,
-              {
-                borderColor: colors.border,
-                backgroundColor: colors.background,
-                color: colors.text,
-                fontFamily,
-                fontSize: 14 * scale,
-              },
-            ]}
-            value={bio}
-            onChangeText={setBio}
-            placeholder="飼い主さんや愛犬のことを入力"
-            placeholderTextColor={colors.mutedText}
-            multiline
-            textAlignVertical="top"
-          />
-        </View>
-
         <View style={styles.inlineFields}>
           <View style={styles.inlineField}>
             <Text style={[styles.label, { color: colors.mutedText, fontFamily, fontSize: 12 * scale }]}>愛犬の名前</Text>
@@ -314,6 +289,29 @@ export default function ProfileSettingsScreen() {
               placeholderTextColor={colors.mutedText}
             />
           </View>
+        </View>
+
+        <View style={styles.fieldWrap}>
+          <Text style={[styles.label, { color: colors.mutedText, fontFamily, fontSize: 12 * scale }]}>自己紹介</Text>
+          <TextInput
+            style={[
+              styles.input,
+              styles.textArea,
+              {
+                borderColor: colors.border,
+                backgroundColor: colors.background,
+                color: colors.text,
+                fontFamily,
+                fontSize: 14 * scale,
+              },
+            ]}
+            value={bio}
+            onChangeText={setBio}
+            placeholder="飼い主さんや愛犬のことを入力"
+            placeholderTextColor={colors.mutedText}
+            multiline
+            textAlignVertical="top"
+          />
         </View>
       </SettingsSection>
 
@@ -383,7 +381,7 @@ export default function ProfileSettingsScreen() {
       <Modal visible={isActionModalOpen} transparent animationType="fade" onRequestClose={() => setActionModalOpen(false)}>
         <View style={styles.modalOverlay}>
           <View style={[styles.modalCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-            <Text style={[styles.modalTitle, { color: colors.text, fontFamily }]}>プロフィール画像を変更</Text>
+            <Text style={[styles.modalTitle, { color: colors.text, fontFamily }]}>アイコン</Text>
             <Pressable
               style={[styles.modalAction, { borderColor: colors.border, backgroundColor: colors.background }]}
               onPress={() => {
@@ -409,6 +407,33 @@ export default function ProfileSettingsScreen() {
               <Text style={[styles.modalActionText, { color: colors.text, fontFamily }]}>現在の画像を削除</Text>
             </Pressable>
             <Pressable style={styles.modalCancel} onPress={() => setActionModalOpen(false)}>
+              <Text style={[styles.modalCancelText, { color: colors.mutedText, fontFamily }]}>キャンセル</Text>
+            </Pressable>
+          </View>
+        </View>
+      </Modal>
+
+      <Modal visible={isHeaderModalOpen} transparent animationType="fade" onRequestClose={() => setHeaderModalOpen(false)}>
+        <View style={styles.modalOverlay}>
+          <View style={[styles.modalCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+            <Text style={[styles.modalTitle, { color: colors.text, fontFamily }]}>ヘッダー</Text>
+            <Pressable
+              style={[styles.modalAction, { borderColor: colors.border, backgroundColor: colors.background }]}
+              onPress={() => {
+                setHeaderModalOpen(false);
+                void handleUploadHeader();
+              }}>
+              <Text style={[styles.modalActionText, { color: colors.text, fontFamily }]}>写真をアップロード</Text>
+            </Pressable>
+            <Pressable
+              style={[styles.modalAction, { borderColor: colors.border, backgroundColor: colors.background }]}
+              onPress={() => {
+                setHeaderValue('');
+                setHeaderModalOpen(false);
+              }}>
+              <Text style={[styles.modalActionText, { color: colors.text, fontFamily }]}>現在の画像を削除</Text>
+            </Pressable>
+            <Pressable style={styles.modalCancel} onPress={() => setHeaderModalOpen(false)}>
               <Text style={[styles.modalCancelText, { color: colors.mutedText, fontFamily }]}>キャンセル</Text>
             </Pressable>
           </View>
@@ -539,6 +564,28 @@ const styles = StyleSheet.create({
     fontSize: 30,
     fontWeight: '800',
     color: '#253048',
+  },
+  headerTapArea: {
+    width: '100%',
+    height: 128,
+    borderRadius: 18,
+    borderWidth: 1,
+    overflow: 'hidden',
+  },
+  headerImage: {
+    width: '100%',
+    height: '100%',
+  },
+  headerFallback: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#d8c7ad',
+  },
+  headerFallbackText: {
+    color: '#6b4f2f',
+    fontSize: 18,
+    fontWeight: '900',
   },
   avatarHintWrap: {
     flex: 1,

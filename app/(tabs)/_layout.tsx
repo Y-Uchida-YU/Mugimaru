@@ -2,6 +2,7 @@ import { Redirect, Tabs } from 'expo-router';
 import React from 'react';
 
 import { HapticTab } from '@/components/haptic-tab';
+import { SelfAvatarButton } from '@/components/self-avatar-button';
 import { IconSymbol } from '@/components/ui/icon-symbol';
 import { useAuth } from '@/lib/auth-context';
 import { useAppTheme } from '@/lib/app-theme-context';
@@ -32,7 +33,13 @@ export default function TabLayout() {
           fontSize: 12 * typography.scale,
           fontWeight: '700',
         },
-        headerShown: false,
+        headerShown: true,
+        headerTitle: '',
+        headerShadowVisible: false,
+        headerStyle: {
+          backgroundColor: activeTheme.colors.background,
+        },
+        headerLeft: () => <SelfAvatarButton />,
         tabBarButton: HapticTab,
       }}>
       <Tabs.Screen

@@ -27,6 +27,7 @@ import {
 import { useAppTheme } from '@/lib/app-theme-context';
 import { getAppText } from '@/lib/i18n';
 import { getAvatarIconGlyph, parseAvatarValue } from '@/lib/profile-avatar';
+import { isPostSaved, removeSavedPost, savePost } from '@/lib/saved-posts';
 import { hasSupabaseEnv } from '@/lib/supabase';
 
 type BoardCommentView = {
@@ -86,6 +87,7 @@ export default function PostDetailScreen() {
   const [comments, setComments] = useState<BoardCommentView[]>([]);
   const [likesCount, setLikesCount] = useState(0);
   const [liked, setLiked] = useState(false);
+  const [saved, setSaved] = useState(false);
   const [stampCounts, setStampCounts] = useState<StampBucket>(createEmptyStampBucket);
   const [commentBody, setCommentBody] = useState('');
   const [loading, setLoading] = useState(true);
@@ -103,6 +105,7 @@ export default function PostDetailScreen() {
       setComments([]);
       setLikesCount(localPost ? Math.max(0, Math.floor(localPost.replies / 2)) : 0);
       setLiked(false);
+      setSaved(Boolean(profile?.externalId && localPost ? await isPostSaved(profile.externalId, localPost.id) : false));
       setStampCounts(createEmptyStampBucket());
       setLoading(false);
       return;
@@ -126,6 +129,7 @@ export default function PostDetailScreen() {
       setComments(commentRows.map(mapComment));
       setLikesCount(likeRows.length);
       setLiked(Boolean(profile?.externalId && likeRows.some((like) => like.user_external_id === profile.externalId)));
+      setSaved(Boolean(profile?.externalId && (await isPostSaved(profile.externalId, mappedPost.id))));
       const nextBucket = createEmptyStampBucket();
       for (const stamp of stampRows) {
         if (stamp.stamp === 'paw' || stamp.stamp === 'heart' || stamp.stamp === 'wow' || stamp.stamp === 'fire') {
@@ -167,6 +171,26 @@ export default function PostDetailScreen() {
     }
   };
 
+  const handleToggleSave = async () => {
+    if (!post || !profile || isGuest) {
+      setMessage('保存するにはログインが必要です。');
+      return;
+    }
+    try {
+      if (saved) {
+        await removeSavedPost(profile.externalId, post.id);
+        setSaved(false);
+        setMessage('保存を解除しました。');
+      } else {
+        await savePost(profile.externalId, post);
+        setSaved(true);
+        setMessage('投稿を保存しました。');
+      }
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : '保存状態の更新に失敗しました。');
+    }
+  };
+
   const handleSubmitComment = async () => {
     if (!post) return;
     if (!profile || isGuest) {
@@ -189,7 +213,7 @@ export default function PostDetailScreen() {
         post_id: post.id,
         parent_comment_id: null,
         author_external_id: profile.externalId,
-        author_name: profile.name || text.board.anonymous,
+        author_name: profile.dogName || profile.name || text.board.anonymous,
         author_avatar_url: profile.avatarUrl || null,
         body,
       });
@@ -246,6 +270,12 @@ export default function PostDetailScreen() {
                   onPress={() => void handleToggleLike()}>
                   <Text style={[styles.statValue, { color: liked ? colors.accent : colors.text }]}>{likesCount}</Text>
                   <Text style={[styles.statLabel, { color: colors.mutedText }]}>いいね</Text>
+                </Pressable>
+                <Pressable
+                  style={[styles.statPill, { backgroundColor: saved ? colors.chip : colors.background, borderColor: colors.border }]}
+                  onPress={() => void handleToggleSave()}>
+                  <FontAwesome6 name="bookmark" size={18} color={saved ? colors.accent : colors.text} />
+                  <Text style={[styles.statLabel, { color: colors.mutedText }]}>{saved ? '保存済み' : '保存'}</Text>
                 </Pressable>
               </View>
 
