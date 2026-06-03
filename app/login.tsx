@@ -14,7 +14,6 @@ import { Redirect, useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { ThemedText as Text, ThemedTextInput as TextInput } from '@/components/themed-typography';
-import { Fonts } from '@/constants/theme';
 import { useAuth } from '@/lib/auth-context';
 import { getAppText } from '@/lib/i18n';
 import { authenticateWithApple } from '@/lib/social-auth';
@@ -32,16 +31,10 @@ export default function LoginScreen() {
   const [password, setPassword] = useState('');
   const [isBusy, setBusy] = useState(false);
   const [message, setMessage] = useState('');
-  const hasAppleOAuth = Boolean(
-    process.env.EXPO_PUBLIC_APPLE_CLIENT_ID && process.env.EXPO_PUBLIC_APPLE_CLIENT_SECRET
-  );
 
   const copy =
     text.localeGroup === 'japan'
       ? {
-          eyebrow: 'Mugimaru Account',
-          title: 'おかえりなさい',
-          caption: '散歩、スポット、犬友の近況を今日もすばやくチェック。',
           idLabel: 'ID / メール',
           idPlaceholder: 'ID またはメールアドレス',
           passwordLabel: 'パスワード',
@@ -51,13 +44,8 @@ export default function LoginScreen() {
           signup: '新しく始める',
           missingId: 'IDまたはメールアドレスを入力してください。',
           missingPassword: 'パスワードを入力してください。',
-          appleMissing: 'Appleログインの環境変数が未設定です。',
-          insight: 'ログインすると、近くのイベントや人気スポットを表示できます。',
         }
       : {
-          eyebrow: 'Mugimaru Account',
-          title: 'Welcome back',
-          caption: 'Check walks, spots, and community updates in one calm place.',
           idLabel: 'ID / Email',
           idPlaceholder: 'ID or email address',
           passwordLabel: 'Password',
@@ -67,8 +55,6 @@ export default function LoginScreen() {
           signup: 'Start fresh',
           missingId: 'Please enter your ID or email.',
           missingPassword: 'Please enter your password.',
-          appleMissing: 'Apple OAuth environment variables are missing.',
-          insight: 'Recommended: nearby events and popular spots appear after login',
         };
 
   useEffect(() => {
@@ -105,10 +91,6 @@ export default function LoginScreen() {
 
   const handleAppleLogin = async () => {
     if (isBusy) return;
-    if (!hasAppleOAuth) {
-      setMessage(copy.appleMissing);
-      return;
-    }
 
     setBusy(true);
     setMessage('');
@@ -133,22 +115,6 @@ export default function LoginScreen() {
         <KeyboardAvoidingView style={styles.flex} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
           <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
             <Animated.View style={[styles.panel, { opacity: fade, transform: [{ translateY: lift }] }]}>
-              <View style={styles.brandRow}>
-                <View style={styles.logoMark}>
-                  <FontAwesome6 name="paw" size={18} color="#0f172a" />
-                </View>
-                <Text style={styles.brand}>Mugimaru</Text>
-              </View>
-
-              <Text style={styles.eyebrow}>{copy.eyebrow}</Text>
-              <Text style={styles.title}>{copy.title}</Text>
-              <Text style={styles.caption}>{copy.caption}</Text>
-
-              <View style={styles.recommendation}>
-                <FontAwesome6 name="sparkles" size={14} color="#2563eb" />
-                <Text style={styles.recommendationText}>{copy.insight}</Text>
-              </View>
-
               <View style={styles.form}>
                 <Text style={styles.label}>{copy.idLabel}</Text>
                 <TextInput
@@ -231,32 +197,7 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 18 },
     elevation: 10,
   },
-  brandRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
-  logoMark: {
-    width: 38,
-    height: 38,
-    borderRadius: 19,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: '#dbeafe',
-  },
-  brand: { color: '#0f172a', fontFamily: Fonts.rounded, fontSize: 22, fontWeight: '800' },
-  eyebrow: { color: '#2563eb', fontSize: 12, fontWeight: '800', textTransform: 'uppercase' },
-  title: { color: '#0f172a', fontFamily: Fonts.rounded, fontSize: 34, fontWeight: '800' },
-  caption: { color: '#475569', fontSize: 14, lineHeight: 21 },
-  recommendation: {
-    minHeight: 46,
-    borderRadius: 16,
-    backgroundColor: '#eff6ff',
-    borderWidth: 1,
-    borderColor: '#bfdbfe',
-    paddingHorizontal: 12,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 9,
-  },
-  recommendationText: { flex: 1, color: '#1e3a8a', fontSize: 12, fontWeight: '700' },
-  form: { gap: 8, marginTop: 2 },
+  form: { gap: 8 },
   label: { color: '#334155', fontSize: 12, fontWeight: '800' },
   input: {
     minHeight: 50,

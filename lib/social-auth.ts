@@ -1,5 +1,7 @@
+import * as AppleAuthentication from 'expo-apple-authentication';
 import * as Linking from 'expo-linking';
 import * as WebBrowser from 'expo-web-browser';
+import { Platform } from 'react-native';
 
 import { APP_SCHEME } from '@/lib/app-link';
 
@@ -89,6 +91,11 @@ type AppleUserPayload = {
   };
   email?: string;
 };
+
+function formatAppleFullName(fullName: AppleAuthentication.AppleAuthenticationFullName | null | undefined) {
+  if (!fullName) return '';
+  return [fullName.givenName, fullName.familyName].filter(Boolean).join(' ').trim();
+}
 
 const LINE_AUTHORIZE_URL = 'https://access.line.me/oauth2/v2.1/authorize';
 const LINE_TOKEN_URL = 'https://api.line.me/oauth2/v2.1/token';
@@ -579,6 +586,32 @@ export async function authenticateWithGoogle(): Promise<SocialAuthProfile> {
 }
 
 export async function authenticateWithApple(): Promise<SocialAuthProfile> {
+  if (Platform.OS === 'ios') {
+    const available = await AppleAuthentication.isAvailableAsync();
+    if (!available) {
+      throw new Error('この端末ではAppleログインを利用できません。');
+    }
+
+    const credential = await AppleAuthentication.signInAsync({
+      requestedScopes: [
+        AppleAuthentication.AppleAuthenticationScope.FULL_NAME,
+        AppleAuthentication.AppleAuthenticationScope.EMAIL,
+      ],
+    });
+    const idPayload = credential.identityToken ? parseJwtPayload(credential.identityToken) : null;
+    const externalId = credential.user || idPayload?.sub;
+    if (!externalId) {
+      throw new Error('AppleログインのユーザーIDを取得できませんでした。');
+    }
+
+    return {
+      externalId,
+      name: formatAppleFullName(credential.fullName) || idPayload?.name || 'Appleユーザー',
+      email: credential.email ?? idPayload?.email ?? null,
+      avatarUrl: null,
+    };
+  }
+
   const clientId = getRequiredEnv('EXPO_PUBLIC_APPLE_CLIENT_ID');
   const clientSecret = getRequiredEnv('EXPO_PUBLIC_APPLE_CLIENT_SECRET');
   const redirectUri = getProviderRedirectUri();

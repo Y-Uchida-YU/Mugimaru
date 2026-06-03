@@ -81,9 +81,6 @@ export default function SignupScreen() {
 
   const hasLineOAuth = Boolean(process.env.EXPO_PUBLIC_LINE_CHANNEL_ID);
   const hasGoogleOAuth = Boolean(process.env.EXPO_PUBLIC_GOOGLE_CLIENT_ID);
-  const hasAppleOAuth = Boolean(
-    process.env.EXPO_PUBLIC_APPLE_CLIENT_ID && process.env.EXPO_PUBLIC_APPLE_CLIENT_SECRET
-  );
   const hasXOAuth = Boolean(process.env.EXPO_PUBLIC_X_CLIENT_ID);
   const emailIsValid = useMemo(() => EMAIL_PATTERN.test(email.trim()), [email]);
 
@@ -227,7 +224,6 @@ export default function SignupScreen() {
     if (isBusy) return;
     if (provider === 'line' && !hasLineOAuth) return setMessage(copy.missing('LINE'));
     if (provider === 'google' && !hasGoogleOAuth) return setMessage(copy.missing('Google'));
-    if (provider === 'apple' && !hasAppleOAuth) return setMessage(copy.missing('Apple'));
     if (provider === 'x' && !hasXOAuth) return setMessage(copy.missing('X'));
 
     setBusy(true);
