@@ -66,6 +66,21 @@ export async function updateBoardPostRepliesCount(postId: string, repliesCount: 
   return rows[0];
 }
 
+export async function updateBoardPostsAuthorProfile(
+  authorExternalId: string,
+  authorName: string,
+  authorAvatarUrl: string | null
+) {
+  const encodedAuthor = encodeURIComponent(authorExternalId);
+  return supabasePatch<BoardPostRow[]>(
+    `board_posts?author_external_id=eq.${encodedAuthor}`,
+    {
+      author_name: authorName,
+      author_avatar_url: authorAvatarUrl,
+    }
+  );
+}
+
 export type BoardCommentRow = {
   id: string;
   post_id: string;

@@ -46,6 +46,12 @@ export default function TabLayout() {
           fontSize: 20 * typography.scale,
           fontWeight: '900',
         },
+        headerLeftContainerStyle: {
+          paddingLeft: 6,
+        },
+        headerTitleContainerStyle: {
+          marginLeft: -2,
+        },
         tabBarButton: HapticTab,
       }}>
       <Tabs.Screen

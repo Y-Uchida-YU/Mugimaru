@@ -1,7 +1,7 @@
 import { FontAwesome6 } from '@expo/vector-icons';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Image, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, TextInput, View } from 'react-native';
+import { Image, KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, StyleSheet, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { ThemedText as Text } from '@/components/themed-typography';
@@ -87,6 +87,7 @@ export default function PostDetailScreen() {
   const [commentBody, setCommentBody] = useState('');
   const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState('');
+  const [previewImageUrl, setPreviewImageUrl] = useState('');
 
   const rootComments = useMemo(() => comments.filter((comment) => !comment.parentCommentId), [comments]);
 
@@ -239,13 +240,17 @@ export default function PostDetailScreen() {
                     <Text style={[styles.authorName, { color: colors.text }]}>{post.author}</Text>
                   </Pressable>
                   <Text style={[styles.meta, { color: colors.mutedText }]}>
-                    {post.category}・{post.updatedAt}
+                    {post.updatedAt}
                   </Text>
                 </View>
               </View>
               <Text style={[styles.postTitle, { color: colors.text }]}>{post.title}</Text>
               <Text style={[styles.postBody, { color: colors.text }]}>{post.body}</Text>
-              {post.imageUrl ? <Image source={{ uri: post.imageUrl }} style={styles.postImage} resizeMode="cover" /> : null}
+              {post.imageUrl ? (
+                <Pressable onPress={() => setPreviewImageUrl(post.imageUrl)}>
+                  <Image source={{ uri: post.imageUrl }} style={styles.postImage} resizeMode="cover" />
+                </Pressable>
+              ) : null}
 
               <View style={styles.statRow}>
                 <View style={[styles.statPill, { backgroundColor: colors.background, borderColor: colors.border }]}>
@@ -310,6 +315,14 @@ export default function PostDetailScreen() {
         {message && post ? <Text style={[styles.message, { color: colors.mutedText }]}>{message}</Text> : null}
       </ScrollView>
       </KeyboardAvoidingView>
+      <Modal visible={Boolean(previewImageUrl)} transparent animationType="fade" onRequestClose={() => setPreviewImageUrl('')}>
+        <Pressable style={styles.imagePreviewOverlay} onPress={() => setPreviewImageUrl('')}>
+          <Pressable style={styles.imagePreviewClose} onPress={() => setPreviewImageUrl('')}>
+            <FontAwesome6 name="xmark" size={18} color="#ffffff" />
+          </Pressable>
+          {previewImageUrl ? <Image source={{ uri: previewImageUrl }} style={styles.imagePreview} resizeMode="contain" /> : null}
+        </Pressable>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -328,6 +341,25 @@ const styles = StyleSheet.create({
   postTitle: { fontSize: 20, fontWeight: '800', lineHeight: 27 },
   postBody: { fontSize: 15, lineHeight: 23 },
   postImage: { width: '100%', height: 230, borderRadius: 14 },
+  imagePreviewOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.92)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  imagePreview: { width: '100%', height: '86%' },
+  imagePreviewClose: {
+    position: 'absolute',
+    right: 18,
+    top: 54,
+    zIndex: 2,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: 'rgba(255,255,255,0.18)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   statRow: { flexDirection: 'row', gap: 8 },
   statPill: { flex: 1, minHeight: 58, borderRadius: 14, borderWidth: 1, alignItems: 'center', justifyContent: 'center', gap: 2 },
   statValue: { fontSize: 18, fontWeight: '800' },

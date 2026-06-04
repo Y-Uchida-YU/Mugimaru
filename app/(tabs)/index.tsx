@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { FontAwesome6 } from '@expo/vector-icons';
-import { useRouter } from 'expo-router';
+import { useFocusEffect, useRouter } from 'expo-router';
 import {
   Image,
   KeyboardAvoidingView,
@@ -434,6 +434,7 @@ export default function BoardScreen() {
   const [chatSticker, setChatSticker] = useState<string | null>(null);
   const [chatError, setChatError] = useState('');
   const [isChatLoading] = useState(false);
+  const [previewImageUrl, setPreviewImageUrl] = useState('');
 
   const loadTimeline = useCallback(
     async (mode: 'initial' | 'refresh' = 'initial') => {
@@ -556,6 +557,12 @@ export default function BoardScreen() {
   useEffect(() => {
     void loadTimeline('initial');
   }, [loadTimeline]);
+
+  useFocusEffect(
+    useCallback(() => {
+      void loadTimeline('refresh');
+    }, [loadTimeline])
+  );
 
   useEffect(() => {
     postsRef.current = posts;
@@ -1101,7 +1108,7 @@ export default function BoardScreen() {
                         <Text style={[styles.timelineAuthor, { color: themeColors.text }]}>{post.author}</Text>
                       </Pressable>
                       <Text style={[styles.timelineSubline, { color: themeColors.mutedText }]}>
-                        {post.category} · {post.updatedAt}
+                        {post.updatedAt}
                       </Text>
                     </View>
                     <FontAwesome6 name="ellipsis" size={14} color={themeColors.mutedText} />
@@ -1122,7 +1129,15 @@ export default function BoardScreen() {
                     </View>
                   ) : null}
 
-                  {post.imageUrl ? <Image source={{ uri: post.imageUrl }} style={styles.postImage} resizeMode="cover" /> : null}
+                  {post.imageUrl ? (
+                    <Pressable
+                      onPress={(event) => {
+                        event.stopPropagation();
+                        setPreviewImageUrl(post.imageUrl);
+                      }}>
+                      <Image source={{ uri: post.imageUrl }} style={styles.postImage} resizeMode="cover" />
+                    </Pressable>
+                  ) : null}
 
                   <View style={styles.timelineActions}>
                     <Pressable style={styles.timelineActionButton} onPress={() => void openComments(post)}>
@@ -1176,9 +1191,18 @@ export default function BoardScreen() {
 
         <Pressable
           style={[styles.fab, { backgroundColor: themeColors.accent }, isGuest ? styles.fabDisabled : null]}
-          onPress={() => (isGuest ? setMessage('ゲストユーザーは投稿できません。') : setComposerOpen(true))}>
+          onPress={() => (isGuest ? setMessage('ゲストユーザーは投稿できません。') : router.push('/compose' as never))}>
           <Text style={[styles.fabText, { color: themeColors.accentContrast }]}>+</Text>
         </Pressable>
+
+        <Modal visible={Boolean(previewImageUrl)} transparent animationType="fade" onRequestClose={() => setPreviewImageUrl('')}>
+          <Pressable style={styles.imagePreviewOverlay} onPress={() => setPreviewImageUrl('')}>
+            <Pressable style={styles.imagePreviewClose} onPress={() => setPreviewImageUrl('')}>
+              <FontAwesome6 name="xmark" size={18} color="#ffffff" />
+            </Pressable>
+            {previewImageUrl ? <Image source={{ uri: previewImageUrl }} style={styles.imagePreview} resizeMode="contain" /> : null}
+          </Pressable>
+        </Modal>
 
         <Modal visible={isSearchModalOpen} transparent animationType="fade" onRequestClose={() => setSearchModalOpen(false)}>
           <Pressable style={styles.modalOverlay} onPress={() => setSearchModalOpen(false)}>
@@ -2382,6 +2406,28 @@ const styles = StyleSheet.create({
     borderRadius: 10,
     backgroundColor: '#dcefe3',
     marginBottom: 8,
+  },
+  imagePreviewOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.92)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  imagePreview: {
+    width: '100%',
+    height: '86%',
+  },
+  imagePreviewClose: {
+    position: 'absolute',
+    right: 18,
+    top: 54,
+    zIndex: 2,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: 'rgba(255,255,255,0.18)',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   errorText: {
     color: '#b3362f',

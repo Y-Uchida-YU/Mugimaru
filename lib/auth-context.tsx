@@ -1,6 +1,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type PropsWithChildren } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { hasSupabaseEnv } from '@/lib/supabase';
+import { updateBoardPostsAuthorProfile } from '@/lib/board-data';
 import { loginWithEmailAndPassword } from '@/lib/password-auth';
 import { getAppUserByExternalId, upsertAppUser } from '@/lib/user-data';
 
@@ -313,6 +314,11 @@ export function AuthProviderRoot({ children }: PropsWithChildren) {
           city: nextProfile.city || null,
           provider: current.provider,
         });
+        await updateBoardPostsAuthorProfile(
+          current.externalId,
+          nextProfile.dogName || nextProfile.name,
+          nextProfile.avatarUrl || null
+        );
       }
 
       setProfile(nextProfile);
