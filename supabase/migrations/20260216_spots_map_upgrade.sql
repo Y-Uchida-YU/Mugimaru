@@ -1,4 +1,4 @@
-﻿-- Non-destructive migration for map spot enhancements
+-- Non-destructive migration for map spot enhancements
 -- Apply this if you already have data and do not want to reset all tables.
 
 alter table public.spots

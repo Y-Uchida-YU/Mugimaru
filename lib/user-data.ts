@@ -9,9 +9,12 @@ export type AppUserRow = {
   name: string;
   email: string | null;
   avatar_url: string | null;
+  header_url: string | null;
   bio: string | null;
   dog_name: string | null;
   dog_breed: string | null;
+  prefecture: string | null;
+  city: string | null;
   provider: PersistedAuthProvider;
   created_at: string;
   updated_at: string;
@@ -23,9 +26,12 @@ type UpsertUserInput = {
   name: string;
   email: string | null;
   avatarUrl: string | null;
+  headerUrl?: string | null;
   bio: string | null;
   dogName: string | null;
   dogBreed: string | null;
+  prefecture?: string | null;
+  city?: string | null;
   provider: PersistedAuthProvider;
 };
 
@@ -44,9 +50,12 @@ export async function upsertAppUser(input: UpsertUserInput) {
       name: input.name,
       email: input.email,
       avatar_url: input.avatarUrl,
+      header_url: input.headerUrl ?? null,
       bio: input.bio,
       dog_name: input.dogName,
       dog_breed: input.dogBreed,
+      prefecture: input.prefecture ?? null,
+      city: input.city ?? null,
       provider: input.provider,
       updated_at: now,
       last_login_at: now,
@@ -60,7 +69,7 @@ export async function upsertAppUser(input: UpsertUserInput) {
 export async function getAppUserByExternalId(externalId: string) {
   const encoded = encodeURIComponent(externalId);
   const rows = await supabaseSelect<AppUserRow[]>(
-    `app_users?select=id,external_id,name,email,avatar_url,bio,dog_name,dog_breed,provider,created_at,updated_at,last_login_at&external_id=eq.${encoded}&limit=1`
+    `app_users?select=id,external_id,name,email,avatar_url,header_url,bio,dog_name,dog_breed,prefecture,city,provider,created_at,updated_at,last_login_at&external_id=eq.${encoded}&limit=1`
   );
   return rows[0] ?? null;
 }

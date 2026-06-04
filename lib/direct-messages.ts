@@ -1,5 +1,7 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
+import { hasSupabaseEnv, supabaseInsert, supabaseSelect } from '@/lib/supabase';
+
 const DM_STORAGE_KEY = 'mugimaru.direct-messages';
 
 export type DirectMessage = {
@@ -26,8 +28,32 @@ type DirectMessageStore = {
   peers: Record<string, { name: string; avatarUrl: string }>;
 };
 
+type DirectMessageRow = {
+  id: string;
+  thread_id: string;
+  sender_external_id: string;
+  receiver_external_id: string;
+  sender_name: string;
+  sender_avatar_url: string;
+  receiver_name: string;
+  receiver_avatar_url: string;
+  body: string;
+  created_at: string;
+};
+
 function threadIdFor(userA: string, userB: string) {
   return [userA, userB].sort().join('__');
+}
+
+function mapRowToMessage(row: DirectMessageRow): DirectMessage {
+  return {
+    id: row.id,
+    threadId: row.thread_id,
+    senderExternalId: row.sender_external_id,
+    receiverExternalId: row.receiver_external_id,
+    body: row.body,
+    createdAt: row.created_at,
+  };
 }
 
 async function readStore(): Promise<DirectMessageStore> {
@@ -49,6 +75,36 @@ async function writeStore(store: DirectMessageStore) {
 }
 
 export async function listDirectThreads(myExternalId: string) {
+  if (hasSupabaseEnv) {
+    const encoded = encodeURIComponent(myExternalId);
+    const rows = await supabaseSelect<DirectMessageRow[]>(
+      `direct_messages?select=id,thread_id,sender_external_id,receiver_external_id,sender_name,sender_avatar_url,receiver_name,receiver_avatar_url,body,created_at&or=(sender_external_id.eq.${encoded},receiver_external_id.eq.${encoded})&order=created_at.desc&limit=500`
+    );
+    const summaries = new Map<string, DirectThreadSummary>();
+    for (const row of rows) {
+      const peerExternalId =
+        row.sender_external_id === myExternalId ? row.receiver_external_id : row.sender_external_id;
+      const peerName = row.sender_external_id === myExternalId ? row.receiver_name : row.sender_name;
+      const peerAvatarUrl =
+        row.sender_external_id === myExternalId ? row.receiver_avatar_url : row.sender_avatar_url;
+      const current = summaries.get(row.thread_id);
+      if (!current) {
+        summaries.set(row.thread_id, {
+          threadId: row.thread_id,
+          peerExternalId,
+          peerName: peerName || peerExternalId,
+          peerAvatarUrl: peerAvatarUrl || '',
+          lastMessage: row.body,
+          updatedAt: row.created_at,
+          messagesCount: 1,
+        });
+      } else {
+        current.messagesCount += 1;
+      }
+    }
+    return Array.from(summaries.values()).sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
+  }
+
   const store = await readStore();
   const summaries = new Map<string, DirectThreadSummary>();
   for (const message of store.messages) {
@@ -75,6 +131,14 @@ export async function listDirectThreads(myExternalId: string) {
 }
 
 export async function listDirectMessages(myExternalId: string, peerExternalId: string) {
+  if (hasSupabaseEnv) {
+    const threadId = encodeURIComponent(threadIdFor(myExternalId, peerExternalId));
+    const rows = await supabaseSelect<DirectMessageRow[]>(
+      `direct_messages?select=id,thread_id,sender_external_id,receiver_external_id,sender_name,sender_avatar_url,receiver_name,receiver_avatar_url,body,created_at&thread_id=eq.${threadId}&order=created_at.asc&limit=500`
+    );
+    return rows.map(mapRowToMessage);
+  }
+
   const store = await readStore();
   const threadId = threadIdFor(myExternalId, peerExternalId);
   return store.messages
@@ -91,6 +155,20 @@ export async function sendDirectMessage(input: {
   senderAvatarUrl: string;
   body: string;
 }) {
+  if (hasSupabaseEnv) {
+    const rows = await supabaseInsert<DirectMessageRow[]>('direct_messages', {
+      thread_id: threadIdFor(input.senderExternalId, input.receiverExternalId),
+      sender_external_id: input.senderExternalId,
+      receiver_external_id: input.receiverExternalId,
+      sender_name: input.senderName || input.senderExternalId,
+      sender_avatar_url: input.senderAvatarUrl,
+      receiver_name: input.receiverName || input.receiverExternalId,
+      receiver_avatar_url: input.receiverAvatarUrl,
+      body: input.body,
+    });
+    return mapRowToMessage(rows[0]);
+  }
+
   const store = await readStore();
   const createdAt = new Date().toISOString();
   const message: DirectMessage = {

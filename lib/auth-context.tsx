@@ -120,17 +120,18 @@ export function AuthProviderRoot({ children }: PropsWithChildren) {
         apple: 'Appleユーザー',
         x: 'Xユーザー',
       };
+      const existingUser = hasSupabaseEnv ? await getAppUserByExternalId(socialProfile.externalId) : null;
       const nextProfile: UserProfile = {
         externalId: socialProfile.externalId || createLocalExternalId(provider),
-        name: socialProfile.name || defaultNameByProvider[provider],
-        email: socialProfile.email?.trim().toLowerCase() ?? '',
-        avatarUrl: socialProfile.avatarUrl?.trim() ?? '',
-        headerUrl: '',
-        bio: '',
-        dogName: '',
-        dogBreed: '',
-        prefecture: '',
-        city: '',
+        name: existingUser?.name?.trim() || socialProfile.name || defaultNameByProvider[provider],
+        email: socialProfile.email?.trim().toLowerCase() || existingUser?.email?.trim().toLowerCase() || '',
+        avatarUrl: existingUser?.avatar_url?.trim() || socialProfile.avatarUrl?.trim() || '',
+        headerUrl: existingUser?.header_url?.trim() || '',
+        bio: existingUser?.bio?.trim() || '',
+        dogName: existingUser?.dog_name?.trim() || '',
+        dogBreed: existingUser?.dog_breed?.trim() || '',
+        prefecture: existingUser?.prefecture?.trim() || '',
+        city: existingUser?.city?.trim() || '',
         provider,
       };
 
@@ -140,9 +141,12 @@ export function AuthProviderRoot({ children }: PropsWithChildren) {
           name: nextProfile.name,
           email: nextProfile.email || null,
           avatarUrl: nextProfile.avatarUrl || null,
+          headerUrl: nextProfile.headerUrl || null,
           bio: nextProfile.bio || null,
           dogName: nextProfile.dogName || null,
           dogBreed: nextProfile.dogBreed || null,
+          prefecture: nextProfile.prefecture || null,
+          city: nextProfile.city || null,
           provider,
         });
       }
@@ -176,9 +180,12 @@ export function AuthProviderRoot({ children }: PropsWithChildren) {
           name: nextProfile.name,
           email: nextProfile.email,
           avatarUrl: null,
+          headerUrl: null,
           bio: null,
           dogName: null,
           dogBreed: null,
+          prefecture: null,
+          city: null,
           provider: 'email',
         });
       }
@@ -220,12 +227,12 @@ export function AuthProviderRoot({ children }: PropsWithChildren) {
       name: existingUser?.name?.trim() || signedIn.name,
       email: signedIn.email,
       avatarUrl: existingUser?.avatar_url?.trim() || signedIn.avatarUrl || '',
-      headerUrl: '',
+      headerUrl: existingUser?.header_url?.trim() || '',
       bio: existingUser?.bio?.trim() || '',
       dogName: existingUser?.dog_name?.trim() || '',
       dogBreed: existingUser?.dog_breed?.trim() || '',
-      prefecture: '',
-      city: '',
+      prefecture: existingUser?.prefecture?.trim() || '',
+      city: existingUser?.city?.trim() || '',
       provider: 'email',
     };
 
@@ -234,9 +241,12 @@ export function AuthProviderRoot({ children }: PropsWithChildren) {
       name: nextProfile.name,
       email: nextProfile.email || null,
       avatarUrl: nextProfile.avatarUrl || null,
+      headerUrl: nextProfile.headerUrl || null,
       bio: nextProfile.bio || null,
       dogName: nextProfile.dogName || null,
       dogBreed: nextProfile.dogBreed || null,
+      prefecture: nextProfile.prefecture || null,
+      city: nextProfile.city || null,
       provider: 'email',
     });
 
@@ -295,9 +305,12 @@ export function AuthProviderRoot({ children }: PropsWithChildren) {
           name: nextProfile.name,
           email: nextProfile.email || null,
           avatarUrl: nextProfile.avatarUrl || null,
+          headerUrl: nextProfile.headerUrl || null,
           bio: nextProfile.bio || null,
           dogName: nextProfile.dogName || null,
           dogBreed: nextProfile.dogBreed || null,
+          prefecture: nextProfile.prefecture || null,
+          city: nextProfile.city || null,
           provider: current.provider,
         });
       }
