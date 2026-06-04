@@ -8,7 +8,7 @@ import { ThemedText as Text, ThemedTextInput as TextInput } from '@/components/t
 import { useAppTheme } from '@/lib/app-theme-context';
 import { useAuth } from '@/lib/auth-context';
 import { createBoardPost } from '@/lib/board-data';
-import { pickImageFromLibrary } from '@/lib/mobile-image-picker';
+import { pickImagesFromLibrary } from '@/lib/mobile-image-picker';
 import { hasSupabaseEnv } from '@/lib/supabase';
 
 function extractHashtags(...values: string[]) {
@@ -36,8 +36,8 @@ export default function ComposeScreen() {
   const handlePickImage = async () => {
     if (imageUrls.length >= 4) return;
     try {
-      const picked = await pickImageFromLibrary();
-      if (picked) setImageUrls((prev) => [...prev, picked.dataUrl].slice(0, 4));
+      const picked = await pickImagesFromLibrary(4 - imageUrls.length);
+      if (picked.length) setImageUrls((prev) => [...prev, ...picked.map((item) => item.dataUrl)].slice(0, 4));
     } catch (error) {
       setMessage(error instanceof Error ? error.message : '写真を選択できませんでした。');
     }

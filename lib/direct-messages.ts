@@ -83,7 +83,7 @@ export async function listDirectThreads(myExternalId: string) {
   if (hasSupabaseEnv) {
     const encoded = encodeURIComponent(myExternalId);
     const rows = await supabaseSelect<DirectMessageRow[]>(
-      `direct_messages?select=id,thread_id,sender_external_id,receiver_external_id,sender_name,sender_avatar_url,receiver_name,receiver_avatar_url,body,read_at,created_at&or=(sender_external_id.eq.${encoded},receiver_external_id.eq.${encoded})&order=created_at.desc&limit=500`
+      `direct_messages?select=id,thread_id,sender_external_id,receiver_external_id,sender_name,sender_avatar_url,receiver_name,receiver_avatar_url,body,read_at,created_at&or=(sender_external_id.eq.${encoded},receiver_external_id.eq.${encoded})&order=created_at.desc&limit=150`
     );
     const summaries = new Map<string, DirectThreadSummary>();
     for (const row of rows) {
@@ -142,7 +142,7 @@ export async function listDirectMessages(myExternalId: string, peerExternalId: s
   if (hasSupabaseEnv) {
     const threadId = encodeURIComponent(threadIdFor(myExternalId, peerExternalId));
     const rows = await supabaseSelect<DirectMessageRow[]>(
-      `direct_messages?select=id,thread_id,sender_external_id,receiver_external_id,sender_name,sender_avatar_url,receiver_name,receiver_avatar_url,body,read_at,created_at&thread_id=eq.${threadId}&order=created_at.asc&limit=500`
+      `direct_messages?select=id,thread_id,sender_external_id,receiver_external_id,sender_name,sender_avatar_url,receiver_name,receiver_avatar_url,body,read_at,created_at&thread_id=eq.${threadId}&order=created_at.asc&limit=120`
     );
     return rows.map(mapRowToMessage);
   }
@@ -174,7 +174,7 @@ export async function sendDirectMessage(input: {
       receiver_avatar_url: input.receiverAvatarUrl,
       body: input.body,
     });
-    await createNotification({
+    void createNotification({
       recipientExternalId: input.receiverExternalId,
       actorExternalId: input.senderExternalId,
       actorName: input.senderName || input.senderExternalId,
@@ -182,7 +182,7 @@ export async function sendDirectMessage(input: {
       type: 'dm',
       threadId: threadIdFor(input.senderExternalId, input.receiverExternalId),
       body: input.body,
-    });
+    }).catch(() => undefined);
     return mapRowToMessage(rows[0]);
   }
 

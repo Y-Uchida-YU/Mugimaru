@@ -23,6 +23,8 @@ type ExpoImagePickerModule = {
   launchImageLibraryAsync: (options: {
     mediaTypes: string;
     allowsEditing: boolean;
+    allowsMultipleSelection?: boolean;
+    selectionLimit?: number;
     quality: number;
     base64: boolean;
   }) => Promise<ExpoImagePickerResult>;
@@ -66,4 +68,35 @@ export async function pickImageFromLibrary() {
     mimeType,
     dataUrl,
   } satisfies PickedImage;
+}
+
+export async function pickImagesFromLibrary(limit = 4) {
+  const ImagePicker = await loadImagePickerModule();
+  const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
+  if (!permission.granted) {
+    throw new Error('Photo library permission was denied.');
+  }
+
+  const result = await ImagePicker.launchImageLibraryAsync({
+    mediaTypes: ImagePicker.MediaTypeOptions.Images,
+    allowsEditing: false,
+    allowsMultipleSelection: true,
+    selectionLimit: limit,
+    quality: 0.8,
+    base64: true,
+  });
+
+  if (result.canceled || !result.assets?.length) {
+    return [];
+  }
+
+  return result.assets.slice(0, limit).map((asset) => {
+    const mimeType = asset.mimeType || 'image/jpeg';
+    const dataUrl = asset.base64 ? `data:${mimeType};base64,${asset.base64}` : asset.uri;
+    return {
+      uri: asset.uri,
+      mimeType,
+      dataUrl,
+    } satisfies PickedImage;
+  });
 }

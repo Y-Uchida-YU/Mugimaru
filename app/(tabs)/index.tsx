@@ -37,7 +37,7 @@ import {
 import { useAuth } from '@/lib/auth-context';
 import { useAppTheme } from '@/lib/app-theme-context';
 import { getAppText } from '@/lib/i18n';
-import { pickImageFromLibrary } from '@/lib/mobile-image-picker';
+import { pickImagesFromLibrary } from '@/lib/mobile-image-picker';
 import { getAvatarIconGlyph, parseAvatarValue } from '@/lib/profile-avatar';
 import { listSavedPosts, removeSavedPost, savePost } from '@/lib/saved-posts';
 import { hasSupabaseEnv } from '@/lib/supabase';
@@ -139,11 +139,6 @@ function formatTimeLabel(iso: string | undefined) {
   return `${diffDay}d ago`;
 }
 
-function isImageValue(value: string) {
-  const trimmed = value.trim();
-  return trimmed.startsWith('http://') || trimmed.startsWith('https://') || trimmed.startsWith('data:image/');
-}
-
 function buildLocalTimestamp() {
   const now = new Date();
   const hh = String(now.getHours()).padStart(2, '0');
@@ -153,18 +148,6 @@ function buildLocalTimestamp() {
 
 function makeLocalId(prefix: string) {
   return `${prefix}:${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
-}
-
-function parseTags(input: string) {
-  const raw = input
-    .split(/[\s,]+/)
-    .map((part) => part.trim())
-    .filter(Boolean)
-    .map((part) => part.replace(/^#+/, '').toLowerCase())
-    .filter((part) => part.length > 0)
-    .slice(0, 12);
-
-  return Array.from(new Set(raw));
 }
 
 function createEmptyStampBucket(): StampBucket {
@@ -354,6 +337,17 @@ function Avatar({ uri, label, size = 32 }: { uri: string; label: string; size?: 
   );
 }
 
+function extractHashtags(...values: string[]) {
+  const tags = new Set<string>();
+  for (const value of values) {
+    for (const match of value.matchAll(/(?:^|\s)#([^\s#]+)/g)) {
+      const tag = match[1]?.replace(/[.,!?。、「」『』（）()・\]\[]+$/g, '').trim().toLowerCase();
+      if (tag) tags.add(tag);
+    }
+  }
+  return Array.from(tags).slice(0, 12);
+}
+
 function PostImageGrid({ images, onPress }: { images: string[]; onPress: (index: number) => void }) {
   if (images.length === 0) return null;
   const visibleImages = images.slice(0, 4);
@@ -501,8 +495,7 @@ export default function BoardScreen() {
   const [title, setTitle] = useState('');
   const [body, setBody] = useState('');
   const [selectedCategory, setSelectedCategory] = useState(categories[0] ?? 'General');
-  const [imageUrl, setImageUrl] = useState('');
-  const [tagsInput, setTagsInput] = useState('');
+  const [imageUrls, setImageUrls] = useState<string[]>([]);
   const [formError, setFormError] = useState('');
 
   const [selectedPost, setSelectedPost] = useState<BoardPost | null>(null);
@@ -701,6 +694,10 @@ export default function BoardScreen() {
 
   const closeComposer = () => {
     setComposerOpen(false);
+    setTitle('');
+    setBody('');
+    setImageUrls([]);
+    setSelectedCategory(categories[0] ?? 'General');
     setFormError('');
   };
 
@@ -726,10 +723,11 @@ export default function BoardScreen() {
   };
 
   const handlePickPostImage = async () => {
+    if (imageUrls.length >= 4) return;
     try {
-      const picked = await pickImageFromLibrary();
-      if (!picked) return;
-      setImageUrl(picked.dataUrl);
+      const picked = await pickImagesFromLibrary(4 - imageUrls.length);
+      if (!picked.length) return;
+      setImageUrls((prev) => [...prev, ...picked.map((item) => item.dataUrl)].slice(0, 4));
       setFormError('');
     } catch (error) {
       setFormError(error instanceof Error ? error.message : '画像の選択に失敗しました。');
@@ -827,15 +825,10 @@ export default function BoardScreen() {
       return;
     }
 
-    if (imageUrl.trim() && !isImageValue(imageUrl)) {
-      setFormError('画像は写真から選択してください。');
-      return;
-    }
-
     const authorName = profile?.dogName?.trim() || profile?.name?.trim() || text.board.anonymous;
     const authorAvatarUrl = profile?.avatarUrl?.trim() || '';
     const authorExternalId = profile?.externalId ?? makeLocalId('user');
-    const tags = parseTags(tagsInput);
+    const tags = extractHashtags(title, body);
 
     if (!hasSupabaseEnv) {
       const localPost: BoardPost = {
@@ -846,8 +839,8 @@ export default function BoardScreen() {
         author: authorName,
         authorAvatarUrl,
         category: selectedCategory,
-        imageUrl: imageUrl.trim(),
-        imageUrls: imageUrl.trim() ? [imageUrl.trim()] : [],
+        imageUrl: imageUrls[0] ?? '',
+        imageUrls,
         tags,
         replies: 0,
         updatedAt: buildLocalTimestamp(),
@@ -859,8 +852,7 @@ export default function BoardScreen() {
       setMyStampsByPost((prev) => ({ ...prev, [localPost.id]: [] }));
       setTitle('');
       setBody('');
-      setImageUrl('');
-      setTagsInput('');
+      setImageUrls([]);
       setSelectedCategory(categories[0] ?? 'General');
       setFormError('');
       setComposerOpen(false);
@@ -875,8 +867,8 @@ export default function BoardScreen() {
         category: selectedCategory,
         title: title.trim(),
         body: body.trim(),
-        image_url: imageUrl.trim() || null,
-        image_urls: imageUrl.trim() ? [imageUrl.trim()] : [],
+        image_url: imageUrls[0] ?? null,
+        image_urls: imageUrls,
         tags,
       });
 
@@ -887,8 +879,7 @@ export default function BoardScreen() {
       setMyStampsByPost((prev) => ({ ...prev, [mapped.id]: [] }));
       setTitle('');
       setBody('');
-      setImageUrl('');
-      setTagsInput('');
+      setImageUrls([]);
       setSelectedCategory(categories[0] ?? 'General');
       setFormError('');
       setComposerOpen(false);
@@ -1302,7 +1293,7 @@ export default function BoardScreen() {
 
         <Pressable
           style={[styles.fab, { backgroundColor: themeColors.accent }, isGuest ? styles.fabDisabled : null]}
-          onPress={() => (isGuest ? setMessage('ゲストユーザーは投稿できません。') : router.push('/compose' as never))}>
+          onPress={() => (isGuest ? setMessage('ゲストユーザーは投稿できません。') : setComposerOpen(true))}>
           <Text style={[styles.fabText, { color: themeColors.accentContrast }]}>+</Text>
         </Pressable>
 
@@ -1399,31 +1390,6 @@ export default function BoardScreen() {
               <Text style={[styles.modalTitle, { color: themeColors.text }]}>{text.board.composerTitle}</Text>
               <Text style={[styles.metaText, { color: themeColors.mutedText }]}>投稿者: {profile?.dogName || profile?.name || text.board.anonymous}</Text>
 
-              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.modalChips}>
-                {categories.map((category) => {
-                  const isActive = selectedCategory === category;
-                  return (
-                    <Pressable
-                      key={category}
-                      style={[
-                        styles.modalChip,
-                        { borderColor: themeColors.border, backgroundColor: themeColors.chip },
-                        isActive ? [styles.modalChipActive, { borderColor: themeColors.accent, backgroundColor: themeColors.accent }] : null,
-                      ]}
-                      onPress={() => setSelectedCategory(category)}>
-                      <Text
-                        style={[
-                          styles.modalChipText,
-                          { color: isActive ? themeColors.accentContrast : themeColors.chipText },
-                          isActive ? styles.modalChipTextActive : null,
-                        ]}>
-                        {category}
-                      </Text>
-                    </Pressable>
-                  );
-                })}
-              </ScrollView>
-
               <TextInput
                 style={[
                   styles.modalInput,
@@ -1455,35 +1421,28 @@ export default function BoardScreen() {
                 multiline
                 textAlignVertical="top"
               />
-              <TextInput
-                style={[
-                  styles.modalInput,
-                  {
-                    backgroundColor: themeColors.background,
-                    borderColor: themeColors.border,
-                    color: themeColors.text,
-                  },
-                ]}
-                value={tagsInput}
-                onChangeText={setTagsInput}
-                placeholder="タグ（例: ドッグラン 子犬 交流）"
-                placeholderTextColor={themeColors.mutedText}
-                autoCapitalize="none"
-              />
-
               <View style={styles.mediaActionRow}>
-                <Pressable style={[styles.mediaButton, { backgroundColor: themeColors.accent }]} onPress={() => void handlePickPostImage()}>
-                  <Text style={[styles.mediaButtonText, { color: themeColors.accentContrast }]}>写真を選択</Text>
-                </Pressable>
                 <Pressable
-                  style={[styles.mediaGhostButton, { borderColor: themeColors.border, backgroundColor: themeColors.chip }]}
-                  onPress={() => setImageUrl('')}>
-                  <Text style={[styles.mediaGhostButtonText, { color: themeColors.chipText }]}>削除</Text>
+                  style={[styles.photoIconButtonLarge, { backgroundColor: themeColors.chip, borderColor: themeColors.border }]}
+                  onPress={() => void handlePickPostImage()}
+                  disabled={imageUrls.length >= 4}>
+                  <FontAwesome6 name="image" size={19} color={themeColors.accent} />
                 </Pressable>
               </View>
 
-              {imageUrl.trim() && isImageValue(imageUrl) ? (
-                <Image source={{ uri: imageUrl.trim() }} style={styles.previewImage} resizeMode="cover" />
+              {imageUrls.length > 0 ? (
+                <View style={styles.composerPreviewGrid}>
+                  {imageUrls.map((uri, index) => (
+                    <View key={`${uri}:${index}`} style={styles.composerPreviewWrap}>
+                      <Image source={{ uri }} style={styles.composerPreviewImage} resizeMode="contain" />
+                      <Pressable
+                        style={styles.composerRemoveImageButton}
+                        onPress={() => setImageUrls((prev) => prev.filter((_, itemIndex) => itemIndex !== index))}>
+                        <FontAwesome6 name="xmark" size={14} color="#ffffff" />
+                      </Pressable>
+                    </View>
+                  ))}
+                </View>
               ) : null}
 
               {formError ? <Text style={styles.errorText}>{formError}</Text> : null}
@@ -2544,6 +2503,14 @@ const styles = StyleSheet.create({
     gap: 8,
     marginBottom: 8,
   },
+  photoIconButtonLarge: {
+    width: 42,
+    height: 42,
+    borderRadius: 21,
+    borderWidth: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   mediaButton: {
     flex: 1,
     borderRadius: 10,
@@ -2578,6 +2545,35 @@ const styles = StyleSheet.create({
     borderRadius: 10,
     backgroundColor: '#dcefe3',
     marginBottom: 8,
+  },
+  composerPreviewGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+    marginBottom: 8,
+  },
+  composerPreviewWrap: {
+    position: 'relative',
+    width: '48.5%',
+    aspectRatio: 1,
+    borderRadius: 12,
+    overflow: 'hidden',
+    backgroundColor: '#ebe3ca',
+  },
+  composerPreviewImage: {
+    width: '100%',
+    height: '100%',
+  },
+  composerRemoveImageButton: {
+    position: 'absolute',
+    right: 7,
+    top: 7,
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: 'rgba(15,23,42,0.72)',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   imagePreviewOverlay: {
     flex: 1,

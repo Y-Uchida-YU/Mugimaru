@@ -24,8 +24,9 @@ export default function DirectMessageThreadScreen() {
 
   const loadMessages = useCallback(async () => {
     if (!profile || !peerExternalId) return;
-    await markDirectThreadRead(profile.externalId, peerExternalId);
-    setMessages(await listDirectMessages(profile.externalId, peerExternalId));
+    const rows = await listDirectMessages(profile.externalId, peerExternalId);
+    setMessages(rows);
+    void markDirectThreadRead(profile.externalId, peerExternalId);
   }, [peerExternalId, profile]);
 
   useEffect(() => {
