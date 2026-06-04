@@ -139,6 +139,14 @@ function getRequiredEnv(name: string) {
   return value;
 }
 
+function getLineChannelId() {
+  return (
+    process.env.EXPO_PUBLIC_LINE_CHANNEL_ID?.trim() ||
+    process.env.EXPO_PUBLIC_LINE_CHANEL_ID?.trim() ||
+    ''
+  );
+}
+
 function getAppReturnUri() {
   return Linking.createURL(REDIRECT_PATH, { scheme: APP_SCHEME });
 }
@@ -410,7 +418,10 @@ function parseJwtPayload(token?: string): JwtPayload | null {
 }
 
 export async function authenticateWithLine(): Promise<SocialAuthProfile> {
-  const clientId = getRequiredEnv('EXPO_PUBLIC_LINE_CHANNEL_ID');
+  const clientId = getLineChannelId();
+  if (!clientId) {
+    throw new Error('Missing environment variable: EXPO_PUBLIC_LINE_CHANNEL_ID');
+  }
   const channelSecret = process.env.EXPO_PUBLIC_LINE_CHANNEL_SECRET;
   const redirectUri = getProviderRedirectUri();
   const appReturnUri = getAppReturnUri();

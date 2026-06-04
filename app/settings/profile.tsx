@@ -1,6 +1,6 @@
 import { useRouter } from 'expo-router';
 import { useEffect, useMemo, useState } from 'react';
-import { Image, Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Image, KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 
 import { SettingsPageScaffold, SettingsSection } from '@/app/settings/_shared';
 import { useAuth } from '@/lib/auth-context';
@@ -227,6 +227,7 @@ export default function ProfileSettingsScreen() {
   };
 
   return (
+    <KeyboardAvoidingView style={styles.keyboardWrap} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
     <SettingsPageScaffold
       title="プロフィール"
       subtitle="掲示板やプロフィール画面に表示される情報を設定します。"
@@ -474,6 +475,7 @@ export default function ProfileSettingsScreen() {
         </View>
       </Modal>
     </SettingsPageScaffold>
+    </KeyboardAvoidingView>
   );
 }
 
@@ -530,6 +532,9 @@ function SelectionModal({
 }
 
 const styles = StyleSheet.create({
+  keyboardWrap: {
+    flex: 1,
+  },
   avatarRow: {
     flexDirection: 'row',
     alignItems: 'center',

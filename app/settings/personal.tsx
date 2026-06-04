@@ -1,6 +1,6 @@
 import { useRouter } from 'expo-router';
 import { useEffect, useMemo, useState } from 'react';
-import { Pressable, StyleSheet, Switch, Text, TextInput, View } from 'react-native';
+import { KeyboardAvoidingView, Platform, Pressable, StyleSheet, Switch, Text, TextInput, View } from 'react-native';
 
 import { SettingsPageScaffold, SettingsSection } from '@/app/settings/_shared';
 import { useAuth } from '@/lib/auth-context';
@@ -92,6 +92,7 @@ export default function PersonalSettingsScreen() {
   };
 
   return (
+    <KeyboardAvoidingView style={styles.keyboardWrap} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
     <SettingsPageScaffold
       title="個人設定"
       subtitle="メール、通知、表示言語を設定します。"
@@ -212,10 +213,14 @@ export default function PersonalSettingsScreen() {
       </Pressable>
       {message ? <Text style={[styles.messageText, { color: colors.mutedText, fontFamily, fontSize: 12 * scale }]}>{message}</Text> : null}
     </SettingsPageScaffold>
+    </KeyboardAvoidingView>
   );
 }
 
 const styles = StyleSheet.create({
+  keyboardWrap: {
+    flex: 1,
+  },
   fieldWrap: {
     gap: 6,
   },

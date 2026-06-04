@@ -73,6 +73,7 @@ export default function MeScreen() {
 
   const [myPosts, setMyPosts] = useState<BoardPostView[]>([]);
   const [savedPosts, setSavedPosts] = useState<BoardPostView[]>([]);
+  const [activeTab, setActiveTab] = useState<'posts' | 'saved'>('posts');
   const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState('');
 
@@ -170,6 +171,20 @@ export default function MeScreen() {
           </View>
         </View>
 
+        <View style={[styles.tabBar, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+          <Pressable
+            style={[styles.tabButton, activeTab === 'posts' ? { backgroundColor: colors.accent } : null]}
+            onPress={() => setActiveTab('posts')}>
+            <Text style={[styles.tabText, { color: activeTab === 'posts' ? colors.accentContrast : colors.text }]}>自分の投稿</Text>
+          </Pressable>
+          <Pressable
+            style={[styles.tabButton, activeTab === 'saved' ? { backgroundColor: colors.accent } : null]}
+            onPress={() => setActiveTab('saved')}>
+            <Text style={[styles.tabText, { color: activeTab === 'saved' ? colors.accentContrast : colors.text }]}>保存した投稿</Text>
+          </Pressable>
+        </View>
+
+        {activeTab === 'posts' ? (
         <View style={[styles.sectionCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
           <Text style={[styles.sectionTitle, { color: colors.text }]}>自分の投稿</Text>
           {loading ? <Text style={[styles.message, { color: colors.mutedText }]}>読み込み中...</Text> : null}
@@ -184,7 +199,9 @@ export default function MeScreen() {
             />
           ))}
         </View>
+        ) : null}
 
+        {activeTab === 'saved' ? (
         <View style={[styles.sectionCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
           <Text style={[styles.sectionTitle, { color: colors.text }]}>保存した投稿</Text>
           {savedPosts.length === 0 ? <Text style={[styles.message, { color: colors.mutedText }]}>保存した投稿はまだありません。</Text> : null}
@@ -198,6 +215,7 @@ export default function MeScreen() {
             />
           ))}
         </View>
+        ) : null}
 
         {message ? <Text style={[styles.message, { color: colors.mutedText }]}>{message}</Text> : null}
       </ScrollView>
@@ -234,6 +252,9 @@ const styles = StyleSheet.create({
   dogName: { fontSize: 22, fontWeight: '900' },
   bio: { fontSize: 14, lineHeight: 21 },
   subText: { fontSize: 12, fontWeight: '700' },
+  tabBar: { minHeight: 42, borderRadius: 12, borderWidth: 1, padding: 3, flexDirection: 'row', gap: 3 },
+  tabButton: { flex: 1, borderRadius: 9, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 8 },
+  tabText: { fontSize: 13, fontWeight: '900' },
   sectionCard: { borderRadius: 18, borderWidth: 1, padding: 14, gap: 10 },
   sectionTitle: { fontSize: 17, fontWeight: '900' },
   postItem: { borderRadius: 14, borderWidth: 1, padding: 12, gap: 8 },

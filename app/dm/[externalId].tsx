@@ -1,7 +1,7 @@
 import { FontAwesome6 } from '@expo/vector-icons';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, TextInput, View } from 'react-native';
+import { KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { ThemedText as Text } from '@/components/themed-typography';
@@ -63,7 +63,8 @@ export default function DirectMessageThreadScreen() {
         </Pressable>
         <Text style={[styles.title, { color: colors.text }]}>{peerName}</Text>
       </View>
-      <ScrollView contentContainerStyle={styles.messages}>
+      <KeyboardAvoidingView style={styles.threadBodyWrap} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
+      <ScrollView contentContainerStyle={styles.messages} keyboardShouldPersistTaps="handled">
         {messages.length === 0 ? <Text style={[styles.notice, { color: colors.mutedText }]}>最初のメッセージを送ってみましょう。</Text> : null}
         {messages.map((message) => {
           const mine = message.senderExternalId === profile.externalId;
@@ -88,12 +89,14 @@ export default function DirectMessageThreadScreen() {
           <FontAwesome6 name="paper-plane" size={14} color={colors.accentContrast} />
         </Pressable>
       </View>
+      </KeyboardAvoidingView>
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
   safeArea: { flex: 1 },
+  threadBodyWrap: { flex: 1 },
   header: { minHeight: 54, paddingHorizontal: 16, flexDirection: 'row', alignItems: 'center', gap: 12 },
   backButton: { width: 38, height: 38, borderRadius: 19, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
   title: { fontSize: 19, fontWeight: '900' },

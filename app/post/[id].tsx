@@ -1,7 +1,7 @@
 import { FontAwesome6 } from '@expo/vector-icons';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Image, Pressable, ScrollView, StyleSheet, TextInput, View } from 'react-native';
+import { Image, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { ThemedText as Text } from '@/components/themed-typography';
@@ -12,17 +12,13 @@ import {
   getBoardPost,
   listBoardComments,
   listBoardPostLikes,
-  listBoardPostStamps,
   removeBoardPostLike,
   type BoardCommentRow,
 } from '@/lib/board-data';
 import {
   buildSeedPosts,
-  createEmptyStampBucket,
   mapRowToPost,
-  STAMP_OPTIONS,
   type BoardPostView,
-  type StampBucket,
 } from '@/lib/board-view-models';
 import { useAppTheme } from '@/lib/app-theme-context';
 import { getAppText } from '@/lib/i18n';
@@ -88,7 +84,6 @@ export default function PostDetailScreen() {
   const [likesCount, setLikesCount] = useState(0);
   const [liked, setLiked] = useState(false);
   const [saved, setSaved] = useState(false);
-  const [stampCounts, setStampCounts] = useState<StampBucket>(createEmptyStampBucket);
   const [commentBody, setCommentBody] = useState('');
   const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState('');
@@ -106,7 +101,6 @@ export default function PostDetailScreen() {
       setLikesCount(localPost ? Math.max(0, Math.floor(localPost.replies / 2)) : 0);
       setLiked(false);
       setSaved(Boolean(profile?.externalId && localPost ? await isPostSaved(profile.externalId, localPost.id) : false));
-      setStampCounts(createEmptyStampBucket());
       setLoading(false);
       return;
     }
@@ -121,22 +115,14 @@ export default function PostDetailScreen() {
 
       const mappedPost = mapRowToPost(row);
       setPost(mappedPost);
-      const [commentRows, likeRows, stampRows] = await Promise.all([
+      const [commentRows, likeRows] = await Promise.all([
         listBoardComments(postId),
         listBoardPostLikes([postId]),
-        listBoardPostStamps([postId]),
       ]);
       setComments(commentRows.map(mapComment));
       setLikesCount(likeRows.length);
       setLiked(Boolean(profile?.externalId && likeRows.some((like) => like.user_external_id === profile.externalId)));
       setSaved(Boolean(profile?.externalId && (await isPostSaved(profile.externalId, mappedPost.id))));
-      const nextBucket = createEmptyStampBucket();
-      for (const stamp of stampRows) {
-        if (stamp.stamp === 'paw' || stamp.stamp === 'heart' || stamp.stamp === 'wow' || stamp.stamp === 'fire') {
-          nextBucket[stamp.stamp] += 1;
-        }
-      }
-      setStampCounts(nextBucket);
     } catch (error) {
       setMessage(error instanceof Error ? error.message : '投稿の読み込みに失敗しました。');
     } finally {
@@ -229,7 +215,8 @@ export default function PostDetailScreen() {
   return (
     <SafeAreaView style={[styles.safeArea, { backgroundColor: colors.background }]}>
       <Stack.Screen options={{ headerShown: false }} />
-      <ScrollView contentContainerStyle={styles.content}>
+      <KeyboardAvoidingView style={styles.safeArea} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
+      <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
         <View style={styles.header}>
           <Pressable style={[styles.backButton, { backgroundColor: colors.surface, borderColor: colors.border }]} onPress={() => router.back()}>
             <FontAwesome6 name="arrow-left" size={14} color={colors.text} />
@@ -279,14 +266,6 @@ export default function PostDetailScreen() {
                 </Pressable>
               </View>
 
-              <View style={styles.stampRow}>
-                {STAMP_OPTIONS.map((stamp) => (
-                  <View key={stamp.key} style={[styles.stampPill, { backgroundColor: colors.background, borderColor: colors.border }]}>
-                    <Text style={styles.stampIcon}>{stamp.icon}</Text>
-                    <Text style={[styles.stampCount, { color: colors.mutedText }]}>{stampCounts[stamp.key]}</Text>
-                  </View>
-                ))}
-              </View>
             </View>
 
             <View style={[styles.replyCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
@@ -330,6 +309,7 @@ export default function PostDetailScreen() {
 
         {message && post ? <Text style={[styles.message, { color: colors.mutedText }]}>{message}</Text> : null}
       </ScrollView>
+      </KeyboardAvoidingView>
     </SafeAreaView>
   );
 }

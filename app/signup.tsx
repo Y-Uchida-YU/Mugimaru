@@ -79,7 +79,9 @@ export default function SignupScreen() {
   const [isBusy, setBusy] = useState(false);
   const [message, setMessage] = useState('');
 
-  const hasLineOAuth = Boolean(process.env.EXPO_PUBLIC_LINE_CHANNEL_ID);
+  const hasLineOAuth = Boolean(
+    process.env.EXPO_PUBLIC_LINE_CHANNEL_ID || process.env.EXPO_PUBLIC_LINE_CHANEL_ID
+  );
   const hasGoogleOAuth = Boolean(process.env.EXPO_PUBLIC_GOOGLE_CLIENT_ID);
   const hasXOAuth = Boolean(process.env.EXPO_PUBLIC_X_CLIENT_ID);
   const emailIsValid = useMemo(() => EMAIL_PATTERN.test(email.trim()), [email]);
@@ -267,7 +269,7 @@ export default function SignupScreen() {
     <ImageBackground source={HERO_IMAGE} style={styles.background} resizeMode="cover">
       <View style={styles.scrim} />
       <SafeAreaView style={styles.safeArea}>
-        <KeyboardAvoidingView style={styles.flex} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+        <KeyboardAvoidingView style={styles.flex} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
           <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
             <Animated.View style={[styles.heroPanel, { opacity: fade, transform: [{ scale }] }]}>
               <View style={styles.logoRow}>

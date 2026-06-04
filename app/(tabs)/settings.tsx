@@ -114,9 +114,6 @@ export default function SettingsScreen() {
             </View>
             <View style={styles.profileMeta}>
               <Text style={[styles.profileName, { color: colors.text }]}>{profile?.dogName || profile?.name || 'ゲスト'}</Text>
-              <Text style={[styles.profileEmail, { color: colors.mutedText }]}>
-                {profile?.email?.trim() ? profile.email : copy.guestMail}
-              </Text>
             </View>
             <Pressable style={[styles.editButton, { backgroundColor: colors.surface }]} onPress={() => open('/settings/profile')}>
               <FontAwesome6 name="pen" size={13} color={colors.text} />
@@ -182,9 +179,8 @@ const styles = StyleSheet.create({
   profileCard: { borderRadius: 24, borderWidth: 1, padding: 16, gap: 14 },
   profileTop: { flexDirection: 'row', alignItems: 'center', gap: 12 },
   avatar: { width: 58, height: 58, borderRadius: 20, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
-  profileMeta: { flex: 1, gap: 2 },
+  profileMeta: { flex: 1 },
   profileName: { fontSize: 20, fontWeight: '800' },
-  profileEmail: { fontSize: 12 },
   editButton: { width: 38, height: 38, borderRadius: 19, alignItems: 'center', justifyContent: 'center' },
   statsRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   metric: { flex: 1, minWidth: 96, minHeight: 58, borderRadius: 16, borderWidth: 1, paddingHorizontal: 10, justifyContent: 'center', gap: 2 },

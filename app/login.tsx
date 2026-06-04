@@ -112,7 +112,7 @@ export default function LoginScreen() {
     <ImageBackground source={HERO_IMAGE} style={styles.background} resizeMode="cover">
       <View style={styles.scrim} />
       <SafeAreaView style={styles.safeArea}>
-        <KeyboardAvoidingView style={styles.flex} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+        <KeyboardAvoidingView style={styles.flex} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
           <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
             <Animated.View style={[styles.panel, { opacity: fade, transform: [{ translateY: lift }] }]}>
               <View style={styles.form}>

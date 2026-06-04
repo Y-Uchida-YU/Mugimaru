@@ -1091,7 +1091,7 @@ export default function BoardScreen() {
                 <Pressable
                   style={styles.avatarPress}
                   onPress={() => void openUserProfile(post.authorExternalId, post.author, post.authorAvatarUrl)}>
-                  <Avatar uri={post.authorAvatarUrl} label={post.author} size={42} />
+                  <Avatar uri={post.authorAvatarUrl} label={post.author} size={36} />
                 </Pressable>
 
                 <View style={styles.timelinePostBodyWrap}>
@@ -1145,31 +1145,15 @@ export default function BoardScreen() {
                         {likesCountByPost[post.id] ?? 0}
                       </Text>
                     </Pressable>
-                    <View style={styles.timelineReactionRow}>
-                      {STAMP_OPTIONS.map((stampOption) => {
-                        const bucket = stampCountsByPost[post.id] ?? createEmptyStampBucket();
-                        const mine = myStampsByPost[post.id] ?? [];
-                        const active = mine.includes(stampOption.key);
-                        return (
-                          <Pressable
-                            key={`${post.id}:stamp:${stampOption.key}`}
-                            style={[
-                              styles.timelineReactionButton,
-                              {
-                                borderColor: active ? themeColors.accent : themeColors.border,
-                                backgroundColor: active ? themeColors.chip : themeColors.background,
-                              },
-                            ]}
-                            onPress={() => void handleToggleStamp(post.id, stampOption.key)}>
-                            <Text style={styles.stampEmoji}>{stampOption.icon}</Text>
-                            <Text style={[styles.timelineReactionCount, { color: active ? themeColors.text : themeColors.mutedText }]}>
-                              {bucket[stampOption.key]}
-                            </Text>
-                          </Pressable>
-                        );
-                      })}
-                    </View>
-                    <Pressable style={styles.timelineActionButton} onPress={() => void handleToggleSave(post)}>
+                    <Pressable
+                      style={[
+                        styles.timelineSaveButton,
+                        {
+                          borderColor: savedByPost[post.id] ? themeColors.accent : themeColors.border,
+                          backgroundColor: savedByPost[post.id] ? themeColors.chip : themeColors.background,
+                        },
+                      ]}
+                      onPress={() => void handleToggleSave(post)}>
                       <FontAwesome6
                         name="bookmark"
                         size={14}
@@ -1263,7 +1247,7 @@ export default function BoardScreen() {
         <Modal visible={isComposerOpen} transparent animationType="fade" onRequestClose={closeComposer}>
           <KeyboardAvoidingView
             style={styles.modalOverlay}
-            behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+            behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
             <View style={[styles.modalCard, { backgroundColor: themeColors.surface, borderColor: themeColors.border }]}>
               <Text style={[styles.modalTitle, { color: themeColors.text }]}>{text.board.composerTitle}</Text>
               <Text style={[styles.metaText, { color: themeColors.mutedText }]}>投稿者: {profile?.dogName || profile?.name || text.board.anonymous}</Text>
@@ -1380,7 +1364,7 @@ export default function BoardScreen() {
           onRequestClose={closeCommentModal}>
           <KeyboardAvoidingView
             style={styles.modalOverlay}
-            behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+            behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
             <View style={[styles.commentModalCard, { backgroundColor: themeColors.surface, borderColor: themeColors.border }]}>
               <View style={styles.commentModalHeader}>
                 <Text style={[styles.modalTitle, { color: themeColors.text }]}>返信</Text>
@@ -1513,7 +1497,7 @@ export default function BoardScreen() {
           onRequestClose={closeChatModal}>
           <KeyboardAvoidingView
             style={styles.modalOverlay}
-            behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+            behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
             <View style={[styles.chatModalCard, { backgroundColor: themeColors.surface, borderColor: themeColors.border }]}>
               <View style={styles.commentModalHeader}>
                 <Text style={[styles.modalTitle, { color: themeColors.text }]}>コミュニティチャット</Text>
@@ -1604,7 +1588,7 @@ export default function BoardScreen() {
           onRequestClose={closeProfileModal}>
           <KeyboardAvoidingView
             style={styles.modalOverlay}
-            behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+            behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
             <View style={[styles.profileModalCard, { backgroundColor: themeColors.surface, borderColor: themeColors.border }]}>
               <View style={styles.commentModalHeader}>
                 <Text style={[styles.modalTitle, { color: themeColors.text }]}>プロフィール</Text>
@@ -1696,21 +1680,22 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   content: {
-    paddingHorizontal: 10,
-    paddingBottom: 110,
-    paddingTop: 4,
-    gap: 8,
+    paddingHorizontal: 8,
+    paddingBottom: 96,
+    paddingTop: 0,
+    gap: 4,
   },
   timelineTopBar: {
-    minHeight: 36,
+    minHeight: 28,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'flex-end',
+    marginBottom: -2,
   },
   searchIconButton: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
+    width: 30,
+    height: 30,
+    borderRadius: 15,
     borderWidth: 1,
     alignItems: 'center',
     justifyContent: 'center',
@@ -1806,7 +1791,7 @@ const styles = StyleSheet.create({
     fontSize: 12,
   },
   timelineFeed: {
-    gap: 8,
+    gap: 6,
   },
   timelineEmptyState: {
     borderRadius: 20,
@@ -1823,15 +1808,15 @@ const styles = StyleSheet.create({
     lineHeight: 19,
   },
   timelinePost: {
-    borderRadius: 16,
+    borderRadius: 12,
     borderWidth: 1,
-    padding: 10,
+    padding: 8,
     flexDirection: 'row',
-    gap: 10,
+    gap: 8,
   },
   timelinePostBodyWrap: {
     flex: 1,
-    gap: 8,
+    gap: 5,
   },
   timelinePostHeader: {
     flexDirection: 'row',
@@ -1844,19 +1829,19 @@ const styles = StyleSheet.create({
     gap: 1,
   },
   timelineAuthor: {
-    fontSize: 14,
+    fontSize: 13,
     fontWeight: '800',
   },
   timelineSubline: {
-    fontSize: 12,
+    fontSize: 11,
   },
   timelinePostTitle: {
-    fontSize: 16,
+    fontSize: 14,
     fontWeight: '800',
   },
   timelinePostText: {
-    fontSize: 14,
-    lineHeight: 21,
+    fontSize: 13,
+    lineHeight: 18,
   },
   timelineTag: {
     borderRadius: 999,
@@ -1867,7 +1852,7 @@ const styles = StyleSheet.create({
   timelineActions: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 16,
+    gap: 14,
   },
   timelineActionButton: {
     flexDirection: 'row',
@@ -1877,6 +1862,15 @@ const styles = StyleSheet.create({
   timelineActionText: {
     fontSize: 12,
     fontWeight: '700',
+  },
+  timelineSaveButton: {
+    minHeight: 28,
+    borderRadius: 999,
+    borderWidth: 1,
+    paddingHorizontal: 9,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
   },
   timelineReactionRow: {
     flex: 1,
