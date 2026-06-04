@@ -29,14 +29,15 @@ export default function ComposeScreen() {
   const colors = activeTheme.colors;
   const [title, setTitle] = useState('');
   const [body, setBody] = useState('');
-  const [imageUrl, setImageUrl] = useState('');
+  const [imageUrls, setImageUrls] = useState<string[]>([]);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState('');
 
   const handlePickImage = async () => {
+    if (imageUrls.length >= 4) return;
     try {
       const picked = await pickImageFromLibrary();
-      if (picked) setImageUrl(picked.dataUrl);
+      if (picked) setImageUrls((prev) => [...prev, picked.dataUrl].slice(0, 4));
     } catch (error) {
       setMessage(error instanceof Error ? error.message : '写真を選択できませんでした。');
     }
@@ -71,7 +72,8 @@ export default function ComposeScreen() {
         category: '投稿',
         title: trimmedTitle,
         body: trimmedBody,
-        image_url: imageUrl || null,
+        image_url: imageUrls[0] ?? null,
+        image_urls: imageUrls,
         tags: extractHashtags(trimmedTitle, trimmedBody),
       });
       router.replace('/(tabs)' as never);
@@ -117,12 +119,18 @@ export default function ComposeScreen() {
             textAlignVertical="top"
           />
 
-          {imageUrl ? (
-            <View style={styles.previewWrap}>
-              <Image source={{ uri: imageUrl }} style={styles.previewImage} resizeMode="cover" />
-              <Pressable style={styles.removeImageButton} onPress={() => setImageUrl('')}>
-                <FontAwesome6 name="xmark" size={16} color="#ffffff" />
-              </Pressable>
+          {imageUrls.length > 0 ? (
+            <View style={styles.previewGrid}>
+              {imageUrls.map((uri, index) => (
+                <View key={`${uri}:${index}`} style={styles.previewWrap}>
+                  <Image source={{ uri }} style={styles.previewImage} resizeMode="contain" />
+                  <Pressable
+                    style={styles.removeImageButton}
+                    onPress={() => setImageUrls((prev) => prev.filter((_, itemIndex) => itemIndex !== index))}>
+                    <FontAwesome6 name="xmark" size={16} color="#ffffff" />
+                  </Pressable>
+                </View>
+              ))}
             </View>
           ) : null}
 
@@ -130,6 +138,7 @@ export default function ComposeScreen() {
             <Pressable
               style={[styles.photoIconButton, { backgroundColor: colors.surface, borderColor: colors.border }]}
               onPress={() => void handlePickImage()}
+              disabled={imageUrls.length >= 4}
               accessibilityRole="button"
               accessibilityLabel="写真を選択">
               <FontAwesome6 name="image" size={20} color={colors.accent} />
@@ -155,8 +164,9 @@ const styles = StyleSheet.create({
   content: { padding: 14, gap: 12 },
   titleInput: { minHeight: 48, fontSize: 20, fontWeight: '800', paddingHorizontal: 2 },
   bodyInput: { minHeight: 160, fontSize: 16, lineHeight: 23, paddingHorizontal: 2, paddingTop: 8 },
-  previewWrap: { position: 'relative', borderRadius: 14, overflow: 'hidden' },
-  previewImage: { width: '100%', height: 230, backgroundColor: '#e5e7eb' },
+  previewGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  previewWrap: { position: 'relative', width: '48.5%', aspectRatio: 1, borderRadius: 14, overflow: 'hidden', backgroundColor: '#e5e7eb' },
+  previewImage: { width: '100%', height: '100%' },
   removeImageButton: {
     position: 'absolute',
     right: 8,

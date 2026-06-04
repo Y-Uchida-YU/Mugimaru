@@ -9,6 +9,7 @@ export type BoardPostView = {
   authorAvatarUrl: string;
   category: string;
   imageUrl: string;
+  imageUrls: string[];
   tags: string[];
   replies: number;
   updatedAt: string;
@@ -75,6 +76,7 @@ export function buildSeedPosts(seedPosts: SeedPostView[]): BoardPostView[] {
     authorAvatarUrl: '',
     category: post.category,
     imageUrl: '',
+    imageUrls: [],
     tags: [],
     replies: post.replies,
     updatedAt: post.updatedAt,
@@ -82,6 +84,7 @@ export function buildSeedPosts(seedPosts: SeedPostView[]): BoardPostView[] {
 }
 
 export function mapRowToPost(row: BoardPostRow): BoardPostView {
+  const imageUrls = row.image_urls?.length ? row.image_urls : row.image_url ? [row.image_url] : [];
   return {
     id: row.id,
     authorExternalId: row.author_external_id,
@@ -90,7 +93,8 @@ export function mapRowToPost(row: BoardPostRow): BoardPostView {
     author: row.author_name,
     authorAvatarUrl: row.author_avatar_url ?? '',
     category: row.category,
-    imageUrl: row.image_url ?? '',
+    imageUrl: imageUrls[0] ?? '',
+    imageUrls,
     tags: row.tags ?? [],
     replies: row.replies_count,
     updatedAt: formatTimeLabel(row.updated_at || row.created_at),

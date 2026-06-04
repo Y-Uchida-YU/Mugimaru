@@ -38,7 +38,7 @@ export async function listSavedPosts(userExternalId: string) {
   if (hasSupabaseEnv) {
     const encoded = encodeURIComponent(userExternalId);
     const rows = await supabaseSelect<SavedPostRow[]>(
-      `saved_posts?select=post_id,saved_at,board_posts(id,author_external_id,author_name,author_avatar_url,category,title,body,image_url,tags,replies_count,created_at,updated_at)&user_external_id=eq.${encoded}&order=saved_at.desc&limit=200`
+      `saved_posts?select=post_id,saved_at,board_posts(id,author_external_id,author_name,author_avatar_url,category,title,body,image_url,image_urls,tags,replies_count,created_at,updated_at)&user_external_id=eq.${encoded}&order=saved_at.desc&limit=200`
     );
     return rows
       .filter((row) => row.board_posts)

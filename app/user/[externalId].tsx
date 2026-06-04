@@ -10,6 +10,7 @@ import { listBoardPostsByAuthor } from '@/lib/board-data';
 import { buildSeedPosts, mapRowToPost, type BoardPostView } from '@/lib/board-view-models';
 import { useAppTheme } from '@/lib/app-theme-context';
 import { getAppText } from '@/lib/i18n';
+import { createNotification } from '@/lib/notifications';
 import { getAvatarIconGlyph, parseAvatarValue } from '@/lib/profile-avatar';
 import { hasSupabaseEnv } from '@/lib/supabase';
 import { followUser, getAppUserByExternalId, getFollowCounts, isFollowingUser, unfollowUser } from '@/lib/user-data';
@@ -131,6 +132,14 @@ export default function UserProfileScreen() {
       const nextFollowing = !profileView.isFollowing;
       if (nextFollowing) {
         await followUser(profile.externalId, externalId);
+        await createNotification({
+          recipientExternalId: externalId,
+          actorExternalId: profile.externalId,
+          actorName: profile.dogName || profile.name,
+          actorAvatarUrl: profile.avatarUrl,
+          type: 'follow',
+          body: 'フォローされました',
+        });
       } else {
         await unfollowUser(profile.externalId, externalId);
       }

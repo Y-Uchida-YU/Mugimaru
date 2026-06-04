@@ -1,7 +1,7 @@
 import { FontAwesome6 } from '@expo/vector-icons';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Image, KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, StyleSheet, TextInput, View } from 'react-native';
+import { Image, KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, StyleSheet, TextInput, useWindowDimensions, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { ThemedText as Text } from '@/components/themed-typography';
@@ -25,6 +25,7 @@ import { getAppText } from '@/lib/i18n';
 import { getAvatarIconGlyph, parseAvatarValue } from '@/lib/profile-avatar';
 import { isPostSaved, removeSavedPost, savePost } from '@/lib/saved-posts';
 import { hasSupabaseEnv } from '@/lib/supabase';
+import { createNotification } from '@/lib/notifications';
 
 type BoardCommentView = {
   id: string;
@@ -69,6 +70,19 @@ function Avatar({ uri, label, size = 42 }: { uri: string; label: string; size?: 
   );
 }
 
+function DetailImageGrid({ images, width, onPress }: { images: string[]; width: number; onPress: (index: number) => void }) {
+  if (images.length === 0) return null;
+  return (
+    <ScrollView horizontal pagingEnabled showsHorizontalScrollIndicator={false} style={styles.detailImageScroller}>
+      {images.slice(0, 4).map((uri, index) => (
+        <Pressable key={`${uri}:${index}`} style={[styles.detailImagePage, { width }]} onPress={() => onPress(index)}>
+          <Image source={{ uri }} style={styles.postImage} resizeMode="contain" />
+        </Pressable>
+      ))}
+    </ScrollView>
+  );
+}
+
 export default function PostDetailScreen() {
   const router = useRouter();
   const params = useLocalSearchParams<{ id?: string }>();
@@ -76,6 +90,7 @@ export default function PostDetailScreen() {
   const text = getAppText();
   const { activeTheme } = useAppTheme();
   const colors = activeTheme.colors;
+  const { width: windowWidth } = useWindowDimensions();
   const { profile } = useAuth();
   const isGuest = profile?.provider === 'guest';
 
@@ -87,7 +102,7 @@ export default function PostDetailScreen() {
   const [commentBody, setCommentBody] = useState('');
   const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState('');
-  const [previewImageUrl, setPreviewImageUrl] = useState('');
+  const [previewImages, setPreviewImages] = useState<{ images: string[]; index: number } | null>(null);
 
   const rootComments = useMemo(() => comments.filter((comment) => !comment.parentCommentId), [comments]);
 
@@ -148,6 +163,15 @@ export default function PostDetailScreen() {
     try {
       if (nextLiked) {
         await addBoardPostLike(post.id, profile.externalId);
+        await createNotification({
+          recipientExternalId: post.authorExternalId,
+          actorExternalId: profile.externalId,
+          actorName: profile.dogName || profile.name,
+          actorAvatarUrl: profile.avatarUrl,
+          type: 'like',
+          postId: post.id,
+          body: '投稿にいいねされました',
+        });
       } else {
         await removeBoardPostLike(post.id, profile.externalId);
       }
@@ -246,11 +270,11 @@ export default function PostDetailScreen() {
               </View>
               <Text style={[styles.postTitle, { color: colors.text }]}>{post.title}</Text>
               <Text style={[styles.postBody, { color: colors.text }]}>{post.body}</Text>
-              {post.imageUrl ? (
-                <Pressable onPress={() => setPreviewImageUrl(post.imageUrl)}>
-                  <Image source={{ uri: post.imageUrl }} style={styles.postImage} resizeMode="cover" />
-                </Pressable>
-              ) : null}
+              <DetailImageGrid
+                images={post.imageUrls}
+                width={Math.max(260, windowWidth - 60)}
+                onPress={(index) => setPreviewImages({ images: post.imageUrls, index })}
+              />
 
               <View style={styles.statRow}>
                 <View style={[styles.statPill, { backgroundColor: colors.background, borderColor: colors.border }]}>
@@ -315,12 +339,24 @@ export default function PostDetailScreen() {
         {message && post ? <Text style={[styles.message, { color: colors.mutedText }]}>{message}</Text> : null}
       </ScrollView>
       </KeyboardAvoidingView>
-      <Modal visible={Boolean(previewImageUrl)} transparent animationType="fade" onRequestClose={() => setPreviewImageUrl('')}>
-        <Pressable style={styles.imagePreviewOverlay} onPress={() => setPreviewImageUrl('')}>
-          <Pressable style={styles.imagePreviewClose} onPress={() => setPreviewImageUrl('')}>
+      <Modal visible={Boolean(previewImages)} transparent animationType="fade" onRequestClose={() => setPreviewImages(null)}>
+        <Pressable style={styles.imagePreviewOverlay} onPress={() => setPreviewImages(null)}>
+          <Pressable style={styles.imagePreviewClose} onPress={() => setPreviewImages(null)}>
             <FontAwesome6 name="xmark" size={18} color="#ffffff" />
           </Pressable>
-          {previewImageUrl ? <Image source={{ uri: previewImageUrl }} style={styles.imagePreview} resizeMode="contain" /> : null}
+          {previewImages ? (
+            <ScrollView
+              horizontal
+              pagingEnabled
+              showsHorizontalScrollIndicator={false}
+              contentOffset={{ x: windowWidth * previewImages.index, y: 0 }}>
+              {previewImages.images.map((uri, index) => (
+                <View key={`${uri}:${index}`} style={[styles.previewPage, { width: windowWidth }]}>
+                  <Image source={{ uri }} style={styles.imagePreview} resizeMode="contain" />
+                </View>
+              ))}
+            </ScrollView>
+          ) : null}
         </Pressable>
       </Modal>
     </SafeAreaView>
@@ -340,7 +376,9 @@ const styles = StyleSheet.create({
   meta: { fontSize: 12, fontWeight: '700' },
   postTitle: { fontSize: 20, fontWeight: '800', lineHeight: 27 },
   postBody: { fontSize: 15, lineHeight: 23 },
-  postImage: { width: '100%', height: 230, borderRadius: 14 },
+  detailImageScroller: { borderRadius: 14 },
+  detailImagePage: { height: 250, borderRadius: 14, overflow: 'hidden', backgroundColor: '#e5e7eb' },
+  postImage: { width: '100%', height: '100%' },
   imagePreviewOverlay: {
     flex: 1,
     backgroundColor: 'rgba(0,0,0,0.92)',
@@ -348,6 +386,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   imagePreview: { width: '100%', height: '86%' },
+  previewPage: { height: '100%', alignItems: 'center', justifyContent: 'center' },
   imagePreviewClose: {
     position: 'absolute',
     right: 18,

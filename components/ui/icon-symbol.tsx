@@ -21,6 +21,8 @@ const MAPPING = {
   'text.bubble.fill': 'forum',
   'map.fill': 'map',
   'gearshape.fill': 'settings',
+  'envelope.fill': 'mail',
+  'bell.fill': 'notifications',
   calendar: 'calendar-month',
 } as IconMapping;
 

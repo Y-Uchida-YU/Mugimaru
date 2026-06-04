@@ -4,6 +4,7 @@ create extension if not exists "pgcrypto";
 drop table if exists public.reviews cascade;
 drop table if exists public.spots cascade;
 drop table if exists public.user_follows cascade;
+drop table if exists public.notifications cascade;
 drop table if exists public.direct_messages cascade;
 drop table if exists public.board_chat_messages cascade;
 drop table if exists public.saved_posts cascade;
@@ -40,6 +41,7 @@ create table public.board_posts (
   title text not null,
   body text not null,
   image_url text,
+  image_urls text[] not null default '{}',
   author_avatar_url text,
   tags text[] not null default '{}',
   replies_count int not null default 0 check (replies_count >= 0),
@@ -104,6 +106,21 @@ create table public.direct_messages (
   receiver_name text not null default '',
   receiver_avatar_url text not null default '',
   body text not null,
+  read_at timestamptz,
+  created_at timestamptz not null default now()
+);
+
+create table public.notifications (
+  id uuid primary key default gen_random_uuid(),
+  recipient_external_id text not null,
+  actor_external_id text not null,
+  actor_name text not null default '',
+  actor_avatar_url text,
+  type text not null check (type in ('like', 'follow', 'dm')),
+  post_id uuid references public.board_posts(id) on delete cascade,
+  thread_id text,
+  body text not null default '',
+  read_at timestamptz,
   created_at timestamptz not null default now()
 );
 
@@ -155,6 +172,8 @@ create index idx_board_chat_messages_created_at on public.board_chat_messages (c
 create index idx_direct_messages_thread_created_at on public.direct_messages (thread_id, created_at asc);
 create index idx_direct_messages_sender_created_at on public.direct_messages (sender_external_id, created_at desc);
 create index idx_direct_messages_receiver_created_at on public.direct_messages (receiver_external_id, created_at desc);
+create index idx_notifications_recipient_created_at on public.notifications (recipient_external_id, created_at desc);
+create index idx_notifications_recipient_read_at on public.notifications (recipient_external_id, read_at);
 create index idx_user_follows_followee on public.user_follows (followee_external_id);
 create index idx_user_follows_follower on public.user_follows (follower_external_id);
 create index idx_spots_created_at on public.spots (created_at desc);
@@ -204,6 +223,7 @@ alter table public.board_post_stamps enable row level security;
 alter table public.saved_posts enable row level security;
 alter table public.board_chat_messages enable row level security;
 alter table public.direct_messages enable row level security;
+alter table public.notifications enable row level security;
 alter table public.user_follows enable row level security;
 alter table public.spots enable row level security;
 alter table public.reviews enable row level security;
@@ -338,6 +358,28 @@ on public.direct_messages
 for insert
 with check (true);
 
+create policy "update direct messages"
+on public.direct_messages
+for update
+using (true)
+with check (true);
+
+create policy "read notifications"
+on public.notifications
+for select
+using (true);
+
+create policy "insert notifications"
+on public.notifications
+for insert
+with check (true);
+
+create policy "update notifications"
+on public.notifications
+for update
+using (true)
+with check (true);
+
 create policy "read user follows"
 on public.user_follows
 for select
@@ -387,7 +429,8 @@ grant select, insert, delete on public.board_post_likes to anon, authenticated;
 grant select, insert, delete on public.board_post_stamps to anon, authenticated;
 grant select, insert, update, delete on public.saved_posts to anon, authenticated;
 grant select, insert, update on public.board_chat_messages to anon, authenticated;
-grant select, insert on public.direct_messages to anon, authenticated;
+grant select, insert, update on public.direct_messages to anon, authenticated;
+grant select, insert, update on public.notifications to anon, authenticated;
 grant select, insert, delete on public.user_follows to anon, authenticated;
 grant select, insert, update on public.spots to anon, authenticated;
 grant select, insert on public.reviews to anon, authenticated;

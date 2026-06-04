@@ -1,6 +1,7 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
-import { hasSupabaseEnv, supabaseInsert, supabaseSelect } from '@/lib/supabase';
+import { createNotification } from '@/lib/notifications';
+import { hasSupabaseEnv, supabaseInsert, supabasePatch, supabaseSelect } from '@/lib/supabase';
 
 const DM_STORAGE_KEY = 'mugimaru.direct-messages';
 
@@ -11,6 +12,7 @@ export type DirectMessage = {
   receiverExternalId: string;
   body: string;
   createdAt: string;
+  readAt: string | null;
 };
 
 export type DirectThreadSummary = {
@@ -21,6 +23,7 @@ export type DirectThreadSummary = {
   lastMessage: string;
   updatedAt: string;
   messagesCount: number;
+  unreadCount: number;
 };
 
 type DirectMessageStore = {
@@ -38,6 +41,7 @@ type DirectMessageRow = {
   receiver_name: string;
   receiver_avatar_url: string;
   body: string;
+  read_at: string | null;
   created_at: string;
 };
 
@@ -53,6 +57,7 @@ function mapRowToMessage(row: DirectMessageRow): DirectMessage {
     receiverExternalId: row.receiver_external_id,
     body: row.body,
     createdAt: row.created_at,
+    readAt: row.read_at,
   };
 }
 
@@ -78,7 +83,7 @@ export async function listDirectThreads(myExternalId: string) {
   if (hasSupabaseEnv) {
     const encoded = encodeURIComponent(myExternalId);
     const rows = await supabaseSelect<DirectMessageRow[]>(
-      `direct_messages?select=id,thread_id,sender_external_id,receiver_external_id,sender_name,sender_avatar_url,receiver_name,receiver_avatar_url,body,created_at&or=(sender_external_id.eq.${encoded},receiver_external_id.eq.${encoded})&order=created_at.desc&limit=500`
+      `direct_messages?select=id,thread_id,sender_external_id,receiver_external_id,sender_name,sender_avatar_url,receiver_name,receiver_avatar_url,body,read_at,created_at&or=(sender_external_id.eq.${encoded},receiver_external_id.eq.${encoded})&order=created_at.desc&limit=500`
     );
     const summaries = new Map<string, DirectThreadSummary>();
     for (const row of rows) {
@@ -97,9 +102,11 @@ export async function listDirectThreads(myExternalId: string) {
           lastMessage: row.body,
           updatedAt: row.created_at,
           messagesCount: 1,
+          unreadCount: row.receiver_external_id === myExternalId && !row.read_at ? 1 : 0,
         });
       } else {
         current.messagesCount += 1;
+        if (row.receiver_external_id === myExternalId && !row.read_at) current.unreadCount += 1;
       }
     }
     return Array.from(summaries.values()).sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
@@ -122,6 +129,7 @@ export async function listDirectThreads(myExternalId: string) {
         lastMessage: message.body,
         updatedAt: message.createdAt,
         messagesCount: current?.messagesCount ?? 0,
+        unreadCount: 0,
       });
     }
     const latest = summaries.get(message.threadId);
@@ -134,7 +142,7 @@ export async function listDirectMessages(myExternalId: string, peerExternalId: s
   if (hasSupabaseEnv) {
     const threadId = encodeURIComponent(threadIdFor(myExternalId, peerExternalId));
     const rows = await supabaseSelect<DirectMessageRow[]>(
-      `direct_messages?select=id,thread_id,sender_external_id,receiver_external_id,sender_name,sender_avatar_url,receiver_name,receiver_avatar_url,body,created_at&thread_id=eq.${threadId}&order=created_at.asc&limit=500`
+      `direct_messages?select=id,thread_id,sender_external_id,receiver_external_id,sender_name,sender_avatar_url,receiver_name,receiver_avatar_url,body,read_at,created_at&thread_id=eq.${threadId}&order=created_at.asc&limit=500`
     );
     return rows.map(mapRowToMessage);
   }
@@ -166,6 +174,15 @@ export async function sendDirectMessage(input: {
       receiver_avatar_url: input.receiverAvatarUrl,
       body: input.body,
     });
+    await createNotification({
+      recipientExternalId: input.receiverExternalId,
+      actorExternalId: input.senderExternalId,
+      actorName: input.senderName || input.senderExternalId,
+      actorAvatarUrl: input.senderAvatarUrl,
+      type: 'dm',
+      threadId: threadIdFor(input.senderExternalId, input.receiverExternalId),
+      body: input.body,
+    });
     return mapRowToMessage(rows[0]);
   }
 
@@ -178,6 +195,7 @@ export async function sendDirectMessage(input: {
     receiverExternalId: input.receiverExternalId,
     body: input.body,
     createdAt,
+    readAt: null,
   };
   store.peers[input.receiverExternalId] = {
     name: input.receiverName || input.receiverExternalId,
@@ -190,4 +208,14 @@ export async function sendDirectMessage(input: {
   store.messages.push(message);
   await writeStore(store);
   return message;
+}
+
+export async function markDirectThreadRead(myExternalId: string, peerExternalId: string) {
+  if (!hasSupabaseEnv) return;
+  const threadId = encodeURIComponent(threadIdFor(myExternalId, peerExternalId));
+  const receiver = encodeURIComponent(myExternalId);
+  await supabasePatch<DirectMessageRow[]>(
+    `direct_messages?thread_id=eq.${threadId}&receiver_external_id=eq.${receiver}&read_at=is.null`,
+    { read_at: new Date().toISOString() }
+  );
 }

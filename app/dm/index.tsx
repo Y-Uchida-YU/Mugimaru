@@ -1,5 +1,5 @@
 import { FontAwesome6 } from '@expo/vector-icons';
-import { Stack, useRouter } from 'expo-router';
+import { Stack, usePathname, useRouter } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
 import { Image, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -29,6 +29,7 @@ function PeerAvatar({ uri, label }: { uri: string; label: string }) {
 
 export default function DirectMessagesScreen() {
   const router = useRouter();
+  const pathname = usePathname();
   const { activeTheme } = useAppTheme();
   const colors = activeTheme.colors;
   const { profile } = useAuth();
@@ -50,9 +51,11 @@ export default function DirectMessagesScreen() {
       <Stack.Screen options={{ headerShown: false }} />
       <ScrollView contentContainerStyle={styles.content}>
         <View style={styles.header}>
-          <Pressable style={[styles.backButton, { backgroundColor: colors.surface, borderColor: colors.border }]} onPress={() => router.back()}>
-            <FontAwesome6 name="arrow-left" size={14} color={colors.text} />
-          </Pressable>
+          {pathname !== '/messages' ? (
+            <Pressable style={[styles.backButton, { backgroundColor: colors.surface, borderColor: colors.border }]} onPress={() => router.back()}>
+              <FontAwesome6 name="arrow-left" size={14} color={colors.text} />
+            </Pressable>
+          ) : null}
           <Text style={[styles.title, { color: colors.text }]}>DM</Text>
         </View>
         {threads.length === 0 ? (
@@ -77,6 +80,11 @@ export default function DirectMessagesScreen() {
                 {thread.lastMessage}
               </Text>
             </View>
+            {thread.unreadCount > 0 ? (
+              <View style={[styles.unreadBadge, { backgroundColor: colors.accent }]}>
+                <Text style={[styles.unreadText, { color: colors.accentContrast }]}>{thread.unreadCount}</Text>
+              </View>
+            ) : null}
             <FontAwesome6 name="chevron-right" size={13} color={colors.mutedText} />
           </Pressable>
         ))}
@@ -98,6 +106,8 @@ const styles = StyleSheet.create({
   threadBody: { flex: 1, gap: 3 },
   threadName: { fontSize: 15, fontWeight: '900' },
   threadMessage: { fontSize: 13 },
+  unreadBadge: { minWidth: 22, height: 22, borderRadius: 11, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 6 },
+  unreadText: { fontSize: 12, fontWeight: '900' },
   avatar: { width: 46, height: 46, borderRadius: 23 },
   avatarFallback: { width: 46, height: 46, borderRadius: 23, alignItems: 'center', justifyContent: 'center', backgroundColor: '#eadfce' },
   avatarIcon: { fontSize: 24 },

@@ -7,7 +7,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { ThemedText as Text } from '@/components/themed-typography';
 import { useAppTheme } from '@/lib/app-theme-context';
 import { useAuth } from '@/lib/auth-context';
-import { listDirectMessages, sendDirectMessage, type DirectMessage } from '@/lib/direct-messages';
+import { listDirectMessages, markDirectThreadRead, sendDirectMessage, type DirectMessage } from '@/lib/direct-messages';
 
 export default function DirectMessageThreadScreen() {
   const router = useRouter();
@@ -24,6 +24,7 @@ export default function DirectMessageThreadScreen() {
 
   const loadMessages = useCallback(async () => {
     if (!profile || !peerExternalId) return;
+    await markDirectThreadRead(profile.externalId, peerExternalId);
     setMessages(await listDirectMessages(profile.externalId, peerExternalId));
   }, [peerExternalId, profile]);
 
@@ -69,8 +70,11 @@ export default function DirectMessageThreadScreen() {
         {messages.map((message) => {
           const mine = message.senderExternalId === profile.externalId;
           return (
-            <View key={message.id} style={[styles.bubble, mine ? styles.mine : styles.theirs, { backgroundColor: mine ? colors.accent : colors.surface }]}>
-              <Text style={[styles.bubbleText, { color: mine ? colors.accentContrast : colors.text }]}>{message.body}</Text>
+            <View key={message.id} style={[styles.messageWrap, mine ? styles.mine : styles.theirs]}>
+              <View style={[styles.bubble, { backgroundColor: mine ? colors.accent : colors.surface }]}>
+                <Text style={[styles.bubbleText, { color: mine ? colors.accentContrast : colors.text }]}>{message.body}</Text>
+              </View>
+              {mine && message.readAt ? <Text style={[styles.readLabel, { color: colors.mutedText }]}>既読</Text> : null}
             </View>
           );
         })}
@@ -101,10 +105,12 @@ const styles = StyleSheet.create({
   backButton: { width: 38, height: 38, borderRadius: 19, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
   title: { fontSize: 19, fontWeight: '900' },
   messages: { padding: 16, gap: 8 },
-  bubble: { maxWidth: '78%', borderRadius: 16, paddingHorizontal: 12, paddingVertical: 9 },
+  messageWrap: { maxWidth: '78%' },
+  bubble: { borderRadius: 16, paddingHorizontal: 12, paddingVertical: 9 },
   mine: { alignSelf: 'flex-end', borderBottomRightRadius: 4 },
   theirs: { alignSelf: 'flex-start', borderBottomLeftRadius: 4 },
   bubbleText: { fontSize: 14, lineHeight: 20, fontWeight: '600' },
+  readLabel: { alignSelf: 'flex-end', marginTop: 2, fontSize: 11, fontWeight: '700' },
   notice: { paddingHorizontal: 16, paddingVertical: 6, fontSize: 13 },
   composer: { margin: 12, borderRadius: 18, borderWidth: 1, padding: 8, flexDirection: 'row', alignItems: 'flex-end', gap: 8 },
   input: { flex: 1, minHeight: 38, maxHeight: 110, paddingHorizontal: 8, paddingVertical: 8, fontSize: 14, textAlignVertical: 'top' },

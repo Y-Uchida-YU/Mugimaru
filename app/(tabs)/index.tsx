@@ -1,6 +1,6 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { FontAwesome6 } from '@expo/vector-icons';
-import { useFocusEffect, useRouter } from 'expo-router';
+import { useFocusEffect, useNavigation, useRouter } from 'expo-router';
 import {
   Image,
   KeyboardAvoidingView,
@@ -10,6 +10,7 @@ import {
   RefreshControl,
   ScrollView,
   StyleSheet,
+  useWindowDimensions,
   View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -40,6 +41,7 @@ import { pickImageFromLibrary } from '@/lib/mobile-image-picker';
 import { getAvatarIconGlyph, parseAvatarValue } from '@/lib/profile-avatar';
 import { listSavedPosts, removeSavedPost, savePost } from '@/lib/saved-posts';
 import { hasSupabaseEnv } from '@/lib/supabase';
+import { createNotification } from '@/lib/notifications';
 import {
   followUser,
   unfollowUser,
@@ -54,6 +56,7 @@ type BoardPost = {
   authorAvatarUrl: string;
   category: string;
   imageUrl: string;
+  imageUrls: string[];
   tags: string[];
   replies: number;
   updatedAt: string;
@@ -187,6 +190,7 @@ function buildSeedPosts(seedPosts: SeedPost[]): BoardPost[] {
     authorAvatarUrl: '',
     category: post.category,
     imageUrl: '',
+    imageUrls: [],
     tags: [],
     replies: post.replies,
     updatedAt: post.updatedAt,
@@ -194,6 +198,7 @@ function buildSeedPosts(seedPosts: SeedPost[]): BoardPost[] {
 }
 
 function mapRowToPost(row: BoardPostRow): BoardPost {
+  const imageUrls = row.image_urls?.length ? row.image_urls : row.image_url ? [row.image_url] : [];
   return {
     id: row.id,
     authorExternalId: row.author_external_id,
@@ -202,7 +207,8 @@ function mapRowToPost(row: BoardPostRow): BoardPost {
     author: row.author_name,
     authorAvatarUrl: row.author_avatar_url ?? '',
     category: row.category,
-    imageUrl: row.image_url ?? '',
+    imageUrl: imageUrls[0] ?? '',
+    imageUrls,
     tags: row.tags ?? [],
     replies: row.replies_count,
     updatedAt: formatTimeLabel(row.updated_at || row.created_at),
@@ -348,8 +354,90 @@ function Avatar({ uri, label, size = 32 }: { uri: string; label: string; size?: 
   );
 }
 
+function PostImageGrid({ images, onPress }: { images: string[]; onPress: (index: number) => void }) {
+  if (images.length === 0) return null;
+  const visibleImages = images.slice(0, 4);
+
+  if (visibleImages.length === 1) {
+    return (
+      <Pressable
+        style={styles.singleImageFrame}
+        onPress={(event) => {
+          event.stopPropagation();
+          onPress(0);
+        }}>
+        <Image source={{ uri: visibleImages[0] }} style={styles.gridImage} resizeMode="contain" />
+      </Pressable>
+    );
+  }
+
+  if (visibleImages.length === 2) {
+    return (
+      <View style={styles.imageGrid}>
+        {visibleImages.map((uri, index) => (
+          <Pressable
+            key={`${uri}:${index}`}
+            style={styles.gridHalf}
+            onPress={(event) => {
+              event.stopPropagation();
+              onPress(index);
+            }}>
+            <Image source={{ uri }} style={styles.gridImage} resizeMode="cover" />
+          </Pressable>
+        ))}
+      </View>
+    );
+  }
+
+  if (visibleImages.length === 3) {
+    return (
+      <View style={styles.imageGrid}>
+        <Pressable
+          style={styles.gridHalfTall}
+          onPress={(event) => {
+            event.stopPropagation();
+            onPress(0);
+          }}>
+          <Image source={{ uri: visibleImages[0] }} style={styles.gridImage} resizeMode="cover" />
+        </Pressable>
+        <View style={styles.gridColumn}>
+          {visibleImages.slice(1).map((uri, index) => (
+            <Pressable
+              key={`${uri}:${index + 1}`}
+              style={styles.gridQuarter}
+              onPress={(event) => {
+                event.stopPropagation();
+                onPress(index + 1);
+              }}>
+              <Image source={{ uri }} style={styles.gridImage} resizeMode="cover" />
+            </Pressable>
+          ))}
+        </View>
+      </View>
+    );
+  }
+
+  return (
+    <View style={styles.imageGridWrap}>
+      {visibleImages.map((uri, index) => (
+        <Pressable
+          key={`${uri}:${index}`}
+          style={styles.gridCell}
+          onPress={(event) => {
+            event.stopPropagation();
+            onPress(index);
+          }}>
+          <Image source={{ uri }} style={styles.gridImage} resizeMode="cover" />
+        </Pressable>
+      ))}
+    </View>
+  );
+}
+
 export default function BoardScreen() {
   const router = useRouter();
+  const navigation = useNavigation();
+  const { width: windowWidth } = useWindowDimensions();
   const text = getAppText();
   const { activeTheme } = useAppTheme();
   const themeColors = activeTheme.colors;
@@ -434,7 +522,19 @@ export default function BoardScreen() {
   const [chatSticker, setChatSticker] = useState<string | null>(null);
   const [chatError, setChatError] = useState('');
   const [isChatLoading] = useState(false);
-  const [previewImageUrl, setPreviewImageUrl] = useState('');
+  const [previewImages, setPreviewImages] = useState<{ images: string[]; index: number } | null>(null);
+
+  useLayoutEffect(() => {
+    navigation.setOptions({
+      headerRight: () => (
+        <Pressable
+          style={[styles.headerSearchButton, { borderColor: themeColors.border, backgroundColor: themeColors.surface }]}
+          onPress={() => setSearchModalOpen(true)}>
+          <FontAwesome6 name="magnifying-glass" size={15} color={themeColors.text} />
+        </Pressable>
+      ),
+    });
+  }, [navigation, themeColors.border, themeColors.surface, themeColors.text]);
 
   const loadTimeline = useCallback(
     async (mode: 'initial' | 'refresh' = 'initial') => {
@@ -677,6 +777,14 @@ export default function BoardScreen() {
         await unfollowUser(profile.externalId, profileModal.externalId);
       } else {
         await followUser(profile.externalId, profileModal.externalId);
+        await createNotification({
+          recipientExternalId: profileModal.externalId,
+          actorExternalId: profile.externalId,
+          actorName: profile.dogName || profile.name,
+          actorAvatarUrl: profile.avatarUrl,
+          type: 'follow',
+          body: 'フォローされました',
+        });
       }
 
       setProfileModal((prev) => {
@@ -739,6 +847,7 @@ export default function BoardScreen() {
         authorAvatarUrl,
         category: selectedCategory,
         imageUrl: imageUrl.trim(),
+        imageUrls: imageUrl.trim() ? [imageUrl.trim()] : [],
         tags,
         replies: 0,
         updatedAt: buildLocalTimestamp(),
@@ -767,6 +876,7 @@ export default function BoardScreen() {
         title: title.trim(),
         body: body.trim(),
         image_url: imageUrl.trim() || null,
+        image_urls: imageUrl.trim() ? [imageUrl.trim()] : [],
         tags,
       });
 
@@ -891,6 +1001,18 @@ export default function BoardScreen() {
     try {
       if (nextLiked) {
         await addBoardPostLike(postId, profile.externalId);
+        const likedPost = postsRef.current.find((post) => post.id === postId);
+        if (likedPost) {
+          await createNotification({
+            recipientExternalId: likedPost.authorExternalId,
+            actorExternalId: profile.externalId,
+            actorName: profile.dogName || profile.name,
+            actorAvatarUrl: profile.avatarUrl,
+            type: 'like',
+            postId,
+            body: '投稿にいいねされました',
+          });
+        }
       } else {
         await removeBoardPostLike(postId, profile.externalId);
       }
@@ -1067,14 +1189,6 @@ export default function BoardScreen() {
               progressBackgroundColor={themeColors.surface}
             />
           }>
-          <View style={styles.timelineTopBar}>
-            <Pressable
-              style={[styles.searchIconButton, { borderColor: themeColors.border, backgroundColor: themeColors.surface }]}
-              onPress={() => setSearchModalOpen(true)}>
-              <FontAwesome6 name="magnifying-glass" size={15} color={themeColors.text} />
-            </Pressable>
-          </View>
-
           <View style={styles.timelineFeed}>
             {visiblePosts.length === 0 ? (
               <View style={[styles.timelineEmptyState, { borderColor: themeColors.border, backgroundColor: themeColors.surface }]}>
@@ -1129,37 +1243,34 @@ export default function BoardScreen() {
                     </View>
                   ) : null}
 
-                  {post.imageUrl ? (
-                    <Pressable
-                      onPress={(event) => {
-                        event.stopPropagation();
-                        setPreviewImageUrl(post.imageUrl);
-                      }}>
-                      <Image source={{ uri: post.imageUrl }} style={styles.postImage} resizeMode="cover" />
-                    </Pressable>
-                  ) : null}
+                  <PostImageGrid
+                    images={post.imageUrls}
+                    onPress={(index) => setPreviewImages({ images: post.imageUrls, index })}
+                  />
 
                   <View style={styles.timelineActions}>
-                    <Pressable style={styles.timelineActionButton} onPress={() => void openComments(post)}>
-                      <FontAwesome6 name="comment" size={14} color={themeColors.mutedText} />
-                      <Text style={[styles.timelineActionText, { color: themeColors.mutedText }]}>
-                        {post.replies}
-                      </Text>
-                    </Pressable>
-                    <Pressable style={styles.timelineActionButton} onPress={() => void handleToggleLike(post.id)}>
-                      <FontAwesome6
-                        name="heart"
-                        size={14}
-                        color={likedByPost[post.id] ? themeColors.accent : themeColors.mutedText}
-                      />
-                      <Text
-                        style={[
-                          styles.timelineActionText,
-                          { color: likedByPost[post.id] ? themeColors.accent : themeColors.mutedText },
-                        ]}>
-                        {likesCountByPost[post.id] ?? 0}
-                      </Text>
-                    </Pressable>
+                    <View style={styles.timelineActionCluster}>
+                      <Pressable style={styles.timelineActionButton} onPress={() => void openComments(post)}>
+                        <FontAwesome6 name="comment" size={14} color={themeColors.mutedText} />
+                        <Text style={[styles.timelineActionText, { color: themeColors.mutedText }]}>
+                          {post.replies}
+                        </Text>
+                      </Pressable>
+                      <Pressable style={styles.timelineActionButton} onPress={() => void handleToggleLike(post.id)}>
+                        <FontAwesome6
+                          name="heart"
+                          size={14}
+                          color={likedByPost[post.id] ? themeColors.accent : themeColors.mutedText}
+                        />
+                        <Text
+                          style={[
+                            styles.timelineActionText,
+                            { color: likedByPost[post.id] ? themeColors.accent : themeColors.mutedText },
+                          ]}>
+                          {likesCountByPost[post.id] ?? 0}
+                        </Text>
+                      </Pressable>
+                    </View>
                     <Pressable
                       style={[
                         styles.timelineSaveButton,
@@ -1195,12 +1306,24 @@ export default function BoardScreen() {
           <Text style={[styles.fabText, { color: themeColors.accentContrast }]}>+</Text>
         </Pressable>
 
-        <Modal visible={Boolean(previewImageUrl)} transparent animationType="fade" onRequestClose={() => setPreviewImageUrl('')}>
-          <Pressable style={styles.imagePreviewOverlay} onPress={() => setPreviewImageUrl('')}>
-            <Pressable style={styles.imagePreviewClose} onPress={() => setPreviewImageUrl('')}>
+        <Modal visible={Boolean(previewImages)} transparent animationType="fade" onRequestClose={() => setPreviewImages(null)}>
+          <Pressable style={styles.imagePreviewOverlay} onPress={() => setPreviewImages(null)}>
+            <Pressable style={styles.imagePreviewClose} onPress={() => setPreviewImages(null)}>
               <FontAwesome6 name="xmark" size={18} color="#ffffff" />
             </Pressable>
-            {previewImageUrl ? <Image source={{ uri: previewImageUrl }} style={styles.imagePreview} resizeMode="contain" /> : null}
+            {previewImages ? (
+              <ScrollView
+                horizontal
+                pagingEnabled
+                showsHorizontalScrollIndicator={false}
+                contentOffset={{ x: windowWidth * previewImages.index, y: 0 }}>
+                {previewImages.images.map((uri, index) => (
+                  <View key={`${uri}:${index}`} style={[styles.previewPage, { width: windowWidth }]}>
+                    <Image source={{ uri }} style={styles.imagePreview} resizeMode="contain" />
+                  </View>
+                ))}
+              </ScrollView>
+            ) : null}
           </Pressable>
         </Modal>
 
@@ -1707,22 +1830,16 @@ const styles = StyleSheet.create({
     paddingHorizontal: 8,
     paddingBottom: 96,
     paddingTop: 0,
-    gap: 4,
+    gap: 2,
   },
-  timelineTopBar: {
-    minHeight: 28,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'flex-end',
-    marginBottom: -2,
-  },
-  searchIconButton: {
-    width: 30,
-    height: 30,
-    borderRadius: 15,
+  headerSearchButton: {
+    width: 34,
+    height: 34,
+    borderRadius: 17,
     borderWidth: 1,
     alignItems: 'center',
     justifyContent: 'center',
+    marginRight: 10,
   },
   timelineHeader: {
     gap: 12,
@@ -1815,7 +1932,7 @@ const styles = StyleSheet.create({
     fontSize: 12,
   },
   timelineFeed: {
-    gap: 6,
+    gap: 5,
   },
   timelineEmptyState: {
     borderRadius: 20,
@@ -1876,7 +1993,13 @@ const styles = StyleSheet.create({
   timelineActions: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 14,
+    justifyContent: 'space-between',
+    gap: 10,
+  },
+  timelineActionCluster: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 16,
   },
   timelineActionButton: {
     flexDirection: 'row',
@@ -2149,11 +2272,60 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '600',
   },
-  postImage: {
+  singleImageFrame: {
     width: '100%',
-    height: 220,
     borderRadius: 12,
+    overflow: 'hidden',
+    aspectRatio: 16 / 10,
     backgroundColor: '#ebe3ca',
+  },
+  imageGrid: {
+    width: '100%',
+    aspectRatio: 16 / 10,
+    borderRadius: 12,
+    overflow: 'hidden',
+    flexDirection: 'row',
+    gap: 2,
+    backgroundColor: '#ebe3ca',
+  },
+  imageGridWrap: {
+    width: '100%',
+    aspectRatio: 16 / 10,
+    borderRadius: 12,
+    overflow: 'hidden',
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 2,
+    backgroundColor: '#ebe3ca',
+  },
+  gridHalf: {
+    flex: 1,
+    overflow: 'hidden',
+    backgroundColor: '#ebe3ca',
+  },
+  gridHalfTall: {
+    flex: 1,
+    overflow: 'hidden',
+    backgroundColor: '#ebe3ca',
+  },
+  gridColumn: {
+    flex: 1,
+    gap: 2,
+  },
+  gridQuarter: {
+    flex: 1,
+    overflow: 'hidden',
+    backgroundColor: '#ebe3ca',
+  },
+  gridCell: {
+    width: '49.5%',
+    height: '49.5%',
+    overflow: 'hidden',
+    backgroundColor: '#ebe3ca',
+  },
+  gridImage: {
+    width: '100%',
+    height: '100%',
   },
   actionRow: {
     flexDirection: 'row',
@@ -2416,6 +2588,11 @@ const styles = StyleSheet.create({
   imagePreview: {
     width: '100%',
     height: '86%',
+  },
+  previewPage: {
+    height: '100%',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   imagePreviewClose: {
     position: 'absolute',
