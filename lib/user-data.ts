@@ -115,3 +115,21 @@ export async function getFollowCounts(externalId: string) {
     following: following.length,
   };
 }
+
+export async function listFollowerUsers(externalId: string) {
+  const encoded = encodeURIComponent(externalId);
+  const rows = await supabaseSelect<UserFollowRow[]>(
+    `user_follows?select=follower_external_id,followee_external_id,created_at&followee_external_id=eq.${encoded}&order=created_at.desc&limit=200`
+  );
+  const users = await Promise.all(rows.map((row) => getAppUserByExternalId(row.follower_external_id)));
+  return users.filter((user): user is AppUserRow => Boolean(user));
+}
+
+export async function listFollowingUsers(externalId: string) {
+  const encoded = encodeURIComponent(externalId);
+  const rows = await supabaseSelect<UserFollowRow[]>(
+    `user_follows?select=follower_external_id,followee_external_id,created_at&follower_external_id=eq.${encoded}&order=created_at.desc&limit=200`
+  );
+  const users = await Promise.all(rows.map((row) => getAppUserByExternalId(row.followee_external_id)));
+  return users.filter((user): user is AppUserRow => Boolean(user));
+}

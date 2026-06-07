@@ -2,6 +2,7 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } fr
 import { FontAwesome6 } from '@expo/vector-icons';
 import { useFocusEffect, useNavigation, useRouter } from 'expo-router';
 import {
+  ActivityIndicator,
   Image,
   KeyboardAvoidingView,
   Modal,
@@ -490,6 +491,10 @@ export default function BoardScreen() {
   const [stampCountsByPost, setStampCountsByPost] = useState<Record<string, StampBucket>>({});
   const [myStampsByPost, setMyStampsByPost] = useState<Record<string, StampKey[]>>({});
   const [isSearchModalOpen, setSearchModalOpen] = useState(false);
+  const [isPostSubmitting, setPostSubmitting] = useState(false);
+  const [commentSubmitting, setCommentSubmitting] = useState(false);
+  const [likeBusyByPost, setLikeBusyByPost] = useState<Record<string, boolean>>({});
+  const [saveBusyByPost, setSaveBusyByPost] = useState<Record<string, boolean>>({});
 
   const [isComposerOpen, setComposerOpen] = useState(false);
   const [title, setTitle] = useState('');
@@ -515,6 +520,7 @@ export default function BoardScreen() {
   const [chatSticker, setChatSticker] = useState<string | null>(null);
   const [chatError, setChatError] = useState('');
   const [isChatLoading] = useState(false);
+  const [isChatSending, setChatSending] = useState(false);
   const [previewImages, setPreviewImages] = useState<{ images: string[]; index: number } | null>(null);
 
   useLayoutEffect(() => {
@@ -810,6 +816,7 @@ export default function BoardScreen() {
   };
 
   const handleCreatePost = async () => {
+    if (isPostSubmitting) return;
     if (isGuest) {
       setFormError('ゲストユーザーは投稿できません。');
       return;
@@ -829,6 +836,7 @@ export default function BoardScreen() {
     const authorAvatarUrl = profile?.avatarUrl?.trim() || '';
     const authorExternalId = profile?.externalId ?? makeLocalId('user');
     const tags = extractHashtags(title, body);
+    setPostSubmitting(true);
 
     if (!hasSupabaseEnv) {
       const localPost: BoardPost = {
@@ -856,6 +864,7 @@ export default function BoardScreen() {
       setSelectedCategory(categories[0] ?? 'General');
       setFormError('');
       setComposerOpen(false);
+      setPostSubmitting(false);
       return;
     }
 
@@ -887,6 +896,7 @@ export default function BoardScreen() {
     } catch (error) {
       setFormError(error instanceof Error ? error.message : '投稿の保存に失敗しました。');
     }
+    setPostSubmitting(false);
   };
 
   const openComments = async (post: BoardPost) => {
@@ -898,6 +908,7 @@ export default function BoardScreen() {
   };
 
   const handleSubmitComment = async () => {
+    if (commentSubmitting) return;
     if (!selectedPost) return;
 
     if (isGuest) {
@@ -916,6 +927,7 @@ export default function BoardScreen() {
     const authorExternalId = profile?.externalId ?? makeLocalId('user');
     const currentReplies = posts.find((post) => post.id === selectedPost.id)?.replies ?? 0;
     const nextReplies = currentReplies + 1;
+    setCommentSubmitting(true);
 
     if (!hasSupabaseEnv) {
       const localComment: BoardComment = {
@@ -938,6 +950,7 @@ export default function BoardScreen() {
       setCommentBody('');
       setReplyToCommentId(null);
       setCommentError('');
+      setCommentSubmitting(false);
       return;
     }
 
@@ -963,10 +976,13 @@ export default function BoardScreen() {
       setCommentError('');
     } catch (error) {
       setCommentError(error instanceof Error ? error.message : 'Failed to save comment.');
+    } finally {
+      setCommentSubmitting(false);
     }
   };
 
   const handleToggleLike = async (postId: string) => {
+    if (likeBusyByPost[postId]) return;
     if (!profile || isGuest) {
       setMessage('いいねするにはログインしてください。');
       return;
@@ -974,6 +990,7 @@ export default function BoardScreen() {
 
     const currentlyLiked = Boolean(likedByPost[postId]);
     const nextLiked = !currentlyLiked;
+    setLikeBusyByPost((prev) => ({ ...prev, [postId]: true }));
 
     setLikedByPost((prev) => ({
       ...prev,
@@ -986,6 +1003,7 @@ export default function BoardScreen() {
 
     if (!hasSupabaseEnv) {
       setMessage('Like updated in local mode.');
+      setLikeBusyByPost((prev) => ({ ...prev, [postId]: false }));
       return;
     }
 
@@ -1018,14 +1036,17 @@ export default function BoardScreen() {
       }));
       setMessage(error instanceof Error ? error.message : 'Failed to update like.');
     }
+    setLikeBusyByPost((prev) => ({ ...prev, [postId]: false }));
   };
 
   const handleToggleSave = async (post: BoardPost) => {
+    if (saveBusyByPost[post.id]) return;
     if (!profile || isGuest) {
       setMessage('保存するにはログインが必要です。');
       return;
     }
     const currentlySaved = Boolean(savedByPost[post.id]);
+    setSaveBusyByPost((prev) => ({ ...prev, [post.id]: true }));
     try {
       if (currentlySaved) {
         await removeSavedPost(profile.externalId, post.id);
@@ -1037,6 +1058,7 @@ export default function BoardScreen() {
     } catch (error) {
       setMessage(error instanceof Error ? error.message : '保存状態の更新に失敗しました。');
     }
+    setSaveBusyByPost((prev) => ({ ...prev, [post.id]: false }));
   };
 
   const handleToggleStamp = async (postId: string, stamp: StampKey) => {
@@ -1103,6 +1125,7 @@ export default function BoardScreen() {
   };
 
   const handleSendChatMessage = async () => {
+    if (isChatSending) return;
     if (!profile || isGuest) {
       setChatError('チャットを使うにはログインしてください。');
       return;
@@ -1124,6 +1147,7 @@ export default function BoardScreen() {
       imageUrl: '',
       createdAt: new Date().toISOString(),
     };
+    setChatSending(true);
 
     if (!hasSupabaseEnv) {
       setLocalChatMessages((prev) => [...prev, payload]);
@@ -1131,6 +1155,7 @@ export default function BoardScreen() {
       setChatBody('');
       setChatSticker(null);
       setChatError('');
+      setChatSending(false);
       return;
     }
 
@@ -1149,6 +1174,8 @@ export default function BoardScreen() {
       setChatError('');
     } catch (error) {
       setChatError(error instanceof Error ? error.message : 'Failed to send chat message.');
+    } finally {
+      setChatSending(false);
     }
   };
 
@@ -1247,12 +1274,19 @@ export default function BoardScreen() {
                           {post.replies}
                         </Text>
                       </Pressable>
-                      <Pressable style={styles.timelineActionButton} onPress={() => void handleToggleLike(post.id)}>
-                        <FontAwesome6
-                          name="heart"
-                          size={14}
-                          color={likedByPost[post.id] ? themeColors.accent : themeColors.mutedText}
-                        />
+                      <Pressable
+                        style={[styles.timelineActionButton, likeBusyByPost[post.id] ? styles.actionDisabled : null]}
+                        onPress={() => void handleToggleLike(post.id)}
+                        disabled={Boolean(likeBusyByPost[post.id])}>
+                        {likeBusyByPost[post.id] ? (
+                          <ActivityIndicator size="small" color={themeColors.accent} />
+                        ) : (
+                          <FontAwesome6
+                            name="heart"
+                            size={14}
+                            color={likedByPost[post.id] ? themeColors.accent : themeColors.mutedText}
+                          />
+                        )}
                         <Text
                           style={[
                             styles.timelineActionText,
@@ -1270,12 +1304,17 @@ export default function BoardScreen() {
                           backgroundColor: savedByPost[post.id] ? themeColors.chip : themeColors.background,
                         },
                       ]}
-                      onPress={() => void handleToggleSave(post)}>
-                      <FontAwesome6
-                        name="bookmark"
-                        size={14}
-                        color={savedByPost[post.id] ? themeColors.accent : themeColors.mutedText}
-                      />
+                      onPress={() => void handleToggleSave(post)}
+                      disabled={Boolean(saveBusyByPost[post.id])}>
+                      {saveBusyByPost[post.id] ? (
+                        <ActivityIndicator size="small" color={themeColors.accent} />
+                      ) : (
+                        <FontAwesome6
+                          name="bookmark"
+                          size={14}
+                          color={savedByPost[post.id] ? themeColors.accent : themeColors.mutedText}
+                        />
+                      )}
                       <Text
                         style={[
                           styles.timelineActionText,
@@ -1454,9 +1493,19 @@ export default function BoardScreen() {
                   <Text style={[styles.cancelText, { color: themeColors.chipText }]}>{text.board.cancel}</Text>
                 </Pressable>
                 <Pressable
-                  style={[styles.modalButton, styles.submitButton, { backgroundColor: themeColors.accent }]}
-                  onPress={() => void handleCreatePost()}>
-                  <Text style={[styles.submitText, { color: themeColors.accentContrast }]}>{text.board.post}</Text>
+                  style={[
+                    styles.modalButton,
+                    styles.submitButton,
+                    { backgroundColor: themeColors.accent },
+                    isPostSubmitting ? styles.actionDisabled : null,
+                  ]}
+                  onPress={() => void handleCreatePost()}
+                  disabled={isPostSubmitting}>
+                  {isPostSubmitting ? (
+                    <ActivityIndicator size="small" color={themeColors.accentContrast} />
+                  ) : (
+                    <Text style={[styles.submitText, { color: themeColors.accentContrast }]}>{text.board.post}</Text>
+                  )}
                 </Pressable>
               </View>
             </View>
@@ -1582,10 +1631,13 @@ export default function BoardScreen() {
                     placeholder="返信を入力"
                     placeholderTextColor={themeColors.mutedText}
                     multiline
+                    editable={!commentSubmitting}
                   />
                   <Pressable
-                    style={[styles.commentSubmitButton, { backgroundColor: themeColors.accent }]}
-                    onPress={() => void handleSubmitComment()}>
+                    style={[styles.commentSubmitButton, { backgroundColor: themeColors.accent }, commentSubmitting ? styles.actionDisabled : null]}
+                    onPress={() => void handleSubmitComment()}
+                    disabled={commentSubmitting}>
+                    {commentSubmitting ? <ActivityIndicator size="small" color={themeColors.accentContrast} /> : null}
                     <Text style={[styles.commentSubmitText, { color: themeColors.accentContrast }]}>返信する</Text>
                   </Pressable>
                 </View>
@@ -1674,10 +1726,13 @@ export default function BoardScreen() {
                   onChangeText={setChatBody}
                   placeholder="メッセージを入力"
                   placeholderTextColor={themeColors.mutedText}
+                  editable={!isChatSending}
                 />
                 <Pressable
-                  style={[styles.chatSendButton, { backgroundColor: themeColors.accent }]}
-                  onPress={() => void handleSendChatMessage()}>
+                  style={[styles.chatSendButton, { backgroundColor: themeColors.accent }, isChatSending ? styles.actionDisabled : null]}
+                  onPress={() => void handleSendChatMessage()}
+                  disabled={isChatSending}>
+                  {isChatSending ? <ActivityIndicator size="small" color={themeColors.accentContrast} /> : null}
                   <Text style={[styles.chatSendText, { color: themeColors.accentContrast }]}>送信</Text>
                 </Pressable>
               </View>
@@ -1784,6 +1839,9 @@ const styles = StyleSheet.create({
   },
   root: {
     flex: 1,
+  },
+  actionDisabled: {
+    opacity: 0.6,
   },
   content: {
     paddingHorizontal: 8,

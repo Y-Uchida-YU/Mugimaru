@@ -196,6 +196,7 @@ export default function ProfileSettingsScreen() {
   };
 
   const handleSave = async () => {
+    if (saving) return;
     if (!profile) return;
     const nextName = dogName.trim() || profile.name || 'ユーザー';
 

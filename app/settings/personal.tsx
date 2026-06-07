@@ -59,6 +59,7 @@ export default function PersonalSettingsScreen() {
   }, [prefs.language]);
 
   const handleSave = async () => {
+    if (saving) return;
     if (!profile) return;
     const trimmedEmail = email.trim();
     if (trimmedEmail) {

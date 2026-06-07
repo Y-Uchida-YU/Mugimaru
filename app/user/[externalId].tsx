@@ -178,14 +178,18 @@ export default function UserProfileScreen() {
           {dogInfo ? <Text style={[styles.subText, { color: colors.mutedText }]}>愛犬: {dogInfo}</Text> : null}
           {profileView.bio ? <Text style={[styles.bio, { color: colors.text }]}>{profileView.bio}</Text> : null}
           <View style={styles.statsRow}>
-            <View style={[styles.statBox, { backgroundColor: colors.background, borderColor: colors.border }]}>
+            <Pressable
+              style={[styles.statBox, { backgroundColor: colors.background, borderColor: colors.border }]}
+              onPress={() => router.push(`/follows?user=${encodeURIComponent(profileView.externalId)}&type=followers` as never)}>
               <Text style={[styles.statValue, { color: colors.text }]}>{profileView.followers}</Text>
               <Text style={[styles.statLabel, { color: colors.mutedText }]}>フォロワー</Text>
-            </View>
-            <View style={[styles.statBox, { backgroundColor: colors.background, borderColor: colors.border }]}>
+            </Pressable>
+            <Pressable
+              style={[styles.statBox, { backgroundColor: colors.background, borderColor: colors.border }]}
+              onPress={() => router.push(`/follows?user=${encodeURIComponent(profileView.externalId)}&type=following` as never)}>
               <Text style={[styles.statValue, { color: colors.text }]}>{profileView.following}</Text>
               <Text style={[styles.statLabel, { color: colors.mutedText }]}>フォロー中</Text>
-            </View>
+            </Pressable>
           </View>
           {canFollow ? (
             <View style={styles.actionRow}>

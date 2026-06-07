@@ -1,7 +1,7 @@
 import { FontAwesome6 } from '@expo/vector-icons';
 import { Stack, useRouter } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
-import { Alert, Image, Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { ActivityIndicator, Alert, Image, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { ThemedText as Text } from '@/components/themed-typography';
@@ -37,11 +37,13 @@ function PostRow({
   actionLabel,
   onAction,
   onPress,
+  busy,
 }: {
   post: BoardPostView;
   actionLabel: string;
   onAction: () => void;
   onPress: () => void;
+  busy?: boolean;
 }) {
   const { activeTheme } = useAppTheme();
   const colors = activeTheme.colors;
@@ -54,8 +56,8 @@ function PostRow({
             {post.body}
           </Text>
         </View>
-        <Pressable style={[styles.rowAction, { borderColor: colors.border }]} onPress={onAction}>
-          <Text style={[styles.rowActionText, { color: colors.text }]}>{actionLabel}</Text>
+        <Pressable style={[styles.rowAction, { borderColor: colors.border }, busy ? styles.disabled : null]} onPress={onAction} disabled={busy}>
+          {busy ? <ActivityIndicator size="small" color={colors.text} /> : <Text style={[styles.rowActionText, { color: colors.text }]}>{actionLabel}</Text>}
         </Pressable>
       </View>
       <Text style={[styles.postMeta, { color: colors.mutedText }]}>
@@ -76,6 +78,7 @@ export default function MeScreen() {
   const [activeTab, setActiveTab] = useState<'posts' | 'saved'>('posts');
   const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState('');
+  const [busyPostId, setBusyPostId] = useState<string | null>(null);
 
   const loadMe = useCallback(async () => {
     if (!profile) return;
@@ -113,8 +116,10 @@ export default function MeScreen() {
   };
 
   const handleDeletePost = async (post: BoardPostView) => {
+    if (busyPostId) return;
     if (!profile) return;
     try {
+      setBusyPostId(post.id);
       if (hasSupabaseEnv) {
         await deleteBoardPost(post.id, profile.externalId);
       }
@@ -123,13 +128,17 @@ export default function MeScreen() {
     } catch (error) {
       setMessage(error instanceof Error ? error.message : '投稿の削除に失敗しました。');
     }
+    setBusyPostId(null);
   };
 
   const handleRemoveSaved = async (postId: string) => {
+    if (busyPostId) return;
     if (!profile) return;
+    setBusyPostId(postId);
     await removeSavedPost(profile.externalId, postId);
     setSavedPosts((prev) => prev.filter((post) => post.id !== postId));
     setMessage('保存を解除しました。');
+    setBusyPostId(null);
   };
 
   if (!profile) return null;
@@ -196,6 +205,7 @@ export default function MeScreen() {
               actionLabel="削除"
               onAction={() => confirmDeletePost(post)}
               onPress={() => router.push(`/post/${encodeURIComponent(post.id)}` as never)}
+              busy={busyPostId === post.id}
             />
           ))}
         </View>
@@ -212,6 +222,7 @@ export default function MeScreen() {
               actionLabel="解除"
               onAction={() => void handleRemoveSaved(post.id)}
               onPress={() => router.push(`/post/${encodeURIComponent(post.id)}` as never)}
+              busy={busyPostId === post.id}
             />
           ))}
         </View>
@@ -225,6 +236,7 @@ export default function MeScreen() {
 
 const styles = StyleSheet.create({
   safeArea: { flex: 1 },
+  disabled: { opacity: 0.6 },
   content: { padding: 16, paddingBottom: 36, gap: 12 },
   header: { minHeight: 48, flexDirection: 'row', alignItems: 'center', gap: 12 },
   backButton: { width: 38, height: 38, borderRadius: 19, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },

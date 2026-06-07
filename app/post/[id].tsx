@@ -1,7 +1,7 @@
 import { FontAwesome6 } from '@expo/vector-icons';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Image, KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, StyleSheet, TextInput, useWindowDimensions, View } from 'react-native';
+import { ActivityIndicator, Image, KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, StyleSheet, TextInput, useWindowDimensions, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { ThemedText as Text } from '@/components/themed-typography';
@@ -102,6 +102,9 @@ export default function PostDetailScreen() {
   const [commentBody, setCommentBody] = useState('');
   const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState('');
+  const [likeBusy, setLikeBusy] = useState(false);
+  const [saveBusy, setSaveBusy] = useState(false);
+  const [commentSubmitting, setCommentSubmitting] = useState(false);
   const [previewImages, setPreviewImages] = useState<{ images: string[]; index: number } | null>(null);
 
   const rootComments = useMemo(() => comments.filter((comment) => !comment.parentCommentId), [comments]);
@@ -151,15 +154,20 @@ export default function PostDetailScreen() {
   }, [loadPost]);
 
   const handleToggleLike = async () => {
+    if (likeBusy) return;
     if (!post || !profile || isGuest) {
       setMessage('いいねするにはログインが必要です。');
       return;
     }
     const nextLiked = !liked;
+    setLikeBusy(true);
     setLiked(nextLiked);
     setLikesCount((prev) => Math.max(0, prev + (nextLiked ? 1 : -1)));
 
-    if (!hasSupabaseEnv) return;
+    if (!hasSupabaseEnv) {
+      setLikeBusy(false);
+      return;
+    }
     try {
       if (nextLiked) {
         await addBoardPostLike(post.id, profile.externalId);
@@ -180,13 +188,16 @@ export default function PostDetailScreen() {
       setLikesCount((prev) => Math.max(0, prev + (nextLiked ? -1 : 1)));
       setMessage(error instanceof Error ? error.message : 'いいねの更新に失敗しました。');
     }
+    setLikeBusy(false);
   };
 
   const handleToggleSave = async () => {
+    if (saveBusy) return;
     if (!post || !profile || isGuest) {
       setMessage('保存するにはログインが必要です。');
       return;
     }
+    setSaveBusy(true);
     try {
       if (saved) {
         await removeSavedPost(profile.externalId, post.id);
@@ -200,9 +211,11 @@ export default function PostDetailScreen() {
     } catch (error) {
       setMessage(error instanceof Error ? error.message : '保存状態の更新に失敗しました。');
     }
+    setSaveBusy(false);
   };
 
   const handleSubmitComment = async () => {
+    if (commentSubmitting) return;
     if (!post) return;
     if (!profile || isGuest) {
       setMessage('返信するにはログインが必要です。');
@@ -220,6 +233,7 @@ export default function PostDetailScreen() {
     }
 
     try {
+      setCommentSubmitting(true);
       const created = await createBoardComment({
         post_id: post.id,
         parent_comment_id: null,
@@ -235,6 +249,7 @@ export default function PostDetailScreen() {
     } catch (error) {
       setMessage(error instanceof Error ? error.message : '返信の保存に失敗しました。');
     }
+    setCommentSubmitting(false);
   };
 
   return (
@@ -282,15 +297,18 @@ export default function PostDetailScreen() {
                   <Text style={[styles.statLabel, { color: colors.mutedText }]}>返信</Text>
                 </View>
                 <Pressable
-                  style={[styles.statPill, { backgroundColor: liked ? colors.chip : colors.background, borderColor: colors.border }]}
-                  onPress={() => void handleToggleLike()}>
+                  style={[styles.statPill, { backgroundColor: liked ? colors.chip : colors.background, borderColor: colors.border }, likeBusy ? styles.disabled : null]}
+                  onPress={() => void handleToggleLike()}
+                  disabled={likeBusy}>
+                  {likeBusy ? <ActivityIndicator size="small" color={colors.accent} /> : null}
                   <Text style={[styles.statValue, { color: liked ? colors.accent : colors.text }]}>{likesCount}</Text>
                   <Text style={[styles.statLabel, { color: colors.mutedText }]}>いいね</Text>
                 </Pressable>
                 <Pressable
-                  style={[styles.statPill, { backgroundColor: saved ? colors.chip : colors.background, borderColor: colors.border }]}
-                  onPress={() => void handleToggleSave()}>
-                  <FontAwesome6 name="bookmark" size={18} color={saved ? colors.accent : colors.text} />
+                  style={[styles.statPill, { backgroundColor: saved ? colors.chip : colors.background, borderColor: colors.border }, saveBusy ? styles.disabled : null]}
+                  onPress={() => void handleToggleSave()}
+                  disabled={saveBusy}>
+                  {saveBusy ? <ActivityIndicator size="small" color={colors.accent} /> : <FontAwesome6 name="bookmark" size={18} color={saved ? colors.accent : colors.text} />}
                   <Text style={[styles.statLabel, { color: colors.mutedText }]}>{saved ? '保存済み' : '保存'}</Text>
                 </Pressable>
               </View>
@@ -326,8 +344,13 @@ export default function PostDetailScreen() {
                     placeholder="返信を入力"
                     placeholderTextColor={colors.mutedText}
                     multiline
+                    editable={!commentSubmitting}
                   />
-                  <Pressable style={[styles.submitButton, { backgroundColor: colors.accent }]} onPress={() => void handleSubmitComment()}>
+                  <Pressable
+                    style={[styles.submitButton, { backgroundColor: colors.accent }, commentSubmitting ? styles.disabled : null]}
+                    onPress={() => void handleSubmitComment()}
+                    disabled={commentSubmitting}>
+                    {commentSubmitting ? <ActivityIndicator size="small" color={colors.accentContrast} /> : null}
                     <Text style={[styles.submitText, { color: colors.accentContrast }]}>返信する</Text>
                   </Pressable>
                 </View>
@@ -365,6 +388,7 @@ export default function PostDetailScreen() {
 
 const styles = StyleSheet.create({
   safeArea: { flex: 1 },
+  disabled: { opacity: 0.6 },
   content: { padding: 16, paddingBottom: 34, gap: 12 },
   header: { minHeight: 48, flexDirection: 'row', alignItems: 'center', gap: 12 },
   backButton: { width: 38, height: 38, borderRadius: 19, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },

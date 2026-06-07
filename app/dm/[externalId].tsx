@@ -1,7 +1,7 @@
 import { FontAwesome6 } from '@expo/vector-icons';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
-import { KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, TextInput, View } from 'react-native';
+import { ActivityIndicator, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { ThemedText as Text } from '@/components/themed-typography';
@@ -21,6 +21,7 @@ export default function DirectMessageThreadScreen() {
   const [messages, setMessages] = useState<DirectMessage[]>([]);
   const [body, setBody] = useState('');
   const [notice, setNotice] = useState('');
+  const [sending, setSending] = useState(false);
 
   const loadMessages = useCallback(async () => {
     if (!profile || !peerExternalId) return;
@@ -34,24 +35,32 @@ export default function DirectMessageThreadScreen() {
   }, [loadMessages]);
 
   const handleSend = async () => {
+    if (sending) return;
     if (!profile) return;
     const trimmed = body.trim();
     if (!trimmed) {
       setNotice('メッセージを入力してください。');
       return;
     }
-    const sent = await sendDirectMessage({
-      senderExternalId: profile.externalId,
-      receiverExternalId: peerExternalId,
-      receiverName: peerName,
-      receiverAvatarUrl: peerAvatarUrl,
-      senderName: profile.dogName || profile.name,
-      senderAvatarUrl: profile.avatarUrl,
-      body: trimmed,
-    });
-    setMessages((prev) => [...prev, sent]);
-    setBody('');
-    setNotice('');
+    try {
+      setSending(true);
+      const sent = await sendDirectMessage({
+        senderExternalId: profile.externalId,
+        receiverExternalId: peerExternalId,
+        receiverName: peerName,
+        receiverAvatarUrl: peerAvatarUrl,
+        senderName: profile.dogName || profile.name,
+        senderAvatarUrl: profile.avatarUrl,
+        body: trimmed,
+      });
+      setMessages((prev) => [...prev, sent]);
+      setBody('');
+      setNotice('');
+    } catch (error) {
+      setNotice(error instanceof Error ? error.message : '送信に失敗しました。');
+    } finally {
+      setSending(false);
+    }
   };
 
   if (!profile) return null;
@@ -89,9 +98,17 @@ export default function DirectMessageThreadScreen() {
           placeholder="メッセージを入力"
           placeholderTextColor={colors.mutedText}
           multiline
+          editable={!sending}
         />
-        <Pressable style={[styles.sendButton, { backgroundColor: colors.accent }]} onPress={() => void handleSend()}>
-          <FontAwesome6 name="paper-plane" size={14} color={colors.accentContrast} />
+        <Pressable
+          style={[styles.sendButton, { backgroundColor: colors.accent }, sending ? styles.disabled : null]}
+          onPress={() => void handleSend()}
+          disabled={sending}>
+          {sending ? (
+            <ActivityIndicator size="small" color={colors.accentContrast} />
+          ) : (
+            <FontAwesome6 name="paper-plane" size={14} color={colors.accentContrast} />
+          )}
         </Pressable>
       </View>
       </KeyboardAvoidingView>
@@ -116,4 +133,5 @@ const styles = StyleSheet.create({
   composer: { margin: 12, borderRadius: 18, borderWidth: 1, padding: 8, flexDirection: 'row', alignItems: 'flex-end', gap: 8 },
   input: { flex: 1, minHeight: 38, maxHeight: 110, paddingHorizontal: 8, paddingVertical: 8, fontSize: 14, textAlignVertical: 'top' },
   sendButton: { width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center' },
+  disabled: { opacity: 0.6 },
 });
