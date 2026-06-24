@@ -42,6 +42,5 @@ supabase/.temp/
 
 app-example
 
-# generated native folders
-/ios
+# Generated Android folder (iOS is committed for local Xcode builds)
 /android

@@ -6,12 +6,12 @@
     "start": "expo start",
     "reset-project": "node ./scripts/reset-project.js",
     "build:spots:jp": "node ./scripts/build-japan-spots-sql.mjs",
-    "android": "expo start --android",
-    "ios": "expo start --ios",
+    "android": "expo run:android",
+    "ios": "RUBYOPT=-rlogger expo run:ios",
+    "ios:pods": "RUBYOPT=-rlogger pod install --project-directory=ios",
+    "ios:clean": "RUBYOPT=-rlogger expo prebuild --platform ios --clean && npm run ios:pods",
     "web": "expo start --web",
-    "lint": "expo lint",
-    "eas:update:production": "npx eas-cli@latest update --branch production",
-    "eas:update:preview": "npx eas-cli@latest update --branch preview"
+    "lint": "expo lint"
   },
   "dependencies": {
     "@expo/vector-icons": "^15.0.3",
@@ -33,7 +33,6 @@
     "expo-status-bar": "~3.0.9",
     "expo-symbols": "~1.0.8",
     "expo-system-ui": "~6.0.9",
-    "expo-updates": "~29.0.18",
     "expo-web-browser": "~15.0.11",
     "react": "19.1.0",
     "react-dom": "19.1.0",

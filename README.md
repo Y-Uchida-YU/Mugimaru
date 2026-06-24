@@ -1,6 +1,6 @@
-# Mugimaru (Expo + Supabase)
+# Mugimaru (iOS local build + Supabase)
 
-Mugimaru is an Expo app with:
+Mugimaru is a React Native app with:
 
 - Social signup/login (LINE / Google / Apple / X / Email / Guest)
 - Board tab with post + reply + profile features
@@ -9,7 +9,8 @@ Mugimaru is an Expo app with:
 
 ## Setup
 
-1. Install dependencies:
+1. Install Xcode, Node.js 22 LTS or later, and CocoaPods. Then install project
+   dependencies:
 
 ```bash
 npm install
@@ -28,11 +29,42 @@ EXPO_PUBLIC_OAUTH_REDIRECT_URI=...
 EXPO_PUBLIC_APP_SCHEME=mugimaru
 ```
 
-3. Start app:
+3. Start the iOS app locally:
 
 ```bash
-npx expo start
+npm run ios
 ```
+
+`npm run ios` compiles the generated native app on this Mac; it does not use an
+EAS Build credit. Open `ios/Mugimaru.xcworkspace` in Xcode whenever you need to
+select a physical device, configure signing, inspect native logs, archive, or
+upload a release.
+
+## iOS development and release
+
+The `ios/` directory is checked into Git and is the source of truth for native
+iOS settings. Expo remains only as an SDK and router layer; EAS Build and EAS
+Update are not used.
+
+- `npm run ios` — build and run locally on a Simulator or connected device.
+- `npm run ios:pods` — install CocoaPods after changing JavaScript native
+  dependencies.
+- `npm run ios:clean` — regenerate `ios/` from `app.json`, then install Pods.
+  Run it after an Expo SDK upgrade or a change to native app configuration.
+
+### TestFlight release
+
+1. Open `ios/Mugimaru.xcworkspace` in Xcode.
+2. In **Signing & Capabilities**, select the Apple Developer team for
+   `com.yutauchida.mugimaru`. Confirm that **Sign in with Apple** is enabled.
+3. Set the release version and build number in the Mugimaru target.
+4. Select **Any iOS Device (arm64)**, then use **Product → Archive**.
+5. Validate and distribute the archive to App Store Connect from Xcode's
+   Organizer. TestFlight processing happens in App Store Connect.
+
+This workflow has no Expo build quota. The remaining publishing cost is the
+Apple Developer Program membership required for TestFlight and App Store
+distribution.
 
 ## Board SNS Upgrade
 
@@ -79,17 +111,3 @@ This migration adds:
 - `public.board_chat_messages`
 
 plus indexes, RLS policies, and grants.
-
-## TestFlight / EAS
-
-- Workflow: `.github/workflows/ios-testflight.yml`
-- Trigger: push to `main`
-- Build profile: `production` (in `eas.json`)
-
-Required GitHub secrets:
-
-- `EXPO_TOKEN`
-- `ASC_API_KEY_ID`
-- `ASC_API_ISSUER_ID`
-- `ASC_API_KEY_P8`
-- `ASC_APP_ID`
