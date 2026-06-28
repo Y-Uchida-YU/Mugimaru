@@ -12,22 +12,29 @@ import { mapRowToPost, type BoardPostView } from '@/lib/board-view-models';
 import { getAvatarIconGlyph, parseAvatarValue } from '@/lib/profile-avatar';
 import { listSavedPosts, removeSavedPost } from '@/lib/saved-posts';
 import { hasSupabaseEnv } from '@/lib/supabase';
+import { getFollowCounts } from '@/lib/user-data';
 
-function Avatar({ uri, label }: { uri: string; label: string }) {
+type FollowCounts = {
+  followers: number;
+  following: number;
+};
+
+function Avatar({ uri, label, size = 94, borderColor = '#ffffff' }: { uri: string; label: string; size?: number; borderColor?: string }) {
   const parsed = parseAvatarValue(uri);
+  const avatarStyle = { width: size, height: size, borderRadius: size / 2, borderColor };
   if (parsed.type === 'image') {
-    return <Image source={{ uri: parsed.uri }} style={styles.avatarImage} />;
+    return <Image source={{ uri: parsed.uri }} style={[styles.avatarBase, avatarStyle]} />;
   }
   if (parsed.type === 'icon') {
     return (
-      <View style={styles.avatarFallback}>
-        <Text style={styles.avatarIcon}>{getAvatarIconGlyph(parsed.iconId)}</Text>
+      <View style={[styles.avatarBase, styles.avatarFallback, avatarStyle]}>
+        <Text style={{ fontSize: Math.max(28, Math.floor(size * 0.46)) }}>{getAvatarIconGlyph(parsed.iconId)}</Text>
       </View>
     );
   }
   return (
-    <View style={styles.avatarFallback}>
-      <Text style={styles.avatarInitial}>{label.trim().charAt(0).toUpperCase() || '?'}</Text>
+    <View style={[styles.avatarBase, styles.avatarFallback, avatarStyle]}>
+      <Text style={[styles.avatarInitial, { fontSize: Math.max(28, Math.floor(size * 0.34)) }]}>{label.trim().charAt(0).toUpperCase() || '?'}</Text>
     </View>
   );
 }
@@ -47,22 +54,38 @@ function PostRow({
 }) {
   const { activeTheme } = useAppTheme();
   const colors = activeTheme.colors;
+  const image = post.imageUrls[0] || post.imageUrl;
   return (
-    <Pressable style={[styles.postItem, { backgroundColor: colors.background, borderColor: colors.border }]} onPress={onPress}>
-      <View style={styles.postTop}>
-        <View style={styles.postText}>
-          <Text style={[styles.postTitle, { color: colors.text }]}>{post.title}</Text>
-          <Text style={[styles.postBody, { color: colors.mutedText }]} numberOfLines={3}>
-            {post.body}
-          </Text>
-        </View>
-        <Pressable style={[styles.rowAction, { borderColor: colors.border }, busy ? styles.disabled : null]} onPress={onAction} disabled={busy}>
-          {busy ? <ActivityIndicator size="small" color={colors.text} /> : <Text style={[styles.rowActionText, { color: colors.text }]}>{actionLabel}</Text>}
-        </Pressable>
+    <Pressable style={[styles.postItem, { borderBottomColor: colors.border }]} onPress={onPress}>
+      <View style={styles.postAvatar}>
+        <FontAwesome6 name="paw" size={15} color={colors.accent} />
       </View>
-      <Text style={[styles.postMeta, { color: colors.mutedText }]}>
-        {post.replies}件の返信
-      </Text>
+      <View style={styles.postBodyWrap}>
+        <View style={styles.postHeader}>
+          <Text style={[styles.postAuthor, { color: colors.text }]} numberOfLines={1}>
+            {post.author}
+          </Text>
+          <Text style={[styles.postHandle, { color: colors.mutedText }]} numberOfLines={1}>
+            @{post.authorExternalId} · {post.updatedAt}
+          </Text>
+          <Pressable style={[styles.inlineAction, busy ? styles.disabled : null]} onPress={onAction} disabled={busy}>
+            {busy ? <ActivityIndicator size="small" color={colors.mutedText} /> : <Text style={[styles.inlineActionText, { color: colors.mutedText }]}>{actionLabel}</Text>}
+          </Pressable>
+        </View>
+        <Text style={[styles.postTitle, { color: colors.text }]}>{post.title}</Text>
+        <Text style={[styles.postText, { color: colors.text }]}>{post.body}</Text>
+        {image ? <Image source={{ uri: image }} style={[styles.postImage, { borderColor: colors.border }]} /> : null}
+        <View style={styles.postStats}>
+          <Text style={[styles.postMeta, { color: colors.mutedText }]}>
+            <FontAwesome6 name="comment" size={12} color={colors.mutedText} /> {post.replies}
+          </Text>
+          {post.tags.slice(0, 2).map((tag) => (
+            <Text key={tag} style={[styles.postMeta, { color: colors.mutedText }]}>
+              #{tag}
+            </Text>
+          ))}
+        </View>
+      </View>
     </Pressable>
   );
 }
@@ -75,7 +98,8 @@ export default function MeScreen() {
 
   const [myPosts, setMyPosts] = useState<BoardPostView[]>([]);
   const [savedPosts, setSavedPosts] = useState<BoardPostView[]>([]);
-  const [activeTab, setActiveTab] = useState<'posts' | 'saved'>('posts');
+  const [followCounts, setFollowCounts] = useState<FollowCounts>({ followers: 0, following: 0 });
+  const [activeTab, setActiveTab] = useState<'posts' | 'saved' | 'media'>('posts');
   const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState('');
   const [busyPostId, setBusyPostId] = useState<string | null>(null);
@@ -88,10 +112,12 @@ export default function MeScreen() {
       const saved = await listSavedPosts(profile.externalId);
       setSavedPosts(saved.map((record) => record.post));
       if (hasSupabaseEnv) {
-        const rows = await listBoardPostsByAuthor(profile.externalId, 100);
+        const [rows, counts] = await Promise.all([listBoardPostsByAuthor(profile.externalId, 100), getFollowCounts(profile.externalId)]);
         setMyPosts(rows.map(mapRowToPost));
+        setFollowCounts(counts);
       } else {
         setMyPosts([]);
+        setFollowCounts({ followers: 0, following: 0 });
       }
     } catch (error) {
       setMessage(error instanceof Error ? error.message : '読み込みに失敗しました。');
@@ -116,8 +142,7 @@ export default function MeScreen() {
   };
 
   const handleDeletePost = async (post: BoardPostView) => {
-    if (busyPostId) return;
-    if (!profile) return;
+    if (busyPostId || !profile) return;
     try {
       setBusyPostId(post.id);
       if (hasSupabaseEnv) {
@@ -132,8 +157,7 @@ export default function MeScreen() {
   };
 
   const handleRemoveSaved = async (postId: string) => {
-    if (busyPostId) return;
-    if (!profile) return;
+    if (busyPostId || !profile) return;
     setBusyPostId(postId);
     await removeSavedPost(profile.externalId, postId);
     setSavedPosts((prev) => prev.filter((post) => post.id !== postId));
@@ -143,90 +167,117 @@ export default function MeScreen() {
 
   if (!profile) return null;
 
-  const displayDog = [profile.dogName, profile.dogBreed].filter(Boolean).join(' / ');
-  const label = profile.dogName || profile.name || '自分';
+  const displayName = profile.dogName || profile.name || 'ゲスト';
+  const handle = profile.externalId;
+  const dogInfo = [profile.dogName, profile.dogBreed].filter(Boolean).join(' / ');
+  const location = [profile.prefecture, profile.city].filter(Boolean).join(' ');
+  const joined = '';
+  const currentPosts = activeTab === 'saved' ? savedPosts : activeTab === 'media' ? myPosts.filter((post) => post.imageUrls.length > 0 || post.imageUrl) : myPosts;
+  const emptyLabel = activeTab === 'saved' ? '保存した投稿はまだありません。' : activeTab === 'media' ? '画像付き投稿はまだありません。' : '投稿はまだありません。';
 
   return (
-    <SafeAreaView style={[styles.safeArea, { backgroundColor: colors.background }]}>
+    <SafeAreaView style={[styles.safeArea, { backgroundColor: colors.background }]} edges={['top']}>
       <Stack.Screen options={{ headerShown: false }} />
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
-        <View style={styles.header}>
-          <Pressable style={[styles.backButton, { backgroundColor: colors.surface, borderColor: colors.border }]} onPress={() => router.back()}>
-            <FontAwesome6 name="arrow-left" size={14} color={colors.text} />
+        <View style={[styles.topBar, { backgroundColor: colors.background, borderBottomColor: colors.border }]}>
+          <Pressable style={styles.iconButton} onPress={() => router.back()}>
+            <FontAwesome6 name="arrow-left" size={18} color={colors.text} />
           </Pressable>
-          <Text style={[styles.headerTitle, { color: colors.text }]}>マイプロフィール</Text>
-          <Pressable style={[styles.editButton, { backgroundColor: colors.surface, borderColor: colors.border }]} onPress={() => router.push('/dm' as never)}>
-            <FontAwesome6 name="envelope" size={13} color={colors.text} />
+          <View style={styles.topTitleWrap}>
+            <Text style={[styles.topTitle, { color: colors.text }]} numberOfLines={1}>
+              {displayName}
+            </Text>
+            <Text style={[styles.topSubtitle, { color: colors.mutedText }]}>{myPosts.length}件の投稿</Text>
+          </View>
+          <Pressable style={[styles.headerAction, { backgroundColor: `${colors.text}22` }]} onPress={() => router.push('/settings/profile' as never)}>
+            <FontAwesome6 name="pen" size={15} color={colors.text} />
           </Pressable>
-          <Pressable style={[styles.editButton, { backgroundColor: colors.surface, borderColor: colors.border }]} onPress={() => router.push('/settings/profile' as never)}>
-            <FontAwesome6 name="pen" size={13} color={colors.text} />
+          <Pressable style={[styles.headerAction, { backgroundColor: `${colors.text}22` }]} onPress={() => router.push('/dm' as never)}>
+            <FontAwesome6 name="envelope" size={15} color={colors.text} />
           </Pressable>
         </View>
 
-        <View style={[styles.profileCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+        <View style={styles.hero}>
           <View style={[styles.cover, { backgroundColor: colors.chip }]}>
-            {profile.headerUrl ? <Image source={{ uri: profile.headerUrl }} style={styles.coverImage} /> : null}
+            {profile.headerUrl ? (
+              <Image source={{ uri: profile.headerUrl }} style={styles.coverImage} />
+            ) : (
+              <View style={[styles.coverFallback, { backgroundColor: colors.chip }]}>
+                <FontAwesome6 name="dog" size={42} color={colors.chipText} />
+              </View>
+            )}
           </View>
-          <View style={styles.profileBody}>
-            <Avatar uri={profile.avatarUrl} label={label} />
-            <Text style={[styles.ownerName, { color: colors.mutedText }]}>{profile.name}</Text>
-            {displayDog ? <Text style={[styles.dogName, { color: colors.text }]}>{displayDog}</Text> : null}
-            <Text style={[styles.bio, { color: colors.text }]}>{profile.bio || '自己紹介はまだありません。'}</Text>
-            {profile.prefecture || profile.city ? (
-              <Text style={[styles.subText, { color: colors.mutedText }]}>
-                {[profile.prefecture, profile.city].filter(Boolean).join(' ')}
+          <View style={styles.avatarOverlap}>
+            <Avatar uri={profile.avatarUrl} label={displayName} borderColor={colors.background} />
+          </View>
+        </View>
+
+        <View style={[styles.profileInfo, { borderBottomColor: colors.border }]}>
+          <View style={styles.profileActionRow}>
+            <View style={styles.profileActionSpacer} />
+            <Pressable style={[styles.outlineButton, { borderColor: colors.border }]} onPress={() => router.push('/settings/profile' as never)}>
+              <Text style={[styles.outlineButtonText, { color: colors.text }]}>プロフィールを編集</Text>
+            </Pressable>
+          </View>
+
+          <Text style={[styles.name, { color: colors.text }]}>{displayName}</Text>
+          <Text style={[styles.handle, { color: colors.mutedText }]}>@{handle}</Text>
+          {dogInfo ? <Text style={[styles.dogInfo, { color: colors.text }]}>愛犬: {dogInfo}</Text> : null}
+          <Text style={[styles.bio, { color: colors.text }]}>{profile.bio || '自己紹介はまだありません。'}</Text>
+          <View style={styles.metaRow}>
+            {location ? (
+              <Text style={[styles.metaText, { color: colors.mutedText }]}>
+                <FontAwesome6 name="location-dot" size={13} color={colors.mutedText} /> {location}
+              </Text>
+            ) : null}
+            {joined ? (
+              <Text style={[styles.metaText, { color: colors.mutedText }]}>
+                <FontAwesome6 name="calendar" size={13} color={colors.mutedText} /> {joined}
               </Text>
             ) : null}
           </View>
+          <View style={styles.followRow}>
+            <Pressable onPress={() => router.push(`/follows?user=${encodeURIComponent(profile.externalId)}&type=following` as never)}>
+              <Text style={[styles.followText, { color: colors.text }]}>
+                {followCounts.following.toLocaleString()} <Text style={{ color: colors.mutedText }}>フォロー中</Text>
+              </Text>
+            </Pressable>
+            <Pressable onPress={() => router.push(`/follows?user=${encodeURIComponent(profile.externalId)}&type=followers` as never)}>
+              <Text style={[styles.followText, { color: colors.text }]}>
+                {followCounts.followers.toLocaleString()} <Text style={{ color: colors.mutedText }}>フォロワー</Text>
+              </Text>
+            </Pressable>
+          </View>
         </View>
 
-        <View style={[styles.tabBar, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-          <Pressable
-            style={[styles.tabButton, activeTab === 'posts' ? { backgroundColor: colors.accent } : null]}
-            onPress={() => setActiveTab('posts')}>
-            <Text style={[styles.tabText, { color: activeTab === 'posts' ? colors.accentContrast : colors.text }]}>自分の投稿</Text>
-          </Pressable>
-          <Pressable
-            style={[styles.tabButton, activeTab === 'saved' ? { backgroundColor: colors.accent } : null]}
-            onPress={() => setActiveTab('saved')}>
-            <Text style={[styles.tabText, { color: activeTab === 'saved' ? colors.accentContrast : colors.text }]}>保存した投稿</Text>
-          </Pressable>
+        <View style={[styles.tabBar, { borderBottomColor: colors.border }]}>
+          {[
+            ['posts', 'ポスト'],
+            ['saved', '保存'],
+            ['media', '画像'],
+          ].map(([key, label]) => {
+            const active = activeTab === key;
+            return (
+              <Pressable key={key} style={styles.tabButton} onPress={() => setActiveTab(key as typeof activeTab)}>
+                <Text style={[styles.tabText, { color: active ? colors.text : colors.mutedText }]}>{label}</Text>
+                <View style={[styles.tabIndicator, { backgroundColor: active ? colors.accent : 'transparent' }]} />
+              </Pressable>
+            );
+          })}
         </View>
 
-        {activeTab === 'posts' ? (
-        <View style={[styles.sectionCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-          <Text style={[styles.sectionTitle, { color: colors.text }]}>自分の投稿</Text>
-          {loading ? <Text style={[styles.message, { color: colors.mutedText }]}>読み込み中...</Text> : null}
-          {!loading && myPosts.length === 0 ? <Text style={[styles.message, { color: colors.mutedText }]}>投稿はまだありません。</Text> : null}
-          {myPosts.map((post) => (
-            <PostRow
-              key={post.id}
-              post={post}
-              actionLabel="削除"
-              onAction={() => confirmDeletePost(post)}
-              onPress={() => router.push(`/post/${encodeURIComponent(post.id)}` as never)}
-              busy={busyPostId === post.id}
-            />
-          ))}
-        </View>
-        ) : null}
-
-        {activeTab === 'saved' ? (
-        <View style={[styles.sectionCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-          <Text style={[styles.sectionTitle, { color: colors.text }]}>保存した投稿</Text>
-          {savedPosts.length === 0 ? <Text style={[styles.message, { color: colors.mutedText }]}>保存した投稿はまだありません。</Text> : null}
-          {savedPosts.map((post) => (
-            <PostRow
-              key={`saved:${post.id}`}
-              post={post}
-              actionLabel="解除"
-              onAction={() => void handleRemoveSaved(post.id)}
-              onPress={() => router.push(`/post/${encodeURIComponent(post.id)}` as never)}
-              busy={busyPostId === post.id}
-            />
-          ))}
-        </View>
-        ) : null}
+        {loading ? <Text style={[styles.message, { color: colors.mutedText }]}>読み込み中...</Text> : null}
+        {!loading && currentPosts.length === 0 ? <Text style={[styles.message, { color: colors.mutedText }]}>{emptyLabel}</Text> : null}
+        {currentPosts.map((post) => (
+          <PostRow
+            key={`${activeTab}:${post.id}`}
+            post={post}
+            actionLabel={activeTab === 'saved' ? '解除' : '削除'}
+            onAction={() => (activeTab === 'saved' ? void handleRemoveSaved(post.id) : confirmDeletePost(post))}
+            onPress={() => router.push(`/post/${encodeURIComponent(post.id)}` as never)}
+            busy={busyPostId === post.id}
+          />
+        ))}
 
         {message ? <Text style={[styles.message, { color: colors.mutedText }]}>{message}</Text> : null}
       </ScrollView>
@@ -237,45 +288,50 @@ export default function MeScreen() {
 const styles = StyleSheet.create({
   safeArea: { flex: 1 },
   disabled: { opacity: 0.6 },
-  content: { padding: 16, paddingBottom: 36, gap: 12 },
-  header: { minHeight: 48, flexDirection: 'row', alignItems: 'center', gap: 12 },
-  backButton: { width: 38, height: 38, borderRadius: 19, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
-  headerTitle: { flex: 1, fontSize: 22, fontWeight: '800' },
-  editButton: { width: 38, height: 38, borderRadius: 19, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
-  profileCard: { borderRadius: 18, borderWidth: 1, overflow: 'hidden' },
-  cover: { height: 132 },
+  content: { paddingBottom: 32 },
+  topBar: { minHeight: 52, borderBottomWidth: StyleSheet.hairlineWidth, paddingHorizontal: 8, flexDirection: 'row', alignItems: 'center', gap: 8 },
+  iconButton: { width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center' },
+  topTitleWrap: { flex: 1 },
+  topTitle: { fontSize: 17, fontWeight: '900' },
+  topSubtitle: { fontSize: 12, fontWeight: '700' },
+  headerAction: { width: 38, height: 38, borderRadius: 19, alignItems: 'center', justifyContent: 'center' },
+  hero: { position: 'relative' },
+  cover: { height: 174, overflow: 'hidden' },
   coverImage: { width: '100%', height: '100%' },
-  profileBody: { padding: 14, paddingTop: 0, gap: 9 },
-  avatarImage: { width: 82, height: 82, borderRadius: 41, marginTop: -41, borderWidth: 3, borderColor: '#ffffff' },
-  avatarFallback: {
-    width: 82,
-    height: 82,
-    borderRadius: 41,
-    marginTop: -41,
-    borderWidth: 3,
-    borderColor: '#ffffff',
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: '#eadfce',
-  },
-  avatarIcon: { fontSize: 40 },
-  avatarInitial: { color: '#6b4f2f', fontSize: 28, fontWeight: '900' },
-  ownerName: { fontSize: 13, fontWeight: '800' },
-  dogName: { fontSize: 22, fontWeight: '900' },
-  bio: { fontSize: 14, lineHeight: 21 },
-  subText: { fontSize: 12, fontWeight: '700' },
-  tabBar: { minHeight: 42, borderRadius: 12, borderWidth: 1, padding: 3, flexDirection: 'row', gap: 3 },
-  tabButton: { flex: 1, borderRadius: 9, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 8 },
-  tabText: { fontSize: 13, fontWeight: '900' },
-  sectionCard: { borderRadius: 18, borderWidth: 1, padding: 14, gap: 10 },
-  sectionTitle: { fontSize: 17, fontWeight: '900' },
-  postItem: { borderRadius: 14, borderWidth: 1, padding: 12, gap: 8 },
-  postTop: { flexDirection: 'row', gap: 10, alignItems: 'flex-start' },
-  postText: { flex: 1, gap: 5 },
+  coverFallback: { flex: 1, alignItems: 'center', justifyContent: 'center' },
+  avatarOverlap: { position: 'absolute', left: 14, bottom: -47 },
+  avatarBase: { borderWidth: 4 },
+  avatarFallback: { alignItems: 'center', justifyContent: 'center', backgroundColor: '#eadfce' },
+  avatarInitial: { color: '#6b4f2f', fontWeight: '900' },
+  profileInfo: { paddingHorizontal: 14, paddingBottom: 16, borderBottomWidth: StyleSheet.hairlineWidth },
+  profileActionRow: { minHeight: 54, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  profileActionSpacer: { width: 112 },
+  outlineButton: { minHeight: 36, borderRadius: 18, borderWidth: 1, paddingHorizontal: 16, alignItems: 'center', justifyContent: 'center' },
+  outlineButtonText: { fontSize: 13, fontWeight: '900' },
+  name: { fontSize: 26, fontWeight: '900', lineHeight: 31 },
+  handle: { fontSize: 15, lineHeight: 21 },
+  dogInfo: { marginTop: 10, fontSize: 14, lineHeight: 21, fontWeight: '700' },
+  bio: { marginTop: 10, fontSize: 15, lineHeight: 22 },
+  metaRow: { marginTop: 10, flexDirection: 'row', flexWrap: 'wrap', gap: 12 },
+  metaText: { fontSize: 14, lineHeight: 20 },
+  followRow: { marginTop: 12, flexDirection: 'row', gap: 18 },
+  followText: { fontSize: 14, fontWeight: '900' },
+  tabBar: { minHeight: 54, borderBottomWidth: StyleSheet.hairlineWidth, flexDirection: 'row' },
+  tabButton: { flex: 1, alignItems: 'center', justifyContent: 'flex-end', gap: 12 },
+  tabText: { fontSize: 15, fontWeight: '900' },
+  tabIndicator: { width: 52, height: 4, borderRadius: 999 },
+  postItem: { borderBottomWidth: StyleSheet.hairlineWidth, paddingHorizontal: 14, paddingVertical: 12, flexDirection: 'row', gap: 10 },
+  postAvatar: { width: 42, height: 42, borderRadius: 21, alignItems: 'center', justifyContent: 'center', backgroundColor: '#eadfce' },
+  postBodyWrap: { flex: 1, gap: 5 },
+  postHeader: { minHeight: 20, flexDirection: 'row', alignItems: 'center', gap: 4 },
+  postAuthor: { maxWidth: 116, fontSize: 15, fontWeight: '900' },
+  postHandle: { flex: 1, fontSize: 14 },
+  inlineAction: { minWidth: 42, alignItems: 'flex-end', justifyContent: 'center' },
+  inlineActionText: { fontSize: 12, fontWeight: '900' },
   postTitle: { fontSize: 15, fontWeight: '900' },
-  postBody: { fontSize: 13, lineHeight: 19 },
-  postMeta: { fontSize: 12, fontWeight: '700' },
-  rowAction: { minHeight: 34, borderRadius: 999, borderWidth: 1, paddingHorizontal: 12, alignItems: 'center', justifyContent: 'center' },
-  rowActionText: { fontSize: 12, fontWeight: '900' },
-  message: { fontSize: 13, lineHeight: 19 },
+  postText: { fontSize: 15, lineHeight: 22 },
+  postImage: { marginTop: 6, width: '100%', height: 190, borderRadius: 16, borderWidth: 1 },
+  postStats: { marginTop: 6, flexDirection: 'row', gap: 18 },
+  postMeta: { fontSize: 13, fontWeight: '700' },
+  message: { paddingHorizontal: 16, paddingVertical: 14, fontSize: 14, lineHeight: 21 },
 });
