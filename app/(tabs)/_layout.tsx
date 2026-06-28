@@ -2,7 +2,7 @@ import { Redirect, Tabs } from 'expo-router';
 import React from 'react';
 
 import { HapticTab } from '@/components/haptic-tab';
-import { SelfAvatarButton } from '@/components/self-avatar-button';
+import { SettingsMenuButton } from '@/components/settings-menu-button';
 import { IconSymbol } from '@/components/ui/icon-symbol';
 import { useAuth } from '@/lib/auth-context';
 import { useAppTheme } from '@/lib/app-theme-context';
@@ -58,7 +58,7 @@ export default function TabLayout() {
         name="index"
         options={{
           title: isJapan ? 'ホーム' : 'Home',
-          headerLeft: () => <SelfAvatarButton />,
+          headerLeft: () => <SettingsMenuButton />,
           headerTitle: isJapan ? 'タイムライン' : 'Timeline',
           tabBarIcon: ({ color }) => <IconSymbol size={28} name="text.bubble.fill" color={color} />,
         }}
@@ -67,6 +67,7 @@ export default function TabLayout() {
         name="notifications"
         options={{
           title: isJapan ? '通知' : 'Notifications',
+          headerLeft: () => <SettingsMenuButton />,
           headerTitle: isJapan ? '通知' : 'Notifications',
           tabBarIcon: ({ color }) => <IconSymbol size={28} name="bell.fill" color={color} />,
         }}
@@ -75,6 +76,7 @@ export default function TabLayout() {
         name="messages"
         options={{
           title: 'DM',
+          headerLeft: () => <SettingsMenuButton />,
           headerTitle: 'DM',
           tabBarIcon: ({ color }) => <IconSymbol size={28} name="envelope.fill" color={color} />,
         }}
@@ -83,7 +85,7 @@ export default function TabLayout() {
         name="map"
         options={{
           title: isJapan ? 'マップ' : 'Map',
-          headerLeft: () => <SelfAvatarButton />,
+          headerLeft: () => <SettingsMenuButton />,
           headerTitle: '',
           tabBarIcon: ({ color }) => <IconSymbol size={28} name="map.fill" color={color} />,
         }}
@@ -92,7 +94,7 @@ export default function TabLayout() {
         name="events"
         options={{
           title: isJapan ? 'イベント' : 'Events',
-          headerLeft: () => <SelfAvatarButton />,
+          headerLeft: () => <SettingsMenuButton />,
           headerTitle: isJapan ? 'イベント' : 'Events',
           tabBarIcon: ({ color }) => <IconSymbol size={28} name="calendar" color={color} />,
         }}
@@ -100,9 +102,8 @@ export default function TabLayout() {
       <Tabs.Screen
         name="settings"
         options={{
-          title: isJapan ? '設定' : 'Settings',
+          href: null,
           headerShown: false,
-          tabBarIcon: ({ color }) => <IconSymbol size={28} name="gearshape.fill" color={color} />,
         }}
       />
       <Tabs.Screen
