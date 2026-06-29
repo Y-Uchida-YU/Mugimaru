@@ -382,7 +382,7 @@ function ProviderButton({
 
 const styles = StyleSheet.create({
   background: { flex: 1, backgroundColor: '#eef2ff' },
-  scrim: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(248, 250, 252, 0.72)' },
+  scrim: { ...StyleSheet.absoluteFill, backgroundColor: 'rgba(248, 250, 252, 0.72)' },
   safeArea: { flex: 1 },
   flex: { flex: 1 },
   content: { flexGrow: 1, justifyContent: 'flex-end', padding: 18, gap: 12 },

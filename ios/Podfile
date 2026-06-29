@@ -1,3 +1,14 @@
+unless Array.method_defined?(:filter_map)
+  class Array
+    def filter_map
+      each_with_object([]) do |element, result|
+        value = yield(element)
+        result << value if value
+      end
+    end
+  end
+end
+
 require File.join(File.dirname(`node --print "require.resolve('expo/package.json')"`), "scripts/autolinking")
 require File.join(File.dirname(`node --print "require.resolve('react-native/package.json')"`), "scripts/react_native_pods")
 
@@ -59,5 +70,15 @@ target 'Mugimaru' do
       :mac_catalyst_enabled => false,
       :ccache_enabled => ccache_enabled?(podfile_properties),
     )
+
+    # Xcode 26.4+ rejects fmt 11.0.2's C++20 consteval format checks.
+    # Keep React Native on C++20, but compile only the fmt pod as C++17.
+    installer.pods_project.targets.each do |target|
+      next unless target.name == 'fmt'
+
+      target.build_configurations.each do |config|
+        config.build_settings['CLANG_CXX_LANGUAGE_STANDARD'] = 'c++17'
+      end
+    end
   end
 end

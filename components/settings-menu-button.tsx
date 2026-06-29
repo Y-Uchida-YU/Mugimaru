@@ -95,7 +95,7 @@ const styles = StyleSheet.create({
     alignItems: 'flex-start',
   },
   backdrop: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
   },
   drawer: {
     flex: 1,

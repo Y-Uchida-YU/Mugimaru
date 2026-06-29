@@ -79,9 +79,10 @@ function PostRow({ post, onPress }: { post: BoardPostView; onPress: () => void }
         <Text style={[styles.postText, { color: colors.text }]}>{post.body}</Text>
         {image ? <Image source={{ uri: image }} style={[styles.postImage, { borderColor: colors.border }]} /> : null}
         <View style={styles.postStats}>
-          <Text style={[styles.postMeta, { color: colors.mutedText }]}>
-            <FontAwesome6 name="comment" size={12} color={colors.mutedText} /> {post.replies}
-          </Text>
+          <View style={styles.inlineMeta}>
+            <FontAwesome6 name="comment" size={12} color={colors.mutedText} />
+            <Text style={[styles.postMeta, { color: colors.mutedText }]}>{post.replies}</Text>
+          </View>
           {post.tags.slice(0, 2).map((tag) => (
             <Text key={tag} style={[styles.postMeta, { color: colors.mutedText }]}>
               #{tag}
@@ -276,14 +277,16 @@ export default function UserProfileScreen() {
           {profileView.bio ? <Text style={[styles.bio, { color: colors.text }]}>{profileView.bio}</Text> : null}
           <View style={styles.metaRow}>
             {location ? (
-              <Text style={[styles.metaText, { color: colors.mutedText }]}>
-                <FontAwesome6 name="location-dot" size={13} color={colors.mutedText} /> {location}
-              </Text>
+              <View style={styles.profileMetaItem}>
+                <FontAwesome6 name="location-dot" size={13} color={colors.mutedText} />
+                <Text style={[styles.metaText, { color: colors.mutedText }]}>{location}</Text>
+              </View>
             ) : null}
             {joined ? (
-              <Text style={[styles.metaText, { color: colors.mutedText }]}>
-                <FontAwesome6 name="calendar" size={13} color={colors.mutedText} /> {joined}
-              </Text>
+              <View style={styles.profileMetaItem}>
+                <FontAwesome6 name="calendar" size={13} color={colors.mutedText} />
+                <Text style={[styles.metaText, { color: colors.mutedText }]}>{joined}</Text>
+              </View>
             ) : null}
           </View>
           <View style={styles.followRow}>
@@ -358,6 +361,7 @@ const styles = StyleSheet.create({
   dogInfo: { marginTop: 10, fontSize: 14, lineHeight: 21, fontWeight: '700' },
   bio: { marginTop: 10, fontSize: 15, lineHeight: 22 },
   metaRow: { marginTop: 10, flexDirection: 'row', flexWrap: 'wrap', gap: 12 },
+  profileMetaItem: { flexDirection: 'row', alignItems: 'center', gap: 5 },
   metaText: { fontSize: 14, lineHeight: 20 },
   followRow: { marginTop: 12, flexDirection: 'row', gap: 18 },
   followText: { fontSize: 14, fontWeight: '900' },
@@ -375,6 +379,7 @@ const styles = StyleSheet.create({
   postText: { fontSize: 15, lineHeight: 22 },
   postImage: { marginTop: 6, width: '100%', height: 190, borderRadius: 16, borderWidth: 1 },
   postStats: { marginTop: 6, flexDirection: 'row', gap: 18 },
+  inlineMeta: { flexDirection: 'row', alignItems: 'center', gap: 5 },
   postMeta: { fontSize: 13, fontWeight: '700' },
   message: { paddingHorizontal: 16, paddingVertical: 14, fontSize: 14, lineHeight: 21 },
 });

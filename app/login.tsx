@@ -171,7 +171,7 @@ export default function LoginScreen() {
 const styles = StyleSheet.create({
   background: { flex: 1, backgroundColor: '#eaf2ff' },
   scrim: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
     backgroundColor: 'rgba(248, 250, 252, 0.76)',
   },
   safeArea: { flex: 1 },

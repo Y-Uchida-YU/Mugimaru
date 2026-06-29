@@ -7,11 +7,10 @@
     "icon": "./assets/images/icon.png",
     "scheme": "mugimaru",
     "userInterfaceStyle": "automatic",
-    "newArchEnabled": true,
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.yutauchida.mugimaru",
-      "buildNumber": "2026062801",
+      "buildNumber": "2026063001",
       "usesAppleSignIn": true,
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false
@@ -24,7 +23,6 @@
         "backgroundImage": "./assets/images/icon.png",
         "monochromeImage": "./assets/images/icon.png"
       },
-      "edgeToEdgeEnabled": true,
       "predictiveBackGestureEnabled": false
     },
     "web": {
@@ -48,11 +46,13 @@
       "expo-localization",
       "expo-web-browser",
       "expo-font",
-      "expo-apple-authentication"
+      "expo-apple-authentication",
+      "expo-image",
+      "expo-status-bar"
     ],
     "experiments": {
       "typedRoutes": true,
-      "reactCompiler": true
+      "reactCompiler": false
     },
     "extra": {
       "router": {}
