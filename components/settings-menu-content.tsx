@@ -1,12 +1,16 @@
 import { FontAwesome6 } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
-import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { useEffect, useState } from 'react';
+import { Image, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { ThemedText as Text } from '@/components/themed-typography';
 import { useAuth } from '@/lib/auth-context';
 import { useAppTheme } from '@/lib/app-theme-context';
 import { getAppText } from '@/lib/i18n';
+import { getAvatarIconGlyph, parseAvatarValue } from '@/lib/profile-avatar';
+import { hasSupabaseEnv } from '@/lib/supabase';
+import { getFollowCounts } from '@/lib/user-data';
 
 type SettingsMenuContentProps = {
   compact?: boolean;
@@ -16,29 +20,40 @@ type SettingsMenuContentProps = {
 type RowProps = {
   icon: keyof typeof FontAwesome6.glyphMap;
   title: string;
-  subtitle: string;
   onPress: () => void;
-  value?: string;
 };
 
-function SettingsRow({ icon, title, subtitle, value, onPress }: RowProps) {
+function SettingsRow({ icon, title, onPress }: RowProps) {
   const { activeTheme } = useAppTheme();
   const colors = activeTheme.colors;
   return (
     <Pressable
-      style={[styles.row, { backgroundColor: colors.surface, borderColor: colors.border }]}
+      style={styles.row}
       onPress={onPress}
       android_ripple={{ color: `${colors.accent}22` }}>
-      <View style={[styles.rowIcon, { backgroundColor: colors.chip }]}>
-        <FontAwesome6 name={icon} size={15} color={colors.chipText} />
+      <View style={styles.rowIcon}>
+        <FontAwesome6 name={icon} size={22} color={colors.text} />
       </View>
-      <View style={styles.rowBody}>
-        <Text style={[styles.rowTitle, { color: colors.text }]}>{title}</Text>
-        <Text style={[styles.rowSubtitle, { color: colors.mutedText }]}>{subtitle}</Text>
-      </View>
-      {value ? <Text style={[styles.rowValue, { color: colors.mutedText }]}>{value}</Text> : null}
-      <FontAwesome6 name="chevron-right" size={13} color={colors.mutedText} />
+      <Text style={[styles.rowTitle, { color: colors.text }]}>{title}</Text>
     </Pressable>
+  );
+}
+
+function MenuAvatar({ uri, label }: { uri?: string | null; label: string }) {
+  const parsed = parseAvatarValue(uri ?? '');
+  if (parsed.type === 'image') return <Image source={{ uri: parsed.uri }} style={styles.avatarImage} />;
+  if (parsed.type === 'icon') {
+    return (
+      <View style={styles.avatarFallback}>
+        <Text style={styles.avatarIcon}>{getAvatarIconGlyph(parsed.iconId)}</Text>
+      </View>
+    );
+  }
+
+  return (
+    <View style={styles.avatarFallback}>
+      <Text style={styles.avatarInitial}>{label.trim().charAt(0).toUpperCase() || '?'}</Text>
+    </View>
   );
 }
 
@@ -46,51 +61,59 @@ export function SettingsMenuContent({ compact = false, onNavigate }: SettingsMen
   const router = useRouter();
   const text = getAppText();
   const { profile, logout } = useAuth();
-  const { activeTheme, typography, textScale, fontStyle } = useAppTheme();
+  const { activeTheme } = useAppTheme();
   const colors = activeTheme.colors;
   const isJapan = text.localeGroup === 'japan';
+  const [followCounts, setFollowCounts] = useState({ followers: 0, following: 0 });
 
   const copy = isJapan
     ? {
-        title: '設定',
-        caption: 'アカウント、プロフィール、見た目をまとめて管理できます。',
-        account: 'アカウント',
-        appearance: '表示とテーマ',
-        support: 'サポート',
-        personal: '個人設定',
-        personalSub: '通知、メール、利用環境の設定',
         profile: 'プロフィール',
-        profileSub: 'アイコン、ヘッダー、愛犬情報、自己紹介',
+        personal: '個人設定',
         theme: 'テーマカラー',
-        themeSub: 'アプリ全体の色味を変更',
         textSize: '文字サイズ',
-        textSizeSub: '読みやすい表示サイズへ調整',
         font: 'フォント',
-        fontSub: 'システム、丸み、セリフ、等幅から選択',
+        settings: '設定とプライバシー',
         help: 'ヘルプ',
-        helpSub: '使い方とよくある質問',
         logout: 'ログアウト',
+        following: 'フォロー中',
+        followers: 'フォロワー',
       }
     : {
-        title: 'Settings',
-        caption: 'Manage account, profile, appearance, and support.',
-        account: 'Account',
-        appearance: 'Appearance',
-        support: 'Support',
-        personal: 'Personal settings',
-        personalSub: 'Notifications, email, and account environment',
         profile: 'Profile',
-        profileSub: 'Name, bio, and dog info shown on the board',
+        personal: 'Personal settings',
         theme: 'Theme color',
-        themeSub: 'Change the whole app palette',
         textSize: 'Text size',
-        textSizeSub: 'Tune readability and density',
         font: 'Font style',
-        fontSub: 'System, rounded, serif, or mono',
+        settings: 'Settings and privacy',
         help: 'Help',
-        helpSub: 'How to use Mugimaru and FAQ',
         logout: 'Log out',
+        following: 'Following',
+        followers: 'Followers',
       };
+
+  useEffect(() => {
+    let active = true;
+
+    const loadFollowCounts = async () => {
+      if (!profile || !hasSupabaseEnv) {
+        setFollowCounts({ followers: 0, following: 0 });
+        return;
+      }
+
+      try {
+        const counts = await getFollowCounts(profile.externalId);
+        if (active) setFollowCounts(counts);
+      } catch {
+        if (active) setFollowCounts({ followers: 0, following: 0 });
+      }
+    };
+
+    void loadFollowCounts();
+    return () => {
+      active = false;
+    };
+  }, [profile]);
 
   const open = (path: string) => {
     onNavigate?.();
@@ -104,66 +127,48 @@ export function SettingsMenuContent({ compact = false, onNavigate }: SettingsMen
   };
 
   return (
-    <SafeAreaView style={[styles.safeArea, { backgroundColor: compact ? colors.elevated : colors.background }]} edges={compact ? ['top', 'bottom'] : undefined}>
+    <SafeAreaView style={[styles.safeArea, { backgroundColor: colors.background }]} edges={compact ? ['top', 'bottom'] : undefined}>
       <ScrollView contentContainerStyle={[styles.content, compact && styles.compactContent]} showsVerticalScrollIndicator={false}>
-        <View style={styles.header}>
-          <Text style={[styles.eyebrow, { color: colors.accent }]}>{copy.account}</Text>
-          <Text style={[styles.title, compact && styles.compactTitle, { color: colors.text }]}>{copy.title}</Text>
-          <Text style={[styles.caption, { color: colors.mutedText }]}>{copy.caption}</Text>
-        </View>
-
-        <View style={[styles.profileCard, { backgroundColor: colors.elevated, borderColor: colors.border }]}>
-          <View style={styles.profileTop}>
-            <View style={[styles.avatar, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-              <FontAwesome6 name="paw" size={22} color={colors.accent} />
-            </View>
-            <View style={styles.profileMeta}>
-              <Text style={[styles.profileName, { color: colors.text }]}>{displayProfileName()}</Text>
-            </View>
-            <Pressable style={[styles.editButton, { backgroundColor: colors.surface }]} onPress={() => open('/settings/profile')}>
-              <FontAwesome6 name="pen" size={13} color={colors.text} />
+        <View style={styles.profileBlock}>
+          <MenuAvatar uri={profile?.avatarUrl} label={displayProfileName()} />
+          <Text style={[styles.profileName, { color: colors.text }]} numberOfLines={1}>
+            {displayProfileName()}
+          </Text>
+          <Text style={[styles.handle, { color: colors.mutedText }]} numberOfLines={1}>
+            @{profile?.externalId ?? 'mugimaru'}
+          </Text>
+          <View style={styles.followRow}>
+            <Pressable onPress={() => open(`/follows?user=${encodeURIComponent(profile?.externalId ?? '')}&type=following`)}>
+              <Text style={[styles.followText, { color: colors.text }]}>
+                {followCounts.following.toLocaleString()} <Text style={{ color: colors.mutedText }}>{copy.following}</Text>
+              </Text>
+            </Pressable>
+            <Pressable onPress={() => open(`/follows?user=${encodeURIComponent(profile?.externalId ?? '')}&type=followers`)}>
+              <Text style={[styles.followText, { color: colors.text }]}>
+                {followCounts.followers.toLocaleString()} <Text style={{ color: colors.mutedText }}>{copy.followers}</Text>
+              </Text>
             </Pressable>
           </View>
-          <View style={styles.statsRow}>
-            <Metric label={copy.theme} value={activeTheme.name} />
-            <Metric label={copy.textSize} value={textScale} />
-          </View>
         </View>
 
-        <SectionTitle title={copy.account} />
-        <SettingsRow icon="user-gear" title={copy.personal} subtitle={copy.personalSub} onPress={() => open('/settings/personal')} />
-        <SettingsRow icon="id-card" title={copy.profile} subtitle={copy.profileSub} onPress={() => open('/settings/profile')} />
+        <View style={styles.primaryMenu}>
+          <SettingsRow icon="user" title={copy.profile} onPress={() => open('/me')} />
+          <SettingsRow icon="user-gear" title={copy.personal} onPress={() => open('/settings/personal')} />
+          <SettingsRow icon="palette" title={copy.theme} onPress={() => open('/settings/theme')} />
+          <SettingsRow icon="text-height" title={copy.textSize} onPress={() => open('/settings/text')} />
+          <SettingsRow icon="font" title={copy.font} onPress={() => open('/settings/font')} />
+        </View>
 
-        <SectionTitle title={copy.appearance} />
-        <SettingsRow icon="palette" title={copy.theme} subtitle={copy.themeSub} value={activeTheme.name} onPress={() => open('/settings/theme')} />
-        <SettingsRow icon="text-height" title={copy.textSize} subtitle={copy.textSizeSub} value={textScale} onPress={() => open('/settings/text')} />
-        <SettingsRow icon="font" title={copy.font} subtitle={copy.fontSub} value={fontStyle} onPress={() => open('/settings/font')} />
+        <View style={[styles.divider, { backgroundColor: colors.border }]} />
 
-        <SectionTitle title={copy.support} />
-        <SettingsRow icon="circle-question" title={copy.help} subtitle={copy.helpSub} onPress={() => open('/settings/help')} />
-
-        <Pressable style={[styles.logoutButton, { backgroundColor: colors.accent }]} onPress={handleLogout}>
-          <FontAwesome6 name="right-from-bracket" size={15} color={colors.accentContrast} />
-          <Text style={[styles.logoutText, { color: colors.accentContrast }]}>{copy.logout}</Text>
-        </Pressable>
+        <View style={styles.secondaryMenu}>
+          <SettingsRow icon="gear" title={copy.settings} onPress={() => open('/settings/personal')} />
+          <SettingsRow icon="circle-question" title={copy.help} onPress={() => open('/settings/help')} />
+          <SettingsRow icon="right-from-bracket" title={copy.logout} onPress={handleLogout} />
+        </View>
       </ScrollView>
     </SafeAreaView>
   );
-
-  function SectionTitle({ title }: { title: string }) {
-    return <Text style={[styles.sectionTitle, { color: colors.mutedText, fontFamily: typography.fontFamily }]}>{title}</Text>;
-  }
-
-  function Metric({ label, value }: { label: string; value: string }) {
-    return (
-      <View style={[styles.metric, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-        <Text style={[styles.metricLabel, { color: colors.mutedText }]}>{label}</Text>
-        <Text style={[styles.metricValue, { color: colors.text }]} numberOfLines={1}>
-          {value}
-        </Text>
-      </View>
-    );
-  }
 
   function displayProfileName() {
     const dogName = profile?.dogName?.trim();
@@ -179,30 +184,29 @@ export function SettingsMenuContent({ compact = false, onNavigate }: SettingsMen
 
 const styles = StyleSheet.create({
   safeArea: { flex: 1 },
-  content: { paddingHorizontal: 16, paddingTop: 12, paddingBottom: 36, gap: 12 },
-  compactContent: { paddingHorizontal: 14, paddingTop: 8, paddingBottom: 24 },
-  header: { gap: 4, paddingHorizontal: 2 },
-  eyebrow: { fontSize: 12, fontWeight: '800', textTransform: 'uppercase' },
-  title: { fontSize: 32, fontWeight: '800' },
-  compactTitle: { fontSize: 28 },
-  caption: { fontSize: 13, lineHeight: 20, maxWidth: 460 },
-  profileCard: { borderRadius: 24, borderWidth: 1, padding: 16, gap: 14 },
-  profileTop: { flexDirection: 'row', alignItems: 'center', gap: 12 },
-  avatar: { width: 58, height: 58, borderRadius: 20, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
-  profileMeta: { flex: 1 },
-  profileName: { fontSize: 20, fontWeight: '800' },
-  editButton: { width: 38, height: 38, borderRadius: 19, alignItems: 'center', justifyContent: 'center' },
-  statsRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-  metric: { flex: 1, minWidth: 96, minHeight: 58, borderRadius: 16, borderWidth: 1, paddingHorizontal: 10, justifyContent: 'center', gap: 2 },
-  metricLabel: { fontSize: 10, fontWeight: '800' },
-  metricValue: { fontSize: 13, fontWeight: '800' },
-  sectionTitle: { marginTop: 4, paddingHorizontal: 2, fontSize: 11, fontWeight: '800', textTransform: 'uppercase' },
-  row: { minHeight: 74, borderRadius: 18, borderWidth: 1, padding: 12, flexDirection: 'row', alignItems: 'center', gap: 12 },
-  rowIcon: { width: 38, height: 38, borderRadius: 14, alignItems: 'center', justifyContent: 'center' },
-  rowBody: { flex: 1, gap: 2 },
-  rowTitle: { fontSize: 15, fontWeight: '800' },
-  rowSubtitle: { fontSize: 12, lineHeight: 18 },
-  rowValue: { maxWidth: 104, fontSize: 11, fontWeight: '700', textAlign: 'right' },
-  logoutButton: { minHeight: 52, borderRadius: 18, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 9, marginTop: 4 },
-  logoutText: { fontSize: 14, fontWeight: '800' },
+  content: { paddingHorizontal: 28, paddingTop: 22, paddingBottom: 36 },
+  compactContent: { paddingHorizontal: 24, paddingTop: 18, paddingBottom: 28 },
+  profileBlock: { paddingBottom: 28 },
+  avatarImage: { width: 52, height: 52, borderRadius: 26, marginBottom: 12 },
+  avatarFallback: {
+    width: 52,
+    height: 52,
+    borderRadius: 26,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 12,
+    backgroundColor: '#eadfce',
+  },
+  avatarIcon: { fontSize: 28 },
+  avatarInitial: { color: '#6b4f2f', fontSize: 20, fontWeight: '900' },
+  profileName: { fontSize: 22, fontWeight: '900', lineHeight: 27 },
+  handle: { marginTop: 3, fontSize: 16, lineHeight: 21 },
+  followRow: { marginTop: 18, flexDirection: 'row', flexWrap: 'wrap', gap: 18 },
+  followText: { fontSize: 15, fontWeight: '900' },
+  primaryMenu: { gap: 4 },
+  secondaryMenu: { gap: 2 },
+  divider: { height: StyleSheet.hairlineWidth, marginVertical: 26 },
+  row: { minHeight: 70, flexDirection: 'row', alignItems: 'center', gap: 26 },
+  rowIcon: { width: 34, alignItems: 'center', justifyContent: 'center' },
+  rowTitle: { flex: 1, fontSize: 23, lineHeight: 30, fontWeight: '900' },
 });

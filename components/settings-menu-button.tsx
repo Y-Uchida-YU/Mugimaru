@@ -16,7 +16,7 @@ export function SettingsMenuButton() {
   const colors = activeTheme.colors;
   const parsed = parseAvatarValue(profile?.avatarUrl ?? '');
   const label = profile?.dogName || profile?.name || '自分';
-  const drawerWidth = Math.min(width * 0.6, 390);
+  const drawerWidth = Math.min(width * 0.72, 390);
 
   return (
     <>
@@ -50,8 +50,7 @@ export function SettingsMenuButton() {
             accessibilityRole="button"
             accessibilityLabel="設定メニューを閉じる"
           />
-          <View style={[styles.drawer, { width: drawerWidth, backgroundColor: colors.elevated, borderColor: colors.border }]}>
-            <View style={[styles.drawerHandle, { backgroundColor: colors.border }]} />
+          <View style={[styles.drawer, { width: drawerWidth, backgroundColor: colors.background, borderColor: colors.border }]}>
             <SettingsMenuContent compact onNavigate={() => setIsOpen(false)} />
           </View>
         </View>
@@ -105,14 +104,5 @@ const styles = StyleSheet.create({
     shadowRadius: 18,
     shadowOffset: { width: 8, height: 0 },
     elevation: 16,
-  },
-  drawerHandle: {
-    position: 'absolute',
-    top: 16,
-    right: 10,
-    zIndex: 2,
-    width: 4,
-    height: 36,
-    borderRadius: 999,
   },
 });
