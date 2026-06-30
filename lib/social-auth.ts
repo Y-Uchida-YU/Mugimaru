@@ -617,7 +617,7 @@ export async function authenticateWithApple(): Promise<SocialAuthProfile> {
 
     return {
       externalId,
-      name: formatAppleFullName(credential.fullName) || idPayload?.name || 'Appleユーザー',
+      name: formatAppleFullName(credential.fullName) || idPayload?.name || 'ユーザー',
       email: credential.email ?? idPayload?.email ?? null,
       avatarUrl: null,
     };
@@ -699,7 +699,7 @@ export async function authenticateWithApple(): Promise<SocialAuthProfile> {
 
   return {
     externalId,
-    name: hintedName || idPayload?.name || 'Apple User',
+    name: hintedName || idPayload?.name || 'ユーザー',
     email: hintedEmail || idPayload?.email || null,
     avatarUrl: null,
   };

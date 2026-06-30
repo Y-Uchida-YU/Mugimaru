@@ -116,10 +116,10 @@ export function AuthProviderRoot({ children }: PropsWithChildren) {
   const loginWithSocial = useCallback(
     async (provider: 'line' | 'google' | 'apple' | 'x', socialProfile: SocialLoginProfile) => {
       const defaultNameByProvider: Record<'line' | 'google' | 'apple' | 'x', string> = {
-        line: 'LINEユーザー',
-        google: 'Googleユーザー',
-        apple: 'Appleユーザー',
-        x: 'Xユーザー',
+        line: 'ユーザー',
+        google: 'ユーザー',
+        apple: 'ユーザー',
+        x: 'ユーザー',
       };
       const existingUser = hasSupabaseEnv ? await getAppUserByExternalId(socialProfile.externalId) : null;
       const nextProfile: UserProfile = {

@@ -1,5 +1,5 @@
 import { FontAwesome6 } from '@expo/vector-icons';
-import { Stack, usePathname, useRouter } from 'expo-router';
+import { useRouter } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
 import { Image, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -29,7 +29,6 @@ function PeerAvatar({ uri, label }: { uri: string; label: string }) {
 
 export default function DirectMessagesScreen() {
   const router = useRouter();
-  const pathname = usePathname();
   const { activeTheme } = useAppTheme();
   const colors = activeTheme.colors;
   const { profile } = useAuth();
@@ -48,16 +47,7 @@ export default function DirectMessagesScreen() {
 
   return (
     <SafeAreaView style={[styles.safeArea, { backgroundColor: colors.background }]}>
-      <Stack.Screen options={{ headerShown: false }} />
       <ScrollView contentContainerStyle={styles.content}>
-        <View style={styles.header}>
-          {pathname !== '/messages' ? (
-            <Pressable style={[styles.backButton, { backgroundColor: colors.surface, borderColor: colors.border }]} onPress={() => router.back()}>
-              <FontAwesome6 name="arrow-left" size={14} color={colors.text} />
-            </Pressable>
-          ) : null}
-          <Text style={[styles.title, { color: colors.text }]}>DM</Text>
-        </View>
         {threads.length === 0 ? (
           <View style={[styles.empty, { backgroundColor: colors.surface, borderColor: colors.border }]}>
             <Text style={[styles.emptyTitle, { color: colors.text }]}>メッセージはまだありません</Text>
@@ -95,10 +85,7 @@ export default function DirectMessagesScreen() {
 
 const styles = StyleSheet.create({
   safeArea: { flex: 1 },
-  content: { padding: 16, paddingBottom: 34, gap: 10 },
-  header: { minHeight: 48, flexDirection: 'row', alignItems: 'center', gap: 12 },
-  backButton: { width: 38, height: 38, borderRadius: 19, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
-  title: { fontSize: 24, fontWeight: '900' },
+  content: { padding: 10, paddingBottom: 34, gap: 8 },
   empty: { borderRadius: 16, borderWidth: 1, padding: 14, gap: 4 },
   emptyTitle: { fontSize: 16, fontWeight: '900' },
   emptyBody: { fontSize: 13, lineHeight: 19 },

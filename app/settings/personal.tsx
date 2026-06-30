@@ -12,16 +12,6 @@ import {
   type PersonalPreferences,
 } from '@/lib/settings-preferences';
 
-function providerLabel(provider: string | undefined) {
-  if (!provider) return '-';
-  if (provider === 'email') return 'メール';
-  if (provider === 'line') return 'LINE';
-  if (provider === 'google') return 'Google';
-  if (provider === 'apple') return 'Apple';
-  if (provider === 'guest') return 'ゲスト';
-  return 'X';
-}
-
 export default function PersonalSettingsScreen() {
   const router = useRouter();
   const { profile, updateProfile } = useAuth();
@@ -102,13 +92,6 @@ export default function PersonalSettingsScreen() {
       onBack={() => router.back()}
     >
       <SettingsSection theme={activeTheme} typography={typography} title="アカウント">
-        <View style={styles.fieldWrap}>
-          <Text style={[styles.label, { color: colors.mutedText, fontFamily, fontSize: 12 * scale }]}>ログイン方法</Text>
-          <Text style={[styles.valueText, { color: colors.text, fontFamily, fontSize: 15 * scale }]}>
-            {providerLabel(profile?.provider)}
-          </Text>
-        </View>
-
         <View style={styles.fieldWrap}>
           <Text style={[styles.label, { color: colors.mutedText, fontFamily, fontSize: 12 * scale }]}>メールアドレス</Text>
           <TextInput
@@ -226,9 +209,6 @@ const styles = StyleSheet.create({
     gap: 6,
   },
   label: {
-    fontWeight: '700',
-  },
-  valueText: {
     fontWeight: '700',
   },
   input: {

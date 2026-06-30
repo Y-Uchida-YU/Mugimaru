@@ -69,7 +69,6 @@ export function SettingsMenuContent({ compact = false, onNavigate }: SettingsMen
         fontSub: 'システム、丸み、セリフ、等幅から選択',
         help: 'ヘルプ',
         helpSub: '使い方とよくある質問',
-        loginMethod: 'ログイン',
         logout: 'ログアウト',
       }
     : {
@@ -90,7 +89,6 @@ export function SettingsMenuContent({ compact = false, onNavigate }: SettingsMen
         fontSub: 'System, rounded, serif, or mono',
         help: 'Help',
         helpSub: 'How to use Mugimaru and FAQ',
-        loginMethod: 'Login',
         logout: 'Log out',
       };
 
@@ -120,14 +118,13 @@ export function SettingsMenuContent({ compact = false, onNavigate }: SettingsMen
               <FontAwesome6 name="paw" size={22} color={colors.accent} />
             </View>
             <View style={styles.profileMeta}>
-              <Text style={[styles.profileName, { color: colors.text }]}>{profile?.dogName || profile?.name || 'ゲスト'}</Text>
+              <Text style={[styles.profileName, { color: colors.text }]}>{displayProfileName()}</Text>
             </View>
             <Pressable style={[styles.editButton, { backgroundColor: colors.surface }]} onPress={() => open('/settings/profile')}>
               <FontAwesome6 name="pen" size={13} color={colors.text} />
             </Pressable>
           </View>
           <View style={styles.statsRow}>
-            <Metric label={copy.loginMethod} value={providerLabel(profile?.provider)} />
             <Metric label={copy.theme} value={activeTheme.name} />
             <Metric label={copy.textSize} value={textScale} />
           </View>
@@ -168,13 +165,15 @@ export function SettingsMenuContent({ compact = false, onNavigate }: SettingsMen
     );
   }
 
-  function providerLabel(provider?: string) {
-    if (provider === 'line') return 'LINE';
-    if (provider === 'google') return 'Google';
-    if (provider === 'apple') return 'Apple';
-    if (provider === 'x') return 'X';
-    if (provider === 'email') return 'メール';
-    return 'ゲスト';
+  function displayProfileName() {
+    const dogName = profile?.dogName?.trim();
+    if (dogName) return dogName;
+
+    const name = profile?.name?.trim();
+    const providerDefaultNames = new Set(['Appleユーザー', 'Apple User', 'LINEユーザー', 'Googleユーザー', 'Xユーザー']);
+    if (name && !providerDefaultNames.has(name)) return name;
+
+    return isJapan ? 'プロフィール' : 'Profile';
   }
 }
 

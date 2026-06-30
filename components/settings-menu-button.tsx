@@ -16,7 +16,7 @@ export function SettingsMenuButton() {
   const colors = activeTheme.colors;
   const parsed = parseAvatarValue(profile?.avatarUrl ?? '');
   const label = profile?.dogName || profile?.name || '自分';
-  const drawerWidth = Math.min(width * 0.88, 390);
+  const drawerWidth = Math.min(width * 0.6, 390);
 
   return (
     <>

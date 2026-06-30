@@ -39,6 +39,7 @@ export default function TabLayout() {
         headerShadowVisible: false,
         headerStyle: {
           backgroundColor: activeTheme.colors.background,
+          height: 58,
         },
         headerTitleStyle: {
           color: activeTheme.colors.text,
@@ -47,10 +48,11 @@ export default function TabLayout() {
           fontWeight: '900',
         },
         headerLeftContainerStyle: {
-          paddingLeft: 6,
+          paddingLeft: 8,
+          width: 56,
         },
         headerTitleContainerStyle: {
-          marginLeft: -2,
+          marginLeft: 0,
         },
         tabBarButton: HapticTab,
       }}>
@@ -86,7 +88,7 @@ export default function TabLayout() {
         options={{
           title: isJapan ? 'マップ' : 'Map',
           headerLeft: () => <SettingsMenuButton />,
-          headerTitle: '',
+          headerTitle: isJapan ? 'マップ' : 'Map',
           tabBarIcon: ({ color }) => <IconSymbol size={28} name="map.fill" color={color} />,
         }}
       />
