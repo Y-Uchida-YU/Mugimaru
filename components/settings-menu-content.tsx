@@ -2,7 +2,6 @@ import { FontAwesome6 } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { Image, Pressable, ScrollView, StyleSheet, View } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { ThemedText as Text } from '@/components/themed-typography';
 import { useAuth } from '@/lib/auth-context';
@@ -127,15 +126,12 @@ export function SettingsMenuContent({ compact = false, onNavigate }: SettingsMen
   };
 
   return (
-    <SafeAreaView style={[styles.safeArea, { backgroundColor: colors.background }]} edges={compact ? ['top', 'bottom'] : undefined}>
+    <View style={[styles.safeArea, { backgroundColor: colors.background }]}>
       <ScrollView contentContainerStyle={[styles.content, compact && styles.compactContent]} showsVerticalScrollIndicator={false}>
         <View style={styles.profileBlock}>
           <MenuAvatar uri={profile?.avatarUrl} label={displayProfileName()} />
           <Text style={[styles.profileName, { color: colors.text }]} numberOfLines={1}>
             {displayProfileName()}
-          </Text>
-          <Text style={[styles.handle, { color: colors.mutedText }]} numberOfLines={1}>
-            @{profile?.externalId ?? 'mugimaru'}
           </Text>
           <View style={styles.followRow}>
             <Pressable onPress={() => open(`/follows?user=${encodeURIComponent(profile?.externalId ?? '')}&type=following`)}>
@@ -167,7 +163,7 @@ export function SettingsMenuContent({ compact = false, onNavigate }: SettingsMen
           <SettingsRow icon="right-from-bracket" title={copy.logout} onPress={handleLogout} />
         </View>
       </ScrollView>
-    </SafeAreaView>
+    </View>
   );
 
   function displayProfileName() {
@@ -185,7 +181,7 @@ export function SettingsMenuContent({ compact = false, onNavigate }: SettingsMen
 const styles = StyleSheet.create({
   safeArea: { flex: 1 },
   content: { paddingHorizontal: 22, paddingTop: 18, paddingBottom: 32 },
-  compactContent: { paddingHorizontal: 20, paddingTop: 14, paddingBottom: 24 },
+  compactContent: { paddingHorizontal: 20, paddingTop: 0, paddingBottom: 24 },
   profileBlock: { paddingBottom: 22 },
   avatarImage: { width: 48, height: 48, borderRadius: 24, marginBottom: 10 },
   avatarFallback: {
@@ -200,7 +196,6 @@ const styles = StyleSheet.create({
   avatarIcon: { fontSize: 25 },
   avatarInitial: { color: '#6b4f2f', fontSize: 18, fontWeight: '900' },
   profileName: { fontSize: 19, fontWeight: '900', lineHeight: 24 },
-  handle: { marginTop: 2, fontSize: 13, lineHeight: 18 },
   followRow: { marginTop: 14, flexDirection: 'row', flexWrap: 'wrap', gap: 14 },
   followText: { fontSize: 13, fontWeight: '900' },
   primaryMenu: { gap: 2 },

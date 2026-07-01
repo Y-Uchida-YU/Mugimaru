@@ -25,6 +25,7 @@ type ProfileView = {
   dogBreed: string;
   prefecture: string;
   city: string;
+  locationPublic: boolean;
   createdAt: string;
   followers: number;
   following: number;
@@ -72,7 +73,7 @@ function PostRow({ post, onPress }: { post: BoardPostView; onPress: () => void }
             {post.author}
           </Text>
           <Text style={[styles.postHandle, { color: colors.mutedText }]} numberOfLines={1}>
-            @{post.authorExternalId} · {post.updatedAt}
+            {post.updatedAt}
           </Text>
         </View>
         <Text style={[styles.postTitle, { color: colors.text }]}>{post.title}</Text>
@@ -115,6 +116,7 @@ export default function UserProfileScreen() {
     dogBreed: '',
     prefecture: '',
     city: '',
+    locationPublic: true,
     createdAt: '',
     followers: 0,
     following: 0,
@@ -129,8 +131,7 @@ export default function UserProfileScreen() {
 
   const canFollow = Boolean(profile && profile.provider !== 'guest' && profile.externalId !== externalId);
   const displayTitle = getDisplayTitle();
-  const dogInfo = [profileView.dogName, profileView.dogBreed].filter(Boolean).join(' / ');
-  const location = [profileView.prefecture, profileView.city].filter(Boolean).join(' ');
+  const location = profileView.locationPublic ? [profileView.prefecture, profileView.city].filter(Boolean).join(' ') : '';
   const joined = formatJoinedLabel(profileView.createdAt);
   const visiblePosts = activeTab === 'media' ? posts.filter((post) => post.imageUrls.length > 0 || post.imageUrl) : posts;
 
@@ -164,6 +165,7 @@ export default function UserProfileScreen() {
         dogBreed: user?.dog_breed ?? '',
         prefecture: user?.prefecture ?? '',
         city: user?.city ?? '',
+        locationPublic: user?.location_public ?? true,
         createdAt: user?.created_at ?? '',
         followers: counts.followers,
         following: counts.following,
@@ -281,18 +283,14 @@ export default function UserProfileScreen() {
           </View>
 
           <Text style={[styles.name, { color: colors.text }]}>{displayTitle}</Text>
-          <Text style={[styles.handle, { color: colors.mutedText }]} numberOfLines={1} ellipsizeMode="tail">
-            @{profileView.externalId}
-          </Text>
-          {dogInfo ? <Text style={[styles.dogInfo, { color: colors.text }]}>愛犬: {dogInfo}</Text> : null}
           {profileView.bio ? <Text style={[styles.bio, { color: colors.text }]}>{profileView.bio}</Text> : null}
+          {location ? (
+            <View style={styles.locationRow}>
+              <FontAwesome6 name="location-dot" size={13} color={colors.mutedText} />
+              <Text style={[styles.locationText, { color: colors.mutedText }]}>{location}</Text>
+            </View>
+          ) : null}
           <View style={styles.metaRow}>
-            {location ? (
-              <View style={styles.profileMetaItem}>
-                <FontAwesome6 name="location-dot" size={13} color={colors.mutedText} />
-                <Text style={[styles.metaText, { color: colors.mutedText }]}>{location}</Text>
-              </View>
-            ) : null}
             {joined ? (
               <View style={styles.profileMetaItem}>
                 <FontAwesome6 name="calendar" size={13} color={colors.mutedText} />
@@ -369,7 +367,9 @@ export default function UserProfileScreen() {
 
   function getDisplayTitle() {
     const dogName = profileView.dogName.trim();
-    if (dogName) return dogName;
+    const dogBreed = profileView.dogBreed.trim();
+    const dogProfile = [dogName, dogBreed].filter(Boolean).join('／');
+    if (dogProfile) return dogProfile;
 
     const name = profileView.name.trim();
     const providerDefaultNames = new Set(['Appleユーザー', 'Apple User', 'LINEユーザー', 'Googleユーザー', 'Xユーザー', 'ユーザー']);
@@ -403,9 +403,9 @@ const styles = StyleSheet.create({
   followButton: { minHeight: 36, borderRadius: 18, borderWidth: 1, paddingHorizontal: 18, alignItems: 'center', justifyContent: 'center' },
   followButtonText: { fontSize: 13, fontWeight: '900' },
   name: { fontSize: 26, fontWeight: '900', lineHeight: 31 },
-  handle: { fontSize: 15, lineHeight: 21 },
-  dogInfo: { marginTop: 10, fontSize: 14, lineHeight: 21, fontWeight: '700' },
   bio: { marginTop: 10, fontSize: 15, lineHeight: 22 },
+  locationRow: { marginTop: 10, flexDirection: 'row', alignItems: 'center', gap: 6 },
+  locationText: { fontSize: 14, lineHeight: 20, fontWeight: '700' },
   metaRow: { marginTop: 10, flexDirection: 'row', flexWrap: 'wrap', gap: 12 },
   profileMetaItem: { flexDirection: 'row', alignItems: 'center', gap: 5 },
   metaText: { fontSize: 14, lineHeight: 20 },

@@ -25,6 +25,7 @@ export type UserProfile = {
   dogBreed: string;
   prefecture: string;
   city: string;
+  locationPublic: boolean;
   provider: AuthProvider;
 };
 
@@ -40,7 +41,7 @@ type AuthContextValue = {
   loginWithPassword: (credential: string, password: string) => Promise<void>;
   loginAsGuest: () => Promise<void>;
   updateProfile: (
-    patch: Pick<UserProfile, 'name' | 'email' | 'avatarUrl' | 'headerUrl' | 'bio' | 'dogName' | 'dogBreed' | 'prefecture' | 'city'>
+    patch: Pick<UserProfile, 'name' | 'email' | 'avatarUrl' | 'headerUrl' | 'bio' | 'dogName' | 'dogBreed' | 'prefecture' | 'city' | 'locationPublic'>
   ) => Promise<void>;
   logout: () => void;
 };
@@ -78,6 +79,7 @@ export function AuthProviderRoot({ children }: PropsWithChildren) {
             dogBreed: typeof parsed.dogBreed === 'string' ? parsed.dogBreed : '',
             prefecture: typeof parsed.prefecture === 'string' ? parsed.prefecture : '',
             city: typeof parsed.city === 'string' ? parsed.city : '',
+            locationPublic: typeof parsed.locationPublic === 'boolean' ? parsed.locationPublic : true,
           });
         }
       } catch {
@@ -133,6 +135,7 @@ export function AuthProviderRoot({ children }: PropsWithChildren) {
         dogBreed: existingUser?.dog_breed?.trim() || '',
         prefecture: existingUser?.prefecture?.trim() || '',
         city: existingUser?.city?.trim() || '',
+        locationPublic: existingUser?.location_public ?? true,
         provider,
       };
 
@@ -148,6 +151,7 @@ export function AuthProviderRoot({ children }: PropsWithChildren) {
           dogBreed: nextProfile.dogBreed || null,
           prefecture: nextProfile.prefecture || null,
           city: nextProfile.city || null,
+          locationPublic: nextProfile.locationPublic,
           provider,
         });
       }
@@ -172,6 +176,7 @@ export function AuthProviderRoot({ children }: PropsWithChildren) {
         dogBreed: '',
         prefecture: '',
         city: '',
+        locationPublic: true,
         provider: 'email',
       };
 
@@ -187,6 +192,7 @@ export function AuthProviderRoot({ children }: PropsWithChildren) {
           dogBreed: null,
           prefecture: null,
           city: null,
+          locationPublic: true,
           provider: 'email',
         });
       }
@@ -234,6 +240,7 @@ export function AuthProviderRoot({ children }: PropsWithChildren) {
       dogBreed: existingUser?.dog_breed?.trim() || '',
       prefecture: existingUser?.prefecture?.trim() || '',
       city: existingUser?.city?.trim() || '',
+      locationPublic: existingUser?.location_public ?? true,
       provider: 'email',
     };
 
@@ -248,6 +255,7 @@ export function AuthProviderRoot({ children }: PropsWithChildren) {
       dogBreed: nextProfile.dogBreed || null,
       prefecture: nextProfile.prefecture || null,
       city: nextProfile.city || null,
+      locationPublic: nextProfile.locationPublic,
       provider: 'email',
     });
 
@@ -266,6 +274,7 @@ export function AuthProviderRoot({ children }: PropsWithChildren) {
       dogBreed: '',
       prefecture: '',
       city: '',
+      locationPublic: true,
       provider: 'guest',
     };
 
@@ -274,7 +283,7 @@ export function AuthProviderRoot({ children }: PropsWithChildren) {
 
   const updateProfile = useCallback(
     async (
-      patch: Pick<UserProfile, 'name' | 'email' | 'avatarUrl' | 'headerUrl' | 'bio' | 'dogName' | 'dogBreed' | 'prefecture' | 'city'>
+      patch: Pick<UserProfile, 'name' | 'email' | 'avatarUrl' | 'headerUrl' | 'bio' | 'dogName' | 'dogBreed' | 'prefecture' | 'city' | 'locationPublic'>
     ) => {
       const current = profile;
       if (!current) return;
@@ -298,6 +307,7 @@ export function AuthProviderRoot({ children }: PropsWithChildren) {
         dogBreed: normalizedDogBreed,
         prefecture: normalizedPrefecture,
         city: normalizedCity,
+        locationPublic: patch.locationPublic,
       };
 
       if (hasSupabaseEnv && current.provider !== 'guest') {
@@ -312,6 +322,7 @@ export function AuthProviderRoot({ children }: PropsWithChildren) {
           dogBreed: nextProfile.dogBreed || null,
           prefecture: nextProfile.prefecture || null,
           city: nextProfile.city || null,
+          locationPublic: nextProfile.locationPublic,
           provider: current.provider,
         });
         await updateBoardPostsAuthorProfile(

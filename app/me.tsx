@@ -66,7 +66,7 @@ function PostRow({
             {post.author}
           </Text>
           <Text style={[styles.postHandle, { color: colors.mutedText }]} numberOfLines={1}>
-            @{post.authorExternalId} · {post.updatedAt}
+            {post.updatedAt}
           </Text>
           <Pressable style={[styles.inlineAction, busy ? styles.disabled : null]} onPress={onAction} disabled={busy}>
             {busy ? <ActivityIndicator size="small" color={colors.mutedText} /> : <Text style={[styles.inlineActionText, { color: colors.mutedText }]}>{actionLabel}</Text>}
@@ -171,8 +171,7 @@ export default function MeScreen() {
 
   const currentProfile = profile;
   const displayName = getDisplayName();
-  const handle = currentProfile.externalId;
-  const dogInfo = [currentProfile.dogName, currentProfile.dogBreed].filter(Boolean).join(' / ');
+  const profileTitle = getDogProfileTitle();
   const location = [currentProfile.prefecture, currentProfile.city].filter(Boolean).join(' ');
   const joined = '';
   const currentPosts = activeTab === 'saved' ? savedPosts : activeTab === 'media' ? myPosts.filter((post) => post.imageUrls.length > 0 || post.imageUrl) : myPosts;
@@ -231,19 +230,15 @@ export default function MeScreen() {
             </Pressable>
           </View>
 
-          <Text style={[styles.name, { color: colors.text }]}>{displayName}</Text>
-          <Text style={[styles.handle, { color: colors.mutedText }]} numberOfLines={1} ellipsizeMode="tail">
-            @{handle}
-          </Text>
-          {dogInfo ? <Text style={[styles.dogInfo, { color: colors.text }]}>愛犬: {dogInfo}</Text> : null}
+          <Text style={[styles.name, { color: colors.text }]}>{profileTitle}</Text>
           <Text style={[styles.bio, { color: colors.text }]}>{currentProfile.bio || '自己紹介はまだありません。'}</Text>
+          {location ? (
+            <View style={styles.locationRow}>
+              <FontAwesome6 name="location-dot" size={13} color={colors.mutedText} />
+              <Text style={[styles.locationText, { color: colors.mutedText }]}>{location}</Text>
+            </View>
+          ) : null}
           <View style={styles.metaRow}>
-            {location ? (
-              <View style={styles.profileMetaItem}>
-                <FontAwesome6 name="location-dot" size={13} color={colors.mutedText} />
-                <Text style={[styles.metaText, { color: colors.mutedText }]}>{location}</Text>
-              </View>
-            ) : null}
             {joined ? (
               <View style={styles.profileMetaItem}>
                 <FontAwesome6 name="calendar" size={13} color={colors.mutedText} />
@@ -333,6 +328,13 @@ export default function MeScreen() {
 
     return 'プロフィール';
   }
+
+  function getDogProfileTitle() {
+    const dogName = currentProfile.dogName.trim();
+    const dogBreed = currentProfile.dogBreed.trim();
+    const dogProfile = [dogName, dogBreed].filter(Boolean).join('／');
+    return dogProfile || getDisplayName();
+  }
 }
 
 const styles = StyleSheet.create({
@@ -359,9 +361,9 @@ const styles = StyleSheet.create({
   outlineButton: { minHeight: 36, borderRadius: 18, borderWidth: 1, paddingHorizontal: 16, alignItems: 'center', justifyContent: 'center' },
   outlineButtonText: { fontSize: 13, fontWeight: '900' },
   name: { fontSize: 26, fontWeight: '900', lineHeight: 31 },
-  handle: { fontSize: 15, lineHeight: 21 },
-  dogInfo: { marginTop: 10, fontSize: 14, lineHeight: 21, fontWeight: '700' },
   bio: { marginTop: 10, fontSize: 15, lineHeight: 22 },
+  locationRow: { marginTop: 10, flexDirection: 'row', alignItems: 'center', gap: 6 },
+  locationText: { fontSize: 14, lineHeight: 20, fontWeight: '700' },
   metaRow: { marginTop: 10, flexDirection: 'row', flexWrap: 'wrap', gap: 12 },
   profileMetaItem: { flexDirection: 'row', alignItems: 'center', gap: 5 },
   metaText: { fontSize: 14, lineHeight: 20 },

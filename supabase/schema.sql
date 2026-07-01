@@ -27,6 +27,7 @@ create table public.app_users (
   dog_breed text,
   prefecture text,
   city text,
+  location_public boolean not null default true,
   provider text not null check (provider in ('line', 'google', 'apple', 'x', 'email')),
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),

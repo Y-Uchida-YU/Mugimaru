@@ -15,6 +15,7 @@ export type AppUserRow = {
   dog_breed: string | null;
   prefecture: string | null;
   city: string | null;
+  location_public: boolean | null;
   provider: PersistedAuthProvider;
   created_at: string;
   updated_at: string;
@@ -32,6 +33,7 @@ type UpsertUserInput = {
   dogBreed: string | null;
   prefecture?: string | null;
   city?: string | null;
+  locationPublic?: boolean;
   provider: PersistedAuthProvider;
 };
 
@@ -43,9 +45,7 @@ type UserFollowRow = {
 
 export async function upsertAppUser(input: UpsertUserInput) {
   const now = new Date().toISOString();
-  const rows = await supabaseUpsert<AppUserRow[]>(
-    'app_users',
-    {
+  const payload = {
       external_id: input.externalId,
       name: input.name,
       email: input.email,
@@ -56,22 +56,45 @@ export async function upsertAppUser(input: UpsertUserInput) {
       dog_breed: input.dogBreed,
       prefecture: input.prefecture ?? null,
       city: input.city ?? null,
+      location_public: input.locationPublic ?? true,
       provider: input.provider,
       updated_at: now,
       last_login_at: now,
-    },
-    'external_id'
-  );
+  };
 
-  return rows[0];
+  try {
+    const rows = await supabaseUpsert<AppUserRow[]>('app_users', payload, 'external_id');
+    return rows[0];
+  } catch (error) {
+    if (!isMissingLocationPublicColumn(error)) throw error;
+
+    const { location_public: _locationPublic, ...legacyPayload } = payload;
+    const rows = await supabaseUpsert<AppUserRow[]>('app_users', legacyPayload, 'external_id');
+    return { ...rows[0], location_public: true };
+  }
+}
+
+function isMissingLocationPublicColumn(error: unknown) {
+  if (!(error instanceof Error)) return false;
+  return error.message.includes('location_public') || error.message.includes('PGRST204');
 }
 
 export async function getAppUserByExternalId(externalId: string) {
   const encoded = encodeURIComponent(externalId);
-  const rows = await supabaseSelect<AppUserRow[]>(
-    `app_users?select=id,external_id,name,email,avatar_url,header_url,bio,dog_name,dog_breed,prefecture,city,provider,created_at,updated_at,last_login_at&external_id=eq.${encoded}&limit=1`
-  );
-  return rows[0] ?? null;
+  try {
+    const rows = await supabaseSelect<AppUserRow[]>(
+      `app_users?select=id,external_id,name,email,avatar_url,header_url,bio,dog_name,dog_breed,prefecture,city,location_public,provider,created_at,updated_at,last_login_at&external_id=eq.${encoded}&limit=1`
+    );
+    return rows[0] ?? null;
+  } catch (error) {
+    if (!isMissingLocationPublicColumn(error)) throw error;
+
+    const rows = await supabaseSelect<Omit<AppUserRow, 'location_public'>[]>(
+      `app_users?select=id,external_id,name,email,avatar_url,header_url,bio,dog_name,dog_breed,prefecture,city,provider,created_at,updated_at,last_login_at&external_id=eq.${encoded}&limit=1`
+    );
+    const row = rows[0];
+    return row ? { ...row, location_public: true } : null;
+  }
 }
 
 export async function followUser(followerExternalId: string, followeeExternalId: string) {

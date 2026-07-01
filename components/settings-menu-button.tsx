@@ -1,5 +1,6 @@
 import { FontAwesome6 } from '@expo/vector-icons';
 import { Image, Modal, Pressable, StyleSheet, View, useWindowDimensions } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { SettingsMenuContent } from '@/components/settings-menu-content';
 import { ThemedText as Text } from '@/components/themed-typography';
@@ -11,6 +12,7 @@ import { useState } from 'react';
 export function SettingsMenuButton() {
   const [isOpen, setIsOpen] = useState(false);
   const { width } = useWindowDimensions();
+  const insets = useSafeAreaInsets();
   const { profile } = useAuth();
   const { activeTheme } = useAppTheme();
   const colors = activeTheme.colors;
@@ -50,7 +52,17 @@ export function SettingsMenuButton() {
             accessibilityRole="button"
             accessibilityLabel="設定メニューを閉じる"
           />
-          <View style={[styles.drawer, { width: drawerWidth, backgroundColor: colors.background, borderColor: colors.border }]}>
+          <View
+            style={[
+              styles.drawer,
+              {
+                width: drawerWidth,
+                paddingTop: Math.max(insets.top, 12),
+                paddingBottom: Math.max(insets.bottom, 12),
+                backgroundColor: colors.background,
+                borderColor: colors.border,
+              },
+            ]}>
             <SettingsMenuContent compact onNavigate={() => setIsOpen(false)} />
           </View>
         </View>

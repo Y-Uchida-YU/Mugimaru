@@ -144,6 +144,7 @@ export default function ProfileSettingsScreen() {
   const [dogBreed, setDogBreed] = useState(profile?.dogBreed ?? '');
   const [prefecture, setPrefecture] = useState(profile?.prefecture ?? '');
   const [city, setCity] = useState(profile?.city ?? '');
+  const [locationPublic, setLocationPublic] = useState(profile?.locationPublic ?? true);
   const [avatarValue, setAvatarValue] = useState(profile?.avatarUrl ?? '');
   const [headerValue, setHeaderValue] = useState(profile?.headerUrl ?? '');
   const [isActionModalOpen, setActionModalOpen] = useState(false);
@@ -169,6 +170,7 @@ export default function ProfileSettingsScreen() {
     setDogBreed(profile?.dogBreed ?? '');
     setPrefecture(profile?.prefecture ?? '');
     setCity(profile?.city ?? '');
+    setLocationPublic(profile?.locationPublic ?? true);
     setAvatarValue(profile?.avatarUrl ?? '');
     setHeaderValue(profile?.headerUrl ?? '');
   }, [profile]);
@@ -212,6 +214,7 @@ export default function ProfileSettingsScreen() {
         dogBreed: dogBreed.trim(),
         prefecture,
         city,
+        locationPublic,
       });
       setMessage('プロフィールを保存しました。');
     } catch (error) {
@@ -347,6 +350,21 @@ export default function ProfileSettingsScreen() {
         <Text style={[styles.areaNote, { color: colors.mutedText, fontFamily, fontSize: 12 * scale }]}>
           この情報は近くのイベントを表示するのに使用します。
         </Text>
+        <Pressable
+          style={[styles.toggleRow, { borderColor: colors.border, backgroundColor: colors.background }]}
+          onPress={() => setLocationPublic((prev) => !prev)}
+          accessibilityRole="switch"
+          accessibilityState={{ checked: locationPublic }}>
+          <View style={styles.toggleTextWrap}>
+            <Text style={[styles.toggleTitle, { color: colors.text, fontFamily, fontSize: 14 * scale }]}>プロフィールに地域を表示</Text>
+            <Text style={[styles.toggleBody, { color: colors.mutedText, fontFamily, fontSize: 12 * scale }]}>
+              オフにすると他のユーザーには都道府県・市区町村を表示しません。
+            </Text>
+          </View>
+          <View style={[styles.switchTrack, { backgroundColor: locationPublic ? colors.accent : colors.border }]}>
+            <View style={[styles.switchThumb, locationPublic ? styles.switchThumbOn : null]} />
+          </View>
+        </Pressable>
       </SettingsSection>
 
       <Pressable style={[styles.saveButton, { backgroundColor: colors.accent }]} onPress={() => void handleSave()} disabled={saving}>
@@ -642,6 +660,42 @@ const styles = StyleSheet.create({
   areaNote: {
     lineHeight: 18,
     fontWeight: '600',
+  },
+  toggleRow: {
+    minHeight: 66,
+    borderRadius: 12,
+    borderWidth: 1,
+    padding: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  toggleTextWrap: {
+    flex: 1,
+    gap: 3,
+  },
+  toggleTitle: {
+    fontWeight: '800',
+  },
+  toggleBody: {
+    lineHeight: 18,
+    fontWeight: '600',
+  },
+  switchTrack: {
+    width: 48,
+    height: 28,
+    borderRadius: 14,
+    padding: 3,
+    justifyContent: 'center',
+  },
+  switchThumb: {
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    backgroundColor: '#ffffff',
+  },
+  switchThumbOn: {
+    alignSelf: 'flex-end',
   },
   saveButton: {
     borderRadius: 12,

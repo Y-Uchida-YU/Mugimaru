@@ -72,6 +72,7 @@ export default function PersonalSettingsScreen() {
         dogBreed: profile.dogBreed,
         prefecture: profile.prefecture,
         city: profile.city,
+        locationPublic: profile.locationPublic,
       });
       await savePersonalPreferences(prefs);
       setMessage('個人設定を保存しました。');
