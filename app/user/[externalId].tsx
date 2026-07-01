@@ -1,7 +1,7 @@
 import { FontAwesome6 } from '@expo/vector-icons';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
-import { Image, Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { Image, Modal, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { ThemedText as Text } from '@/components/themed-typography';
@@ -125,9 +125,10 @@ export default function UserProfileScreen() {
   const [loading, setLoading] = useState(true);
   const [followBusy, setFollowBusy] = useState(false);
   const [message, setMessage] = useState('');
+  const [previewTarget, setPreviewTarget] = useState<'avatar' | 'header' | null>(null);
 
   const canFollow = Boolean(profile && profile.provider !== 'guest' && profile.externalId !== externalId);
-  const displayTitle = profileView.dogName || profileView.name;
+  const displayTitle = getDisplayTitle();
   const dogInfo = [profileView.dogName, profileView.dogBreed].filter(Boolean).join(' / ');
   const location = [profileView.prefecture, profileView.city].filter(Boolean).join(' ');
   const joined = formatJoinedLabel(profileView.createdAt);
@@ -242,7 +243,11 @@ export default function UserProfileScreen() {
         </View>
 
         <View style={styles.hero}>
-          <View style={[styles.cover, { backgroundColor: colors.chip }]}>
+          <Pressable
+            style={[styles.cover, { backgroundColor: colors.chip }]}
+            onPress={() => setPreviewTarget('header')}
+            accessibilityRole="imagebutton"
+            accessibilityLabel="ヘッダー画像を拡大表示">
             {profileView.headerUrl ? (
               <Image source={{ uri: profileView.headerUrl }} style={styles.coverImage} />
             ) : (
@@ -250,10 +255,14 @@ export default function UserProfileScreen() {
                 <FontAwesome6 name="dog" size={42} color={colors.chipText} />
               </View>
             )}
-          </View>
-          <View style={styles.avatarOverlap}>
+          </Pressable>
+          <Pressable
+            style={styles.avatarOverlap}
+            onPress={() => setPreviewTarget('avatar')}
+            accessibilityRole="imagebutton"
+            accessibilityLabel="プロフィール画像を拡大表示">
             <Avatar uri={profileView.avatarUrl} label={displayTitle} borderColor={colors.background} />
-          </View>
+          </Pressable>
         </View>
 
         <View style={[styles.profileInfo, { borderBottomColor: colors.border }]}>
@@ -272,7 +281,9 @@ export default function UserProfileScreen() {
           </View>
 
           <Text style={[styles.name, { color: colors.text }]}>{displayTitle}</Text>
-          <Text style={[styles.handle, { color: colors.mutedText }]}>@{profileView.externalId}</Text>
+          <Text style={[styles.handle, { color: colors.mutedText }]} numberOfLines={1} ellipsizeMode="tail">
+            @{profileView.externalId}
+          </Text>
           {dogInfo ? <Text style={[styles.dogInfo, { color: colors.text }]}>愛犬: {dogInfo}</Text> : null}
           {profileView.bio ? <Text style={[styles.bio, { color: colors.text }]}>{profileView.bio}</Text> : null}
           <View style={styles.metaRow}>
@@ -329,8 +340,43 @@ export default function UserProfileScreen() {
 
         {message ? <Text style={[styles.message, { color: colors.mutedText }]}>{message}</Text> : null}
       </ScrollView>
+      <Modal visible={previewTarget !== null} transparent animationType="fade" onRequestClose={() => setPreviewTarget(null)}>
+        <View style={styles.previewRoot}>
+          <Pressable style={styles.previewBackdrop} onPress={() => setPreviewTarget(null)} accessibilityRole="button" accessibilityLabel="拡大表示を閉じる" />
+          <Pressable style={styles.previewClose} onPress={() => setPreviewTarget(null)} accessibilityRole="button" accessibilityLabel="拡大表示を閉じる">
+            <FontAwesome6 name="xmark" size={22} color="#ffffff" />
+          </Pressable>
+          {previewTarget === 'header' ? (
+            <View style={styles.previewHeaderWrap}>
+              {profileView.headerUrl ? (
+                <Image source={{ uri: profileView.headerUrl }} style={styles.previewHeaderImage} resizeMode="contain" />
+              ) : (
+                <View style={styles.previewHeaderFallback}>
+                  <FontAwesome6 name="dog" size={88} color={colors.chipText} />
+                </View>
+              )}
+            </View>
+          ) : null}
+          {previewTarget === 'avatar' ? (
+            <View style={styles.previewAvatarWrap}>
+              <Avatar uri={profileView.avatarUrl} label={displayTitle} size={220} borderColor="transparent" />
+            </View>
+          ) : null}
+        </View>
+      </Modal>
     </SafeAreaView>
   );
+
+  function getDisplayTitle() {
+    const dogName = profileView.dogName.trim();
+    if (dogName) return dogName;
+
+    const name = profileView.name.trim();
+    const providerDefaultNames = new Set(['Appleユーザー', 'Apple User', 'LINEユーザー', 'Googleユーザー', 'Xユーザー', 'ユーザー']);
+    if (name && !providerDefaultNames.has(name)) return name;
+
+    return 'プロフィール';
+  }
 }
 
 const styles = StyleSheet.create({
@@ -382,4 +428,46 @@ const styles = StyleSheet.create({
   inlineMeta: { flexDirection: 'row', alignItems: 'center', gap: 5 },
   postMeta: { fontSize: 13, fontWeight: '700' },
   message: { paddingHorizontal: 16, paddingVertical: 14, fontSize: 14, lineHeight: 21 },
+  previewRoot: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.92)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  previewBackdrop: {
+    ...StyleSheet.absoluteFill,
+  },
+  previewClose: {
+    position: 'absolute',
+    top: 58,
+    right: 20,
+    zIndex: 2,
+    width: 42,
+    height: 42,
+    borderRadius: 21,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(255,255,255,0.16)',
+  },
+  previewHeaderWrap: {
+    width: '100%',
+    minHeight: 260,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  previewHeaderImage: {
+    width: '100%',
+    height: 360,
+  },
+  previewHeaderFallback: {
+    width: '100%',
+    height: 300,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#d8f3e6',
+  },
+  previewAvatarWrap: {
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
 });

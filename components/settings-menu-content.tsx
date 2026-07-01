@@ -32,7 +32,7 @@ function SettingsRow({ icon, title, onPress }: RowProps) {
       onPress={onPress}
       android_ripple={{ color: `${colors.accent}22` }}>
       <View style={styles.rowIcon}>
-        <FontAwesome6 name={icon} size={22} color={colors.text} />
+        <FontAwesome6 name={icon} size={19} color={colors.text} />
       </View>
       <Text style={[styles.rowTitle, { color: colors.text }]}>{title}</Text>
     </Pressable>
@@ -175,7 +175,7 @@ export function SettingsMenuContent({ compact = false, onNavigate }: SettingsMen
     if (dogName) return dogName;
 
     const name = profile?.name?.trim();
-    const providerDefaultNames = new Set(['Appleユーザー', 'Apple User', 'LINEユーザー', 'Googleユーザー', 'Xユーザー']);
+    const providerDefaultNames = new Set(['Appleユーザー', 'Apple User', 'LINEユーザー', 'Googleユーザー', 'Xユーザー', 'ユーザー']);
     if (name && !providerDefaultNames.has(name)) return name;
 
     return isJapan ? 'プロフィール' : 'Profile';
@@ -184,29 +184,29 @@ export function SettingsMenuContent({ compact = false, onNavigate }: SettingsMen
 
 const styles = StyleSheet.create({
   safeArea: { flex: 1 },
-  content: { paddingHorizontal: 28, paddingTop: 22, paddingBottom: 36 },
-  compactContent: { paddingHorizontal: 24, paddingTop: 18, paddingBottom: 28 },
-  profileBlock: { paddingBottom: 28 },
-  avatarImage: { width: 52, height: 52, borderRadius: 26, marginBottom: 12 },
+  content: { paddingHorizontal: 22, paddingTop: 18, paddingBottom: 32 },
+  compactContent: { paddingHorizontal: 20, paddingTop: 14, paddingBottom: 24 },
+  profileBlock: { paddingBottom: 22 },
+  avatarImage: { width: 48, height: 48, borderRadius: 24, marginBottom: 10 },
   avatarFallback: {
-    width: 52,
-    height: 52,
-    borderRadius: 26,
+    width: 48,
+    height: 48,
+    borderRadius: 24,
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: 12,
+    marginBottom: 10,
     backgroundColor: '#eadfce',
   },
-  avatarIcon: { fontSize: 28 },
-  avatarInitial: { color: '#6b4f2f', fontSize: 20, fontWeight: '900' },
-  profileName: { fontSize: 22, fontWeight: '900', lineHeight: 27 },
-  handle: { marginTop: 3, fontSize: 16, lineHeight: 21 },
-  followRow: { marginTop: 18, flexDirection: 'row', flexWrap: 'wrap', gap: 18 },
-  followText: { fontSize: 15, fontWeight: '900' },
-  primaryMenu: { gap: 4 },
-  secondaryMenu: { gap: 2 },
-  divider: { height: StyleSheet.hairlineWidth, marginVertical: 26 },
-  row: { minHeight: 70, flexDirection: 'row', alignItems: 'center', gap: 26 },
-  rowIcon: { width: 34, alignItems: 'center', justifyContent: 'center' },
-  rowTitle: { flex: 1, fontSize: 23, lineHeight: 30, fontWeight: '900' },
+  avatarIcon: { fontSize: 25 },
+  avatarInitial: { color: '#6b4f2f', fontSize: 18, fontWeight: '900' },
+  profileName: { fontSize: 19, fontWeight: '900', lineHeight: 24 },
+  handle: { marginTop: 2, fontSize: 13, lineHeight: 18 },
+  followRow: { marginTop: 14, flexDirection: 'row', flexWrap: 'wrap', gap: 14 },
+  followText: { fontSize: 13, fontWeight: '900' },
+  primaryMenu: { gap: 2 },
+  secondaryMenu: { gap: 1 },
+  divider: { height: StyleSheet.hairlineWidth, marginVertical: 20 },
+  row: { minHeight: 56, flexDirection: 'row', alignItems: 'center', gap: 18 },
+  rowIcon: { width: 30, alignItems: 'center', justifyContent: 'center' },
+  rowTitle: { flex: 1, fontSize: 18, lineHeight: 24, fontWeight: '900' },
 });

@@ -1,7 +1,7 @@
 import { FontAwesome6 } from '@expo/vector-icons';
 import { Stack, useRouter } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
-import { ActivityIndicator, Alert, Image, Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { ActivityIndicator, Alert, Image, Modal, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { ThemedText as Text } from '@/components/themed-typography';
@@ -104,6 +104,7 @@ export default function MeScreen() {
   const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState('');
   const [busyPostId, setBusyPostId] = useState<string | null>(null);
+  const [previewTarget, setPreviewTarget] = useState<'avatar' | 'header' | null>(null);
 
   const loadMe = useCallback(async () => {
     if (!profile) return;
@@ -168,10 +169,11 @@ export default function MeScreen() {
 
   if (!profile) return null;
 
-  const displayName = profile.dogName || profile.name || 'ゲスト';
-  const handle = profile.externalId;
-  const dogInfo = [profile.dogName, profile.dogBreed].filter(Boolean).join(' / ');
-  const location = [profile.prefecture, profile.city].filter(Boolean).join(' ');
+  const currentProfile = profile;
+  const displayName = getDisplayName();
+  const handle = currentProfile.externalId;
+  const dogInfo = [currentProfile.dogName, currentProfile.dogBreed].filter(Boolean).join(' / ');
+  const location = [currentProfile.prefecture, currentProfile.city].filter(Boolean).join(' ');
   const joined = '';
   const currentPosts = activeTab === 'saved' ? savedPosts : activeTab === 'media' ? myPosts.filter((post) => post.imageUrls.length > 0 || post.imageUrl) : myPosts;
   const emptyLabel = activeTab === 'saved' ? '保存した投稿はまだありません。' : activeTab === 'media' ? '画像付き投稿はまだありません。' : '投稿はまだありません。';
@@ -199,18 +201,26 @@ export default function MeScreen() {
         </View>
 
         <View style={styles.hero}>
-          <View style={[styles.cover, { backgroundColor: colors.chip }]}>
-            {profile.headerUrl ? (
-              <Image source={{ uri: profile.headerUrl }} style={styles.coverImage} />
+          <Pressable
+            style={[styles.cover, { backgroundColor: colors.chip }]}
+            onPress={() => setPreviewTarget('header')}
+            accessibilityRole="imagebutton"
+            accessibilityLabel="ヘッダー画像を拡大表示">
+            {currentProfile.headerUrl ? (
+              <Image source={{ uri: currentProfile.headerUrl }} style={styles.coverImage} />
             ) : (
               <View style={[styles.coverFallback, { backgroundColor: colors.chip }]}>
                 <FontAwesome6 name="dog" size={42} color={colors.chipText} />
               </View>
             )}
-          </View>
-          <View style={styles.avatarOverlap}>
-            <Avatar uri={profile.avatarUrl} label={displayName} borderColor={colors.background} />
-          </View>
+          </Pressable>
+          <Pressable
+            style={styles.avatarOverlap}
+            onPress={() => setPreviewTarget('avatar')}
+            accessibilityRole="imagebutton"
+            accessibilityLabel="プロフィール画像を拡大表示">
+            <Avatar uri={currentProfile.avatarUrl} label={displayName} borderColor={colors.background} />
+          </Pressable>
         </View>
 
         <View style={[styles.profileInfo, { borderBottomColor: colors.border }]}>
@@ -222,9 +232,11 @@ export default function MeScreen() {
           </View>
 
           <Text style={[styles.name, { color: colors.text }]}>{displayName}</Text>
-          <Text style={[styles.handle, { color: colors.mutedText }]}>@{handle}</Text>
+          <Text style={[styles.handle, { color: colors.mutedText }]} numberOfLines={1} ellipsizeMode="tail">
+            @{handle}
+          </Text>
           {dogInfo ? <Text style={[styles.dogInfo, { color: colors.text }]}>愛犬: {dogInfo}</Text> : null}
-          <Text style={[styles.bio, { color: colors.text }]}>{profile.bio || '自己紹介はまだありません。'}</Text>
+          <Text style={[styles.bio, { color: colors.text }]}>{currentProfile.bio || '自己紹介はまだありません。'}</Text>
           <View style={styles.metaRow}>
             {location ? (
               <View style={styles.profileMetaItem}>
@@ -240,12 +252,12 @@ export default function MeScreen() {
             ) : null}
           </View>
           <View style={styles.followRow}>
-            <Pressable onPress={() => router.push(`/follows?user=${encodeURIComponent(profile.externalId)}&type=following` as never)}>
+            <Pressable onPress={() => router.push(`/follows?user=${encodeURIComponent(currentProfile.externalId)}&type=following` as never)}>
               <Text style={[styles.followText, { color: colors.text }]}>
                 {followCounts.following.toLocaleString()} <Text style={{ color: colors.mutedText }}>フォロー中</Text>
               </Text>
             </Pressable>
-            <Pressable onPress={() => router.push(`/follows?user=${encodeURIComponent(profile.externalId)}&type=followers` as never)}>
+            <Pressable onPress={() => router.push(`/follows?user=${encodeURIComponent(currentProfile.externalId)}&type=followers` as never)}>
               <Text style={[styles.followText, { color: colors.text }]}>
                 {followCounts.followers.toLocaleString()} <Text style={{ color: colors.mutedText }}>フォロワー</Text>
               </Text>
@@ -284,8 +296,43 @@ export default function MeScreen() {
 
         {message ? <Text style={[styles.message, { color: colors.mutedText }]}>{message}</Text> : null}
       </ScrollView>
+      <Modal visible={previewTarget !== null} transparent animationType="fade" onRequestClose={() => setPreviewTarget(null)}>
+        <View style={styles.previewRoot}>
+          <Pressable style={styles.previewBackdrop} onPress={() => setPreviewTarget(null)} accessibilityRole="button" accessibilityLabel="拡大表示を閉じる" />
+          <Pressable style={styles.previewClose} onPress={() => setPreviewTarget(null)} accessibilityRole="button" accessibilityLabel="拡大表示を閉じる">
+            <FontAwesome6 name="xmark" size={22} color="#ffffff" />
+          </Pressable>
+          {previewTarget === 'header' ? (
+            <View style={styles.previewHeaderWrap}>
+              {currentProfile.headerUrl ? (
+                <Image source={{ uri: currentProfile.headerUrl }} style={styles.previewHeaderImage} resizeMode="contain" />
+              ) : (
+                <View style={styles.previewHeaderFallback}>
+                  <FontAwesome6 name="dog" size={88} color={colors.chipText} />
+                </View>
+              )}
+            </View>
+          ) : null}
+          {previewTarget === 'avatar' ? (
+            <View style={styles.previewAvatarWrap}>
+              <Avatar uri={currentProfile.avatarUrl} label={displayName} size={220} borderColor="transparent" />
+            </View>
+          ) : null}
+        </View>
+      </Modal>
     </SafeAreaView>
   );
+
+  function getDisplayName() {
+    const dogName = currentProfile.dogName.trim();
+    if (dogName) return dogName;
+
+    const name = currentProfile.name.trim();
+    const providerDefaultNames = new Set(['Appleユーザー', 'Apple User', 'LINEユーザー', 'Googleユーザー', 'Xユーザー', 'ユーザー']);
+    if (name && !providerDefaultNames.has(name)) return name;
+
+    return 'プロフィール';
+  }
 }
 
 const styles = StyleSheet.create({
@@ -339,4 +386,46 @@ const styles = StyleSheet.create({
   inlineMeta: { flexDirection: 'row', alignItems: 'center', gap: 5 },
   postMeta: { fontSize: 13, fontWeight: '700' },
   message: { paddingHorizontal: 16, paddingVertical: 14, fontSize: 14, lineHeight: 21 },
+  previewRoot: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.92)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  previewBackdrop: {
+    ...StyleSheet.absoluteFill,
+  },
+  previewClose: {
+    position: 'absolute',
+    top: 58,
+    right: 20,
+    zIndex: 2,
+    width: 42,
+    height: 42,
+    borderRadius: 21,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(255,255,255,0.16)',
+  },
+  previewHeaderWrap: {
+    width: '100%',
+    minHeight: 260,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  previewHeaderImage: {
+    width: '100%',
+    height: 360,
+  },
+  previewHeaderFallback: {
+    width: '100%',
+    height: 300,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#d8f3e6',
+  },
+  previewAvatarWrap: {
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
 });
