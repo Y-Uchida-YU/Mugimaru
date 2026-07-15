@@ -31,6 +31,7 @@ type SignupStep = 'method' | 'email' | 'code';
 type SocialProvider = 'line' | 'google' | 'apple' | 'x';
 
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const MAX_EMAIL_LENGTH = 254;
 const HERO_IMAGE = require('../assets/images/login-hero.jpg');
 
 function ProviderIcon({ provider, color }: { provider: SocialProvider | 'email' | 'guest'; color: string }) {
@@ -84,7 +85,10 @@ export default function SignupScreen() {
   );
   const hasGoogleOAuth = Boolean(process.env.EXPO_PUBLIC_GOOGLE_CLIENT_ID);
   const hasXOAuth = Boolean(process.env.EXPO_PUBLIC_X_CLIENT_ID);
-  const emailIsValid = useMemo(() => EMAIL_PATTERN.test(email.trim()), [email]);
+  const emailIsValid = useMemo(
+    () => email.trim().length <= MAX_EMAIL_LENGTH && EMAIL_PATTERN.test(email.trim()),
+    [email]
+  );
 
   const copy =
     text.localeGroup === 'japan'
@@ -172,7 +176,7 @@ export default function SignupScreen() {
   const handleSendEmailCode = async () => {
     if (isBusy) return;
     const normalizedEmail = email.trim().toLowerCase();
-    if (!EMAIL_PATTERN.test(normalizedEmail)) {
+    if (normalizedEmail.length > MAX_EMAIL_LENGTH || !EMAIL_PATTERN.test(normalizedEmail)) {
       setMessage(copy.invalidEmail);
       return;
     }
@@ -197,7 +201,7 @@ export default function SignupScreen() {
   const handleVerifyEmailCode = async () => {
     if (isBusy) return;
     const normalizedEmail = email.trim().toLowerCase();
-    if (!EMAIL_PATTERN.test(normalizedEmail)) {
+    if (normalizedEmail.length > MAX_EMAIL_LENGTH || !EMAIL_PATTERN.test(normalizedEmail)) {
       setMessage(copy.invalidEmail);
       return;
     }
@@ -333,6 +337,7 @@ export default function SignupScreen() {
                     autoCorrect={false}
                     value={step === 'email' ? email : emailCode}
                     onChangeText={step === 'email' ? setEmail : setEmailCode}
+                    maxLength={step === 'email' ? MAX_EMAIL_LENGTH : 12}
                     editable={!isBusy}
                   />
                   <Pressable

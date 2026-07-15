@@ -64,8 +64,7 @@ export async function loginWithEmailAndPassword(
   });
 
   if (!response.ok) {
-    const text = await response.text();
-    throw new Error(`ID or password login failed (${response.status}): ${text}`);
+    throw new Error('IDまたはパスワードが正しくありません。');
   }
 
   const data = (await response.json()) as SupabasePasswordLoginResponse;

@@ -2,7 +2,7 @@ import { useRouter } from 'expo-router';
 import { useEffect, useMemo, useState } from 'react';
 import { Image, KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 
-import { SettingsPageScaffold, SettingsSection } from '@/app/settings/_shared';
+import { SettingsPageScaffold, SettingsSection } from '@/components/settings-shared';
 import { useAuth } from '@/lib/auth-context';
 import { useAppTheme } from '@/lib/app-theme-context';
 import { pickImageFromLibrary } from '@/lib/mobile-image-picker';

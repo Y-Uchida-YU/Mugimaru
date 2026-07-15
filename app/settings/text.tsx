@@ -1,7 +1,7 @@
 import { useRouter } from 'expo-router';
 import { StyleSheet, Text, View } from 'react-native';
 
-import { SettingsOptionCard, SettingsPageScaffold, SettingsSection } from '@/app/settings/_shared';
+import { SettingsOptionCard, SettingsPageScaffold, SettingsSection } from '@/components/settings-shared';
 import { TEXT_SCALE_OPTIONS, useAppTheme } from '@/lib/app-theme-context';
 
 export default function TextSettingsScreen() {

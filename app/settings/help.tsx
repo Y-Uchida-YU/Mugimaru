@@ -1,7 +1,7 @@
 import { useRouter } from 'expo-router';
 import { StyleSheet, Text, View } from 'react-native';
 
-import { SettingsPageScaffold, SettingsSection } from '@/app/settings/_shared';
+import { SettingsPageScaffold, SettingsSection } from '@/components/settings-shared';
 import { useAppTheme } from '@/lib/app-theme-context';
 
 const HELP_ITEMS = [
@@ -66,4 +66,3 @@ const styles = StyleSheet.create({
     fontWeight: '500',
   },
 });
-

@@ -1,7 +1,7 @@
 import { useRouter } from 'expo-router';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
-import { SettingsOptionCard, SettingsPageScaffold, SettingsSection } from '@/app/settings/_shared';
+import { SettingsOptionCard, SettingsPageScaffold, SettingsSection } from '@/components/settings-shared';
 import { useAppTheme } from '@/lib/app-theme-context';
 
 export default function ThemeSettingsScreen() {
@@ -96,4 +96,3 @@ const styles = StyleSheet.create({
     fontWeight: '800',
   },
 });
-

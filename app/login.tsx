@@ -125,6 +125,7 @@ export default function LoginScreen() {
                   placeholderTextColor="#94a3b8"
                   autoCapitalize="none"
                   autoCorrect={false}
+                  maxLength={254}
                 />
                 <Text style={styles.label}>{copy.passwordLabel}</Text>
                 <TextInput
@@ -136,6 +137,7 @@ export default function LoginScreen() {
                   secureTextEntry
                   autoCapitalize="none"
                   autoCorrect={false}
+                  maxLength={128}
                 />
               </View>
 

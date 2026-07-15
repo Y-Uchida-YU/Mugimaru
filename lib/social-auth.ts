@@ -422,7 +422,6 @@ export async function authenticateWithLine(): Promise<SocialAuthProfile> {
   if (!clientId) {
     throw new Error('Missing environment variable: EXPO_PUBLIC_LINE_CHANNEL_ID');
   }
-  const channelSecret = process.env.EXPO_PUBLIC_LINE_CHANNEL_SECRET;
   const redirectUri = getProviderRedirectUri();
   const appReturnUri = getAppReturnUri();
   const state = randomString(32);
@@ -463,9 +462,6 @@ export async function authenticateWithLine(): Promise<SocialAuthProfile> {
     client_id: clientId,
     code_verifier: codeVerifier,
   });
-  if (channelSecret) {
-    tokenParams.append('client_secret', channelSecret);
-  }
 
   const tokenResponse = await fetch(LINE_TOKEN_URL, {
     method: 'POST',
@@ -476,8 +472,7 @@ export async function authenticateWithLine(): Promise<SocialAuthProfile> {
   });
 
   if (!tokenResponse.ok) {
-    const text = await tokenResponse.text();
-    throw new Error(`LINE token exchange failed (${tokenResponse.status}): ${text}`);
+    throw new Error(`LINE token exchange failed (${tokenResponse.status}).`);
   }
 
   const token = (await tokenResponse.json()) as LineTokenResponse;
@@ -488,8 +483,7 @@ export async function authenticateWithLine(): Promise<SocialAuthProfile> {
   });
 
   if (!profileResponse.ok) {
-    const text = await profileResponse.text();
-    throw new Error(`LINE profile fetch failed (${profileResponse.status}): ${text}`);
+    throw new Error(`LINE profile fetch failed (${profileResponse.status}).`);
   }
 
   const profile = (await profileResponse.json()) as LineProfileResponse;
@@ -509,7 +503,6 @@ export async function authenticateWithLine(): Promise<SocialAuthProfile> {
 
 export async function authenticateWithGoogle(): Promise<SocialAuthProfile> {
   const clientId = getRequiredEnv('EXPO_PUBLIC_GOOGLE_CLIENT_ID');
-  const clientSecret = process.env.EXPO_PUBLIC_GOOGLE_CLIENT_SECRET;
   const redirectUri = getProviderRedirectUri();
   const appReturnUri = getAppReturnUri();
   const state = randomString(32);
@@ -552,9 +545,6 @@ export async function authenticateWithGoogle(): Promise<SocialAuthProfile> {
     client_id: clientId,
     code_verifier: codeVerifier,
   });
-  if (clientSecret) {
-    tokenParams.append('client_secret', clientSecret);
-  }
 
   const tokenResponse = await fetch(GOOGLE_TOKEN_URL, {
     method: 'POST',
@@ -565,8 +555,7 @@ export async function authenticateWithGoogle(): Promise<SocialAuthProfile> {
   });
 
   if (!tokenResponse.ok) {
-    const text = await tokenResponse.text();
-    throw new Error(`Google token exchange failed (${tokenResponse.status}): ${text}`);
+    throw new Error(`Google token exchange failed (${tokenResponse.status}).`);
   }
 
   const token = (await tokenResponse.json()) as GoogleTokenResponse;
@@ -577,8 +566,7 @@ export async function authenticateWithGoogle(): Promise<SocialAuthProfile> {
   });
 
   if (!userInfoResponse.ok) {
-    const text = await userInfoResponse.text();
-    throw new Error(`Google profile fetch failed (${userInfoResponse.status}): ${text}`);
+    throw new Error(`Google profile fetch failed (${userInfoResponse.status}).`);
   }
 
   const userInfo = (await userInfoResponse.json()) as GoogleUserInfoResponse;
@@ -623,91 +611,11 @@ export async function authenticateWithApple(): Promise<SocialAuthProfile> {
     };
   }
 
-  const clientId = getRequiredEnv('EXPO_PUBLIC_APPLE_CLIENT_ID');
-  const clientSecret = getRequiredEnv('EXPO_PUBLIC_APPLE_CLIENT_SECRET');
-  const redirectUri = getProviderRedirectUri();
-  const appReturnUri = getAppReturnUri();
-  const state = randomString(32);
-  const codeVerifier = randomString(64);
-  const codeChallenge = await createCodeChallenge(codeVerifier);
-
-  let authResult: OAuthSessionResult | null = null;
-  let code = '';
-  try {
-    authResult = await runOAuthCodeFlow({
-      authorizeUrl: APPLE_AUTHORIZE_URL,
-      authorizeParams: {
-        response_type: 'code',
-        response_mode: 'query',
-        client_id: clientId,
-        redirect_uri: redirectUri,
-        scope: 'name email',
-        state,
-        code_challenge: codeChallenge,
-        code_challenge_method: 'S256',
-      },
-      expectedState: state,
-      returnUri: appReturnUri,
-    });
-    code = authResult.code;
-  } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
-    if (/redirect_uri/i.test(message)) {
-      throw new Error(
-        `${message}\nApple redirect URI and EXPO_PUBLIC_OAUTH_REDIRECT_URI must match exactly.\nCurrent redirect_uri: ${redirectUri}`
-      );
-    }
-    throw error;
-  }
-
-  const tokenParams = new URLSearchParams({
-    grant_type: 'authorization_code',
-    code,
-    redirect_uri: redirectUri,
-    client_id: clientId,
-    client_secret: clientSecret,
-    code_verifier: codeVerifier,
-  });
-
-  const tokenResponse = await fetch(APPLE_TOKEN_URL, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/x-www-form-urlencoded',
-    },
-    body: tokenParams.toString(),
-  });
-
-  if (!tokenResponse.ok) {
-    const text = await tokenResponse.text();
-    throw new Error(`Apple token exchange failed (${tokenResponse.status}): ${text}`);
-  }
-
-  const token = (await tokenResponse.json()) as AppleTokenResponse;
-  if (token.error) {
-    throw new Error(
-      token.error_description ? `${token.error}: ${token.error_description}` : token.error
-    );
-  }
-
-  const idPayload = parseJwtPayload(token.id_token);
-  const externalId = idPayload?.sub;
-  if (!externalId) {
-    throw new Error('Apple id_token did not include user id.');
-  }
-  const hintedName = authResult?.profileHint?.name?.trim() || '';
-  const hintedEmail = authResult?.profileHint?.email?.trim().toLowerCase() || '';
-
-  return {
-    externalId,
-    name: hintedName || idPayload?.name || 'ユーザー',
-    email: hintedEmail || idPayload?.email || null,
-    avatarUrl: null,
-  };
+  throw new Error('Apple web login requires a server-side OAuth callback. Use Apple login on iOS.');
 }
 
 export async function authenticateWithX(): Promise<SocialAuthProfile> {
   const clientId = getRequiredEnv('EXPO_PUBLIC_X_CLIENT_ID');
-  const clientSecret = process.env.EXPO_PUBLIC_X_CLIENT_SECRET;
   const redirectUri = getProviderRedirectUri();
   const appReturnUri = getAppReturnUri();
   const state = randomString(32);
@@ -736,9 +644,6 @@ export async function authenticateWithX(): Promise<SocialAuthProfile> {
     client_id: clientId,
     code_verifier: codeVerifier,
   });
-  if (clientSecret) {
-    tokenParams.append('client_secret', clientSecret);
-  }
 
   const tokenResponse = await fetch(X_TOKEN_URL, {
     method: 'POST',
@@ -749,8 +654,7 @@ export async function authenticateWithX(): Promise<SocialAuthProfile> {
   });
 
   if (!tokenResponse.ok) {
-    const text = await tokenResponse.text();
-    throw new Error(`X token exchange failed (${tokenResponse.status}): ${text}`);
+    throw new Error(`X token exchange failed (${tokenResponse.status}).`);
   }
 
   const token = (await tokenResponse.json()) as XTokenResponse;
@@ -761,8 +665,7 @@ export async function authenticateWithX(): Promise<SocialAuthProfile> {
   });
 
   if (!meResponse.ok) {
-    const text = await meResponse.text();
-    throw new Error(`X profile fetch failed (${meResponse.status}): ${text}`);
+    throw new Error(`X profile fetch failed (${meResponse.status}).`);
   }
 
   const me = (await meResponse.json()) as XMeResponse;

@@ -48,8 +48,7 @@ export async function sendEmailVerificationCode(email: string) {
   });
 
   if (!response.ok) {
-    const text = await response.text();
-    throw new Error(`Failed to send verification code (${response.status}): ${text}`);
+    throw new Error('認証コードを送信できませんでした。しばらくしてから再度お試しください。');
   }
 }
 
@@ -69,8 +68,7 @@ export async function verifyEmailCode(email: string, code: string): Promise<Veri
   });
 
   if (!response.ok) {
-    const text = await response.text();
-    throw new Error(`Email verification failed (${response.status}): ${text}`);
+    throw new Error('認証コードが正しくないか、有効期限が切れています。');
   }
 
   const data = (await response.json()) as SupabaseVerifyResponse;
