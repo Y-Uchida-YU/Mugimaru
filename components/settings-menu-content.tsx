@@ -68,6 +68,7 @@ export function SettingsMenuContent({ compact = false, onNavigate }: SettingsMen
   const copy = isJapan
     ? {
         profile: 'プロフィール',
+        petHealth: 'マイクロチップ・ワクチン',
         personal: '個人設定',
         theme: 'テーマカラー',
         textSize: '文字サイズ',
@@ -80,6 +81,7 @@ export function SettingsMenuContent({ compact = false, onNavigate }: SettingsMen
       }
     : {
         profile: 'Profile',
+        petHealth: 'Microchip & vaccines',
         personal: 'Personal settings',
         theme: 'Theme color',
         textSize: 'Text size',
@@ -149,6 +151,7 @@ export function SettingsMenuContent({ compact = false, onNavigate }: SettingsMen
 
         <View style={styles.primaryMenu}>
           <SettingsRow icon="user" title={copy.profile} onPress={() => open('/me')} />
+          <SettingsRow icon="shield-dog" title={copy.petHealth} onPress={() => open('/settings/pet-health')} />
           <SettingsRow icon="user-gear" title={copy.personal} onPress={() => open('/settings/personal')} />
           <SettingsRow icon="palette" title={copy.theme} onPress={() => open('/settings/theme')} />
           <SettingsRow icon="text-height" title={copy.textSize} onPress={() => open('/settings/text')} />

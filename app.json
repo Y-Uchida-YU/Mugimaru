@@ -10,7 +10,7 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.yutauchida.mugimaru",
-      "buildNumber": "2026071601",
+      "buildNumber": "2026110801",
       "usesAppleSignIn": true,
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false
